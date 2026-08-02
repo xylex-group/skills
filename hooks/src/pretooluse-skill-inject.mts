@@ -18,47 +18,62 @@
  *   parseInput → loadSkills → matchSkills → deduplicateSkills → injectSkills → formatOutput
  */
 
-import type { SyncHookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
 import { readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  detectPlatform,
-  type HookPlatform,
-} from "./compat.mjs";
+import { detectPlatform, type HookPlatform } from "./compat.mts";
 import {
   appendAuditLog,
   listSessionKeys,
-  pluginRoot as resolvePluginRoot,
   readSessionFile,
-  safeReadJson,
+  pluginRoot as resolvePluginRoot,
   safeReadFile,
+  safeReadJson,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-  writeSessionFile,
-} from "./hook-env.mjs";
+} from "./hook-env.mts";
 
-import { buildSkillMap, extractFrontmatter, validateSkillMap } from "./skill-map-frontmatter.mjs";
-import type { SkillConfig } from "./skill-map-frontmatter.mjs";
+/** Minimal Claude Code hook JSON shape (avoids hard dep on claude-agent-sdk). */
+type SyncHookJSONOutput = {
+  hookSpecificOutput?: {
+    hookEventName: "PreToolUse" | "UserPromptSubmit" | string;
+    additionalContext?: string;
+    [key: string]: unknown;
+  };
+  env?: Record<string, string>;
+  [key: string]: unknown;
+};
+
+import type { Logger } from "./logger.mts";
+import { createLogger, logDecision } from "./logger.mts";
+import type {
+  CompileCallbacks,
+  CompiledPattern,
+  CompiledSkillEntry,
+  ManifestSkill,
+} from "./patterns.mts";
 import {
+  buildDocsBlock,
   COMPACTION_REINJECT_MIN_PRIORITY,
-  parseSeenSkills,
+  compileSkillPatterns,
+  matchBashWithReason,
+  matchImportWithReason,
+  matchPathWithReason,
   mergeSeenSkillStates,
   mergeSeenSkillStatesWithCompactionReset,
   parseLikelySkills,
-  compileSkillPatterns,
-  matchPathWithReason,
-  matchBashWithReason,
-  matchImportWithReason,
+  parseSeenSkills,
   rankEntries,
-  buildDocsBlock,
-} from "./patterns.mjs";
-import type { CompiledSkillEntry, CompiledPattern, CompileCallbacks, ManifestSkill } from "./patterns.mjs";
-import { resolveVercelJsonSkills, isVercelJsonPath, VERCEL_JSON_SKILLS } from "./vercel-config.mjs";
-import type { VercelJsonRouting } from "./vercel-config.mjs";
-import { createLogger, logDecision } from "./logger.mjs";
-import type { Logger } from "./logger.mjs";
-import { selectManagedContextChunk } from "./vercel-context.mjs";
+} from "./patterns.mts";
+import type { SkillConfig } from "./skill-map-frontmatter.mts";
+import { buildSkillMap, validateSkillMap } from "./skill-map-frontmatter.mts";
+import type { VercelJsonRouting } from "./vercel-config.mts";
+import {
+  isVercelJsonPath,
+  resolveVercelJsonSkills,
+  VERCEL_JSON_SKILLS,
+} from "./vercel-config.mts";
+import { selectManagedContextChunk } from "./vercel-context.mts";
 
 const MAX_SKILLS = 3;
 const DEFAULT_INJECTION_BUDGET_BYTES = 18_000;
@@ -67,7 +82,7 @@ const SETUP_MODE_PRIORITY_BOOST = 50;
 const PLUGIN_ROOT = resolvePluginRoot();
 const SUPPORTED_TOOLS = ["Read", "Edit", "Write", "Bash"];
 
-const VERCEL_ENV_HELP_ONCE_KEY = 'vercel-env-help';
+const VERCEL_ENV_HELP_ONCE_KEY = "vercel-env-help";
 const VERCEL_ENV_COMMAND = /\bvercel\s+env\s+(add|update|pull)\b/;
 const VERCEL_ENV_HELP = `<!-- vercel-env-help -->
 **Vercel env quick reference**
@@ -79,13 +94,14 @@ const VERCEL_ENV_HELP = `<!-- vercel-env-help -->
 - Do NOT pass NAME=value as a positional argument. vercel env add reads the value from stdin or from the interactive prompt.
 <!-- /vercel-env-help -->`;
 
-
 /** Resolve the injection byte budget from env or default. */
 function getInjectionBudget(): number {
   const envVal = process.env.XYLEX_PLUGIN_INJECTION_BUDGET;
   if (envVal != null && envVal !== "") {
-    const parsed = parseInt(envVal, 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    const parsed = Number.parseInt(envVal, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
   return DEFAULT_INJECTION_BUDGET_BYTES;
 }
@@ -108,7 +124,9 @@ type RuntimeEnvKey = (typeof RUNTIME_ENV_KEYS)[number];
 export type RuntimeEnvSnapshot = Record<RuntimeEnvKey, string | undefined>;
 export type RuntimeEnvUpdates = Partial<Record<RuntimeEnvKey, string>>;
 
-export function captureRuntimeEnvSnapshot(env: NodeJS.ProcessEnv = process.env): RuntimeEnvSnapshot {
+export function captureRuntimeEnvSnapshot(
+  env: NodeJS.ProcessEnv = process.env
+): RuntimeEnvSnapshot {
   return {
     XYLEX_PLUGIN_CONTEXT_COMPACTED: env.XYLEX_PLUGIN_CONTEXT_COMPACTED,
     XYLEX_PLUGIN_SEEN_SKILLS: env.XYLEX_PLUGIN_SEEN_SKILLS,
@@ -117,7 +135,7 @@ export function captureRuntimeEnvSnapshot(env: NodeJS.ProcessEnv = process.env):
 
 export function collectRuntimeEnvUpdates(
   before: RuntimeEnvSnapshot,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): RuntimeEnvUpdates {
   const updates: RuntimeEnvUpdates = {};
 
@@ -134,17 +152,19 @@ export function collectRuntimeEnvUpdates(
 function finalizeRuntimeEnvUpdates(
   platform: HookPlatform,
   before: RuntimeEnvSnapshot,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): RuntimeEnvUpdates | undefined {
-  if (platform !== "cursor") return undefined;
+  if (platform !== "cursor") {
+    return;
+  }
 
   const updates = collectRuntimeEnvUpdates(before, env);
   return Object.keys(updates).length > 0 ? updates : undefined;
 }
 
 export interface VercelEnvHelpResult {
-  triggered: boolean;
   subcommand?: string;
+  triggered: boolean;
 }
 
 function checkVercelEnvHelp(
@@ -152,12 +172,15 @@ function checkVercelEnvHelp(
   toolInput: Record<string, unknown>,
   injectedSkills: Set<string>,
   dedupOff: boolean,
-  logger?: Logger,
+  logger?: Logger
 ): VercelEnvHelpResult {
   const l = logger || log;
 
   if (toolName !== "Bash") {
-    l.debug("vercel-env-help-not-fired", { reason: "not-bash", tool: toolName });
+    l.debug("vercel-env-help-not-fired", {
+      reason: "not-bash",
+      tool: toolName,
+    });
     return { triggered: false };
   }
 
@@ -169,12 +192,15 @@ function checkVercelEnvHelp(
   }
 
   if (!dedupOff && injectedSkills.has(VERCEL_ENV_HELP_ONCE_KEY)) {
-    l.debug("vercel-env-help-not-fired", { reason: "already-shown", subcommand: match[1] });
+    l.debug("vercel-env-help-not-fired", {
+      reason: "already-shown",
+      subcommand: match[1],
+    });
     return { triggered: false };
   }
 
   l.debug("vercel-env-help-triggered", { subcommand: match[1] });
-  return { triggered: true, subcommand: match[1] };
+  return { subcommand: match[1], triggered: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -182,14 +208,14 @@ function checkVercelEnvHelp(
 // ---------------------------------------------------------------------------
 
 export interface ParsedInput {
-  toolName: string;
-  toolInput: Record<string, unknown>;
-  sessionId: string;
   cwd: string;
   platform: HookPlatform;
-  toolTarget: string;
   /** Agent-scoped dedup: present when running inside a subagent. */
   scopeId: string | undefined;
+  sessionId: string;
+  toolInput: Record<string, unknown>;
+  toolName: string;
+  toolTarget: string;
 }
 
 /**
@@ -199,12 +225,17 @@ export interface ParsedInput {
 export function parseInput(
   raw: string,
   logger?: Logger,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): ParsedInput | null {
   const l = logger || log;
   const trimmed = (raw || "").trim();
   if (!trimmed) {
-    l.issue("STDIN_EMPTY", "No data received on stdin", "Ensure the hook receives JSON on stdin with tool_name, tool_input, session_id", {});
+    l.issue(
+      "STDIN_EMPTY",
+      "No data received on stdin",
+      "Ensure the hook receives JSON on stdin with tool_name, tool_input, session_id",
+      {}
+    );
     l.complete("stdin_empty");
     return null;
   }
@@ -213,47 +244,72 @@ export function parseInput(
   try {
     input = JSON.parse(trimmed);
   } catch (err) {
-    l.issue("STDIN_PARSE_FAIL", "Failed to parse stdin as JSON", "Verify stdin contains valid JSON with tool_name, tool_input, session_id fields", { error: String(err) });
+    l.issue(
+      "STDIN_PARSE_FAIL",
+      "Failed to parse stdin as JSON",
+      "Verify stdin contains valid JSON with tool_name, tool_input, session_id fields",
+      { error: String(err) }
+    );
     l.complete("stdin_parse_fail");
     return null;
   }
 
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    l.issue("STDIN_NOT_OBJECT", "Parsed stdin JSON was not an object", "Send a JSON object payload with tool_name and tool_input fields", { inputType: typeof input });
+    l.issue(
+      "STDIN_NOT_OBJECT",
+      "Parsed stdin JSON was not an object",
+      "Send a JSON object payload with tool_name and tool_input fields",
+      { inputType: typeof input }
+    );
     l.complete("stdin_not_object");
     return null;
   }
 
   const parsed = input as Record<string, unknown>;
-  const workspaceRoot = Array.isArray(parsed.workspace_roots) && typeof parsed.workspace_roots[0] === "string"
-    ? parsed.workspace_roots[0]
-    : undefined;
+  const workspaceRoot =
+    Array.isArray(parsed.workspace_roots) &&
+    typeof parsed.workspace_roots[0] === "string"
+      ? parsed.workspace_roots[0]
+      : undefined;
   const toolName = (parsed.tool_name as string) || "";
   const toolInput = (parsed.tool_input as Record<string, unknown>) || {};
   const platform = detectPlatform(parsed);
-  const sessionId = typeof (parsed.session_id ?? parsed.conversation_id) === "string"
-    ? (parsed.session_id ?? parsed.conversation_id) as string
-    : "";
-  const cwdCandidate = parsed.cwd
-    ?? workspaceRoot
-    ?? env.CURSOR_PROJECT_DIR
-    ?? env.CLAUDE_PROJECT_ROOT
-    ?? process.cwd();
-  const cwd = typeof cwdCandidate === "string" && cwdCandidate.trim() !== "" ? cwdCandidate : process.cwd();
-  const toolTarget = toolName === "Bash"
-    ? ((toolInput.command as string) || "")
-    : ((toolInput.file_path as string) || "");
+  const sessionId =
+    typeof (parsed.session_id ?? parsed.conversation_id) === "string"
+      ? ((parsed.session_id ?? parsed.conversation_id) as string)
+      : "";
+  const cwdCandidate =
+    parsed.cwd ??
+    workspaceRoot ??
+    env.CURSOR_PROJECT_DIR ??
+    env.CLAUDE_PROJECT_ROOT ??
+    process.cwd();
+  const cwd =
+    typeof cwdCandidate === "string" && cwdCandidate.trim() !== ""
+      ? cwdCandidate
+      : process.cwd();
+  const toolTarget =
+    toolName === "Bash"
+      ? (toolInput.command as string) || ""
+      : (toolInput.file_path as string) || "";
 
   // Extract agent_id for scoped dedup (present when running inside a subagent)
-  const agentId = typeof parsed.agent_id === "string" && parsed.agent_id.length > 0
-    ? parsed.agent_id
-    : undefined;
+  const agentId =
+    typeof parsed.agent_id === "string" && parsed.agent_id.length > 0
+      ? parsed.agent_id
+      : undefined;
   const scopeId = agentId;
 
-  l.debug("input-parsed", { toolName, sessionId: sessionId as string, cwd, platform, scopeId });
-  l.debug("tool-target", { toolName, target: redactCommand(toolTarget) });
+  l.debug("input-parsed", {
+    cwd,
+    platform,
+    scopeId,
+    sessionId: sessionId as string,
+    toolName,
+  });
+  l.debug("tool-target", { target: redactCommand(toolTarget), toolName });
 
-  return { toolName, toolInput, sessionId, cwd, platform, toolTarget, scopeId };
+  return { cwd, platform, scopeId, sessionId, toolInput, toolName, toolTarget };
 }
 
 // ---------------------------------------------------------------------------
@@ -261,14 +317,14 @@ export function parseInput(
 // ---------------------------------------------------------------------------
 
 export interface LoadedSkills {
-  skillMap: Record<string, SkillConfig>;
   compiledSkills: CompiledSkillEntry[];
+  skillMap: Record<string, SkillConfig>;
   usedManifest: boolean;
 }
 
 interface Manifest {
-  skills?: Record<string, Partial<ManifestSkill>>;
   generatedAt?: string;
+  skills?: Record<string, Partial<ManifestSkill>>;
   version?: number;
 }
 
@@ -276,7 +332,10 @@ interface Manifest {
  * Load the skill map from the static manifest or live SKILL.md scan.
  * Returns null if the skill map cannot be loaded or is empty.
  */
-export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills | null {
+export function loadSkills(
+  pluginRoot?: string,
+  logger?: Logger
+): LoadedSkills | null {
   const root = pluginRoot || PLUGIN_ROOT;
   const l = logger || log;
   let skillMap: Record<string, SkillConfig> | undefined;
@@ -289,9 +348,15 @@ export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills |
   if (manifest && manifest.skills && typeof manifest.skills === "object") {
     skillMap = manifest.skills as Record<string, SkillConfig>;
     manifestVersion = manifest.version || 1;
-    if (manifestVersion >= 2) manifestSkillsFull = manifest.skills;
+    if (manifestVersion >= 2) {
+      manifestSkillsFull = manifest.skills;
+    }
     usedManifest = true;
-    l.debug("manifest-loaded", { path: manifestPath, generatedAt: manifest.generatedAt as string, version: manifestVersion });
+    l.debug("manifest-loaded", {
+      generatedAt: manifest.generatedAt as string,
+      path: manifestPath,
+      version: manifestVersion,
+    });
   }
 
   if (!usedManifest) {
@@ -301,7 +366,12 @@ export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills |
 
       if (built.diagnostics && built.diagnostics.length > 0) {
         for (const d of built.diagnostics) {
-          l.issue("SKILLMD_PARSE_FAIL", `Failed to parse SKILL.md: ${d.message}`, `Fix YAML frontmatter in ${d.file}`, { file: d.file, error: d.error });
+          l.issue(
+            "SKILLMD_PARSE_FAIL",
+            `Failed to parse SKILL.md: ${d.message}`,
+            `Fix YAML frontmatter in ${d.file}`,
+            { error: d.error, file: d.file }
+          );
         }
       }
 
@@ -320,25 +390,36 @@ export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills |
         }
         skillMap = validation.normalizedSkillMap.skills;
       } else {
-        const validationErrors = "errors" in validation ? validation.errors : [];
+        const validationErrors =
+          "errors" in validation ? validation.errors : [];
         l.issue(
           "SKILLMAP_VALIDATE_FAIL",
           "Skill map validation failed after build",
           "Check SKILL.md frontmatter types: pathPatterns and bashPatterns must be arrays",
-          { errors: validationErrors },
+          { errors: validationErrors }
         );
         l.complete("skillmap_fail");
         return null;
       }
     } catch (err) {
-      l.issue("SKILLMAP_LOAD_FAIL", "Failed to build skill map from SKILL.md frontmatter", "Check that skills/*/SKILL.md files exist and contain valid YAML frontmatter with metadata.pathPatterns", { error: String(err) });
+      l.issue(
+        "SKILLMAP_LOAD_FAIL",
+        "Failed to build skill map from SKILL.md frontmatter",
+        "Check that skills/*/SKILL.md files exist and contain valid YAML frontmatter with metadata.pathPatterns",
+        { error: String(err) }
+      );
       l.complete("skillmap_fail");
       return null;
     }
   }
 
   if (typeof skillMap !== "object" || Object.keys(skillMap!).length === 0) {
-    l.issue("SKILLMAP_EMPTY", "Skill map is empty or has no skills", "Ensure skills/*/SKILL.md files have YAML frontmatter with metadata.pathPatterns or metadata.bashPatterns", { type: typeof skillMap });
+    l.issue(
+      "SKILLMAP_EMPTY",
+      "Skill map is empty or has no skills",
+      "Ensure skills/*/SKILL.md files have YAML frontmatter with metadata.pathPatterns or metadata.bashPatterns",
+      { type: typeof skillMap }
+    );
     l.complete("skillmap_fail");
     return null;
   }
@@ -350,56 +431,121 @@ export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills |
 
   // v2 manifests include pre-compiled regex sources — reconstruct RegExp objects directly
   if (manifestSkillsFull) {
-    compiledSkills = Object.entries(manifestSkillsFull).map(([skill, config]) => {
-      const pathPats = config.pathPatterns || [];
-      const pathSrcs = config.pathRegexSources || [];
-      const compiledPaths: CompiledPattern[] = [];
-      for (let i = 0; i < pathPats.length && i < pathSrcs.length; i++) {
-        try { compiledPaths.push({ pattern: pathPats[i], regex: new RegExp(pathSrcs[i]) }); } catch (err) {
-          l.issue("PATH_REGEX_COMPILE_FAIL", `Failed to compile path regex for skill "${skill}": ${pathSrcs[i]}`, `Fix pathRegexSources in the manifest for skill "${skill}"`, { skill, pattern: pathPats[i], regexSource: pathSrcs[i], error: String(err) });
+    compiledSkills = Object.entries(manifestSkillsFull).map(
+      ([skill, config]) => {
+        const pathPats = config.pathPatterns || [];
+        const pathSrcs = config.pathRegexSources || [];
+        const compiledPaths: CompiledPattern[] = [];
+        for (let i = 0; i < pathPats.length && i < pathSrcs.length; i++) {
+          try {
+            compiledPaths.push({
+              pattern: pathPats[i],
+              regex: new RegExp(pathSrcs[i]),
+            });
+          } catch (err) {
+            l.issue(
+              "PATH_REGEX_COMPILE_FAIL",
+              `Failed to compile path regex for skill "${skill}": ${pathSrcs[i]}`,
+              `Fix pathRegexSources in the manifest for skill "${skill}"`,
+              {
+                error: String(err),
+                pattern: pathPats[i],
+                regexSource: pathSrcs[i],
+                skill,
+              }
+            );
+          }
         }
-      }
-      const bashPats = config.bashPatterns || [];
-      const bashSrcs = config.bashRegexSources || [];
-      const compiledBash: CompiledPattern[] = [];
-      for (let i = 0; i < bashPats.length && i < bashSrcs.length; i++) {
-        try { compiledBash.push({ pattern: bashPats[i], regex: new RegExp(bashSrcs[i]) }); } catch (err) {
-          l.issue("BASH_REGEX_COMPILE_FAIL", `Failed to compile bash regex for skill "${skill}": ${bashSrcs[i]}`, `Fix bashRegexSources in the manifest for skill "${skill}"`, { skill, pattern: bashPats[i], regexSource: bashSrcs[i], error: String(err) });
+        const bashPats = config.bashPatterns || [];
+        const bashSrcs = config.bashRegexSources || [];
+        const compiledBash: CompiledPattern[] = [];
+        for (let i = 0; i < bashPats.length && i < bashSrcs.length; i++) {
+          try {
+            compiledBash.push({
+              pattern: bashPats[i],
+              regex: new RegExp(bashSrcs[i]),
+            });
+          } catch (err) {
+            l.issue(
+              "BASH_REGEX_COMPILE_FAIL",
+              `Failed to compile bash regex for skill "${skill}": ${bashSrcs[i]}`,
+              `Fix bashRegexSources in the manifest for skill "${skill}"`,
+              {
+                error: String(err),
+                pattern: bashPats[i],
+                regexSource: bashSrcs[i],
+                skill,
+              }
+            );
+          }
         }
-      }
-      const importPats = config.importPatterns || [];
-      const importSrcs = config.importRegexSources || [];
-      const compiledImports: CompiledPattern[] = [];
-      for (let i = 0; i < importPats.length && i < importSrcs.length; i++) {
-        try { compiledImports.push({ pattern: importPats[i], regex: new RegExp(importSrcs[i].source, importSrcs[i].flags) }); } catch (err) {
-          l.issue("IMPORT_REGEX_COMPILE_FAIL", `Failed to compile import regex for skill "${skill}": ${JSON.stringify(importSrcs[i])}`, `Fix importRegexSources in the manifest for skill "${skill}"`, { skill, pattern: importPats[i], regexSource: importSrcs[i], error: String(err) });
+        const importPats = config.importPatterns || [];
+        const importSrcs = config.importRegexSources || [];
+        const compiledImports: CompiledPattern[] = [];
+        for (let i = 0; i < importPats.length && i < importSrcs.length; i++) {
+          try {
+            compiledImports.push({
+              pattern: importPats[i],
+              regex: new RegExp(importSrcs[i].source, importSrcs[i].flags),
+            });
+          } catch (err) {
+            l.issue(
+              "IMPORT_REGEX_COMPILE_FAIL",
+              `Failed to compile import regex for skill "${skill}": ${JSON.stringify(importSrcs[i])}`,
+              `Fix importRegexSources in the manifest for skill "${skill}"`,
+              {
+                error: String(err),
+                pattern: importPats[i],
+                regexSource: importSrcs[i],
+                skill,
+              }
+            );
+          }
         }
+        return {
+          compiledBash,
+          compiledImports,
+          compiledPaths,
+          priority: typeof config.priority === "number" ? config.priority : 0,
+          skill,
+        };
       }
-      return {
-        skill,
-        priority: typeof config.priority === "number" ? config.priority : 0,
-        compiledPaths,
-        compiledBash,
-        compiledImports,
-      };
+    );
+    l.debug("manifest-regexes-restored", {
+      skillCount,
+      version: manifestVersion,
     });
-    l.debug("manifest-regexes-restored", { skillCount, version: manifestVersion });
   } else {
     const callbacks: CompileCallbacks = {
-      onPathGlobError(skill: string, p: string, err: unknown) {
-        l.issue("PATH_GLOB_INVALID", `Invalid glob pattern in skill "${skill}": ${p}`, `Fix or remove the invalid pathPatterns entry in skills/${skill}/SKILL.md frontmatter`, { skill, pattern: p, error: String(err) });
-      },
       onBashRegexError(skill: string, p: string, err: unknown) {
-        l.issue("BASH_REGEX_INVALID", `Invalid bash regex pattern in skill "${skill}": ${p}`, `Fix or remove the invalid bashPatterns entry in skills/${skill}/SKILL.md frontmatter`, { skill, pattern: p, error: String(err) });
+        l.issue(
+          "BASH_REGEX_INVALID",
+          `Invalid bash regex pattern in skill "${skill}": ${p}`,
+          `Fix or remove the invalid bashPatterns entry in skills/${skill}/SKILL.md frontmatter`,
+          { error: String(err), pattern: p, skill }
+        );
       },
       onImportPatternError(skill: string, p: string, err: unknown) {
-        l.issue("IMPORT_PATTERN_INVALID", `Invalid import pattern in skill "${skill}": ${p}`, `Fix or remove the invalid importPatterns entry in skills/${skill}/SKILL.md frontmatter`, { skill, pattern: p, error: String(err) });
+        l.issue(
+          "IMPORT_PATTERN_INVALID",
+          `Invalid import pattern in skill "${skill}": ${p}`,
+          `Fix or remove the invalid importPatterns entry in skills/${skill}/SKILL.md frontmatter`,
+          { error: String(err), pattern: p, skill }
+        );
+      },
+      onPathGlobError(skill: string, p: string, err: unknown) {
+        l.issue(
+          "PATH_GLOB_INVALID",
+          `Invalid glob pattern in skill "${skill}": ${p}`,
+          `Fix or remove the invalid pathPatterns entry in skills/${skill}/SKILL.md frontmatter`,
+          { error: String(err), pattern: p, skill }
+        );
       },
     };
     compiledSkills = compileSkillPatterns(skillMap!, callbacks);
   }
 
-  return { skillMap: skillMap!, compiledSkills, usedManifest };
+  return { compiledSkills, skillMap: skillMap!, usedManifest };
 }
 
 // ---------------------------------------------------------------------------
@@ -407,9 +553,9 @@ export function loadSkills(pluginRoot?: string, logger?: Logger): LoadedSkills |
 // ---------------------------------------------------------------------------
 
 export interface MatchResult {
+  matched: Set<string>;
   matchedEntries: CompiledSkillEntry[];
   matchReasons: Record<string, { pattern: string; matchType: string }>;
-  matched: Set<string>;
 }
 
 /**
@@ -420,7 +566,7 @@ export function matchSkills(
   toolName: string,
   toolInput: Record<string, unknown>,
   compiledSkills: CompiledSkillEntry[],
-  logger?: Logger,
+  logger?: Logger
 ): MatchResult | null {
   const l = logger || log;
 
@@ -430,28 +576,54 @@ export function matchSkills(
   }
 
   const matchedEntries: CompiledSkillEntry[] = [];
-  const matchReasons: Record<string, { pattern: string; matchType: string }> = {};
+  const matchReasons: Record<string, { pattern: string; matchType: string }> =
+    {};
 
   if (["Read", "Edit", "Write"].includes(toolName)) {
     const filePath = (toolInput.file_path as string) || "";
     // Gather available file content from tool input for import matching
     const contentParts: string[] = [];
-    if (toolInput.content) contentParts.push(toolInput.content as string);
-    if (toolInput.old_string) contentParts.push(toolInput.old_string as string);
-    if (toolInput.new_string) contentParts.push(toolInput.new_string as string);
+    if (toolInput.content) {
+      contentParts.push(toolInput.content as string);
+    }
+    if (toolInput.old_string) {
+      contentParts.push(toolInput.old_string as string);
+    }
+    if (toolInput.new_string) {
+      contentParts.push(toolInput.new_string as string);
+    }
     const fileContent = contentParts.join("\n");
 
     for (const entry of compiledSkills) {
-      l.trace("pattern-eval-start", { skill: entry.skill, target: filePath, patternCount: entry.compiledPaths.length });
+      l.trace("pattern-eval-start", {
+        patternCount: entry.compiledPaths.length,
+        skill: entry.skill,
+        target: filePath,
+      });
       const reason = matchPathWithReason(filePath, entry.compiledPaths);
-      l.trace("pattern-eval-result", { skill: entry.skill, matched: !!reason, reason: reason || (null as unknown as string) });
+      l.trace("pattern-eval-result", {
+        matched: !!reason,
+        reason: reason || (null as unknown as string),
+        skill: entry.skill,
+      });
       if (reason) {
         matchedEntries.push(entry);
         matchReasons[entry.skill] = reason;
-      } else if (fileContent && entry.compiledImports && entry.compiledImports.length > 0) {
+      } else if (
+        fileContent &&
+        entry.compiledImports &&
+        entry.compiledImports.length > 0
+      ) {
         // Fall back to import matching when path matching produces no hit
-        const importReason = matchImportWithReason(fileContent, entry.compiledImports);
-        l.trace("import-eval-result", { skill: entry.skill, matched: !!importReason, reason: importReason || (null as unknown as string) });
+        const importReason = matchImportWithReason(
+          fileContent,
+          entry.compiledImports
+        );
+        l.trace("import-eval-result", {
+          matched: !!importReason,
+          reason: importReason || (null as unknown as string),
+          skill: entry.skill,
+        });
         if (importReason) {
           matchedEntries.push(entry);
           matchReasons[entry.skill] = importReason;
@@ -461,9 +633,17 @@ export function matchSkills(
   } else if (toolName === "Bash") {
     const command = (toolInput.command as string) || "";
     for (const entry of compiledSkills) {
-      l.trace("pattern-eval-start", { skill: entry.skill, target: redactCommand(command), patternCount: entry.compiledBash.length });
+      l.trace("pattern-eval-start", {
+        patternCount: entry.compiledBash.length,
+        skill: entry.skill,
+        target: redactCommand(command),
+      });
       const reason = matchBashWithReason(command, entry.compiledBash);
-      l.trace("pattern-eval-result", { skill: entry.skill, matched: !!reason, reason: reason || (null as unknown as string) });
+      l.trace("pattern-eval-result", {
+        matched: !!reason,
+        reason: reason || (null as unknown as string),
+        skill: entry.skill,
+      });
       if (reason) {
         matchedEntries.push(entry);
         matchReasons[entry.skill] = reason;
@@ -472,9 +652,12 @@ export function matchSkills(
   }
 
   const matched = new Set(matchedEntries.map((e) => e.skill));
-  l.debug("matches-found", { matched: [...matched], reasons: matchReasons as unknown as Record<string, unknown> });
+  l.debug("matches-found", {
+    matched: [...matched],
+    reasons: matchReasons as unknown as Record<string, unknown>,
+  });
 
-  return { matchedEntries, matchReasons, matched };
+  return { matched, matchedEntries, matchReasons };
 }
 
 // ---------------------------------------------------------------------------
@@ -482,38 +665,49 @@ export function matchSkills(
 // ---------------------------------------------------------------------------
 
 export interface DeduplicateParams {
-  matchedEntries: CompiledSkillEntry[];
-  matched: Set<string>;
-  toolName: string;
-  toolInput: Record<string, unknown>;
-  injectedSkills: Set<string>;
-  dedupOff: boolean;
-  maxSkills?: number;
-  likelySkills?: Set<string>;
   compiledSkills?: CompiledSkillEntry[];
+  dedupOff: boolean;
+  injectedSkills: Set<string>;
+  likelySkills?: Set<string>;
+  matched: Set<string>;
+  matchedEntries: CompiledSkillEntry[];
+  maxSkills?: number;
   setupMode?: boolean;
+  toolInput: Record<string, unknown>;
+  toolName: string;
 }
 
 export interface SetupModeRouting {
   active: boolean;
-  synthetic: boolean;
   skippedAsSeen: boolean;
+  synthetic: boolean;
 }
 
 export interface DeduplicateResult {
   newEntries: CompiledSkillEntry[];
-  rankedSkills: string[];
-  vercelJsonRouting: VercelJsonRouting | null;
   profilerBoosted: string[];
+  rankedSkills: string[];
   setupModeRouting: SetupModeRouting | null;
+  vercelJsonRouting: VercelJsonRouting | null;
 }
 
 /**
  * Filter already-seen skills, apply vercel.json key-aware routing and profiler boost, rank, and cap.
  */
 export function deduplicateSkills(
-  { matchedEntries, matched, toolName, toolInput, injectedSkills, dedupOff, maxSkills, likelySkills, compiledSkills, setupMode }: DeduplicateParams,
-  logger?: Logger,
+  {
+    matchedEntries,
+    matched,
+    toolName,
+    toolInput,
+    injectedSkills,
+    dedupOff,
+    maxSkills,
+    likelySkills,
+    compiledSkills,
+    setupMode,
+  }: DeduplicateParams,
+  logger?: Logger
 ): DeduplicateResult {
   const l = logger || log;
   const cap = maxSkills ?? MAX_SKILLS;
@@ -538,8 +732,12 @@ export function deduplicateSkills(
           relevantSkills: [...resolved.relevantSkills],
         });
         for (const entry of newEntries) {
-          if (!VERCEL_JSON_SKILLS.has(entry.skill)) continue;
-          if (resolved.relevantSkills.size === 0) continue;
+          if (!VERCEL_JSON_SKILLS.has(entry.skill)) {
+            continue;
+          }
+          if (resolved.relevantSkills.size === 0) {
+            continue;
+          }
           if (resolved.relevantSkills.has(entry.skill)) {
             entry.effectivePriority = entry.priority + 10;
           } else {
@@ -555,15 +753,18 @@ export function deduplicateSkills(
   if (likely.size > 0) {
     for (const entry of newEntries) {
       if (likely.has(entry.skill)) {
-        const base = typeof entry.effectivePriority === "number" ? entry.effectivePriority : entry.priority;
+        const base =
+          typeof entry.effectivePriority === "number"
+            ? entry.effectivePriority
+            : entry.priority;
         entry.effectivePriority = base + 5;
         profilerBoosted.push(entry.skill);
       }
     }
     if (profilerBoosted.length > 0) {
       l.debug("profiler-boosted", {
-        likelySkills: [...likely],
         boostedSkills: profilerBoosted,
+        likelySkills: [...likely],
       });
     }
   }
@@ -571,49 +772,56 @@ export function deduplicateSkills(
   // Setup-mode routing: synthesize and boost bootstrap on first relevant tool call.
   let setupModeRouting: SetupModeRouting | null = null;
   if (setupModeActive) {
-    setupModeRouting = { active: true, synthetic: false, skippedAsSeen: false };
+    setupModeRouting = { active: true, skippedAsSeen: false, synthetic: false };
 
     if (!dedupOff && injectedSkills.has(SETUP_MODE_BOOTSTRAP_SKILL)) {
       setupModeRouting.skippedAsSeen = true;
       l.debug("setup-mode-bootstrap-skip", { reason: "already_injected" });
     } else {
-      let bootstrapEntry = newEntries.find((e) => e.skill === SETUP_MODE_BOOTSTRAP_SKILL);
+      let bootstrapEntry = newEntries.find(
+        (e) => e.skill === SETUP_MODE_BOOTSTRAP_SKILL
+      );
       if (!bootstrapEntry) {
         const bootstrapTemplate = Array.isArray(compiledSkills)
-          ? compiledSkills.find((entry) => entry.skill === SETUP_MODE_BOOTSTRAP_SKILL)
+          ? compiledSkills.find(
+              (entry) => entry.skill === SETUP_MODE_BOOTSTRAP_SKILL
+            )
           : null;
         bootstrapEntry = bootstrapTemplate
           ? { ...bootstrapTemplate }
           : {
-            skill: SETUP_MODE_BOOTSTRAP_SKILL,
-            priority: 0,
-            compiledPaths: [],
-            compiledBash: [],
-            compiledImports: [],
-          };
+              compiledBash: [],
+              compiledImports: [],
+              compiledPaths: [],
+              priority: 0,
+              skill: SETUP_MODE_BOOTSTRAP_SKILL,
+            };
         newEntries.push(bootstrapEntry);
         matched.add(SETUP_MODE_BOOTSTRAP_SKILL);
         setupModeRouting.synthetic = true;
       }
 
       const maxPriority = newEntries.reduce((max, entry) => {
-        const value = typeof entry.effectivePriority === "number"
-          ? entry.effectivePriority
-          : entry.priority;
+        const value =
+          typeof entry.effectivePriority === "number"
+            ? entry.effectivePriority
+            : entry.priority;
         return Math.max(max, typeof value === "number" ? value : 0);
       }, 0);
-      const basePriority = typeof bootstrapEntry.effectivePriority === "number"
-        ? bootstrapEntry.effectivePriority
-        : bootstrapEntry.priority;
+      const basePriority =
+        typeof bootstrapEntry.effectivePriority === "number"
+          ? bootstrapEntry.effectivePriority
+          : bootstrapEntry.priority;
 
       bootstrapEntry.effectivePriority = Math.max(
-        (typeof basePriority === "number" ? basePriority : 0) + SETUP_MODE_PRIORITY_BOOST,
-        maxPriority + 1,
+        (typeof basePriority === "number" ? basePriority : 0) +
+          SETUP_MODE_PRIORITY_BOOST,
+        maxPriority + 1
       );
 
       l.debug("setup-mode-bootstrap-routing", {
-        synthetic: setupModeRouting.synthetic,
         effectivePriority: bootstrapEntry.effectivePriority,
+        synthetic: setupModeRouting.synthetic,
       });
     }
   }
@@ -625,22 +833,33 @@ export function deduplicateSkills(
 
   // Emit skill_ranked for each candidate in priority order
   for (const entry of newEntries) {
-    const eff = typeof entry.effectivePriority === "number" ? entry.effectivePriority : entry.priority;
+    const eff =
+      typeof entry.effectivePriority === "number"
+        ? entry.effectivePriority
+        : entry.priority;
     logDecision(l, {
-      hook: "PreToolUse",
       event: "skill_ranked",
-      skill: entry.skill,
+      hook: "PreToolUse",
+      reason: profilerBoosted.includes(entry.skill)
+        ? "profiler_boosted"
+        : "pattern_match",
       score: eff,
-      reason: profilerBoosted.includes(entry.skill) ? "profiler_boosted" : "pattern_match",
+      skill: entry.skill,
     });
   }
 
   l.debug("dedup-filtered", {
-    rankedSkills,
     previouslyInjected: [...injectedSkills],
+    rankedSkills,
   });
 
-  return { newEntries, rankedSkills, vercelJsonRouting, profilerBoosted, setupModeRouting };
+  return {
+    newEntries,
+    profilerBoosted,
+    rankedSkills,
+    setupModeRouting,
+    vercelJsonRouting,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -648,29 +867,29 @@ export function deduplicateSkills(
 // ---------------------------------------------------------------------------
 
 export interface InjectOptions {
-  pluginRoot?: string;
-  hasEnvDedup?: boolean;
-  sessionId?: string | null;
-  /** Agent-scoped dedup: isolates claims per subagent. */
-  scopeId?: string;
-  injectedSkills?: Set<string>;
   budgetBytes?: number;
-  maxSkills?: number;
-  skillMap?: Record<string, SkillConfig>;
-  logger?: Logger;
   /** Skills that must be injected as summary-only (e.g. companion skills on dedup bypass). */
   forceSummarySkills?: Set<string>;
+  hasEnvDedup?: boolean;
+  injectedSkills?: Set<string>;
+  logger?: Logger;
+  maxSkills?: number;
   /** Platform for formatting skill invocation instructions. */
   platform?: HookPlatform;
+  pluginRoot?: string;
+  /** Agent-scoped dedup: isolates claims per subagent. */
+  scopeId?: string;
+  sessionId?: string | null;
+  skillMap?: Record<string, SkillConfig>;
 }
 
 export interface InjectResult {
-  parts: string[];
-  loaded: string[];
-  summaryOnly: string[];
-  droppedByCap: string[];
   droppedByBudget: string[];
+  droppedByCap: string[];
+  loaded: string[];
+  parts: string[];
   skippedByConcurrentClaim: string[];
+  summaryOnly: string[];
 }
 
 /**
@@ -684,8 +903,23 @@ function skillInvocationMessage(skill: string, platform: HookPlatform): string {
     : `You must run the Skill(${skill}) tool.`;
 }
 
-export function injectSkills(rankedSkills: string[], options?: InjectOptions): InjectResult {
-  const { pluginRoot, hasEnvDedup, sessionId, scopeId, injectedSkills, budgetBytes, maxSkills, skillMap, logger, forceSummarySkills, platform: optPlatform } = options || {};
+export function injectSkills(
+  rankedSkills: string[],
+  options?: InjectOptions
+): InjectResult {
+  const {
+    pluginRoot,
+    hasEnvDedup,
+    sessionId,
+    scopeId,
+    injectedSkills,
+    budgetBytes,
+    maxSkills,
+    skillMap,
+    logger,
+    forceSummarySkills,
+    platform: optPlatform,
+  } = options || {};
   const platform: HookPlatform = optPlatform ?? "claude-code";
   const root = pluginRoot || PLUGIN_ROOT;
   const l = logger || log;
@@ -700,14 +934,19 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
   let usedBytes = 0;
 
   const canInjectSkill = (skill: string): boolean => {
-    if (!hasEnvDedup || !sessionId) {
+    if (!(hasEnvDedup && sessionId)) {
       return true;
     }
 
-    const claimed = tryClaimSessionKey(sessionId, "seen-skills", skill, scopeId);
+    const claimed = tryClaimSessionKey(
+      sessionId,
+      "seen-skills",
+      skill,
+      scopeId
+    );
     if (!claimed) {
       skippedByConcurrentClaim.push(skill);
-      l.debug("skill-skipped-concurrent-claim", { skill, sessionId, scopeId });
+      l.debug("skill-skipped-concurrent-claim", { scopeId, sessionId, skill });
       return false;
     }
 
@@ -719,14 +958,25 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
     // Hard ceiling check
     if (loaded.length >= ceiling) {
       droppedByCap.push(skill);
-      logDecision(l, { hook: "PreToolUse", event: "skill_dropped", skill, reason: "cap_exceeded", score: ceiling });
+      logDecision(l, {
+        event: "skill_dropped",
+        hook: "PreToolUse",
+        reason: "cap_exceeded",
+        score: ceiling,
+        skill,
+      });
       continue;
     }
 
     const skillPath = join(root, "skills", skill, "SKILL.md");
     const raw = safeReadFile(skillPath);
     if (raw === null) {
-      l.issue("SKILL_FILE_MISSING", `SKILL.md not found for skill "${skill}"`, `Create skills/${skill}/SKILL.md with valid frontmatter`, { skillPath, error: "file not found or unreadable" });
+      l.issue(
+        "SKILL_FILE_MISSING",
+        `SKILL.md not found for skill "${skill}"`,
+        `Create skills/${skill}/SKILL.md with valid frontmatter`,
+        { error: "file not found or unreadable", skillPath }
+      );
       continue;
     }
 
@@ -747,12 +997,26 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
         loaded.push(skill);
         summaryOnly.push(skill);
         usedBytes += summaryByteLen;
-        if (injectedSkills) injectedSkills.add(skill);
-        l.debug("summary-fallback", { skill, fullBytes: byteLen, summaryBytes: summaryByteLen });
+        if (injectedSkills) {
+          injectedSkills.add(skill);
+        }
+        l.debug("summary-fallback", {
+          fullBytes: byteLen,
+          skill,
+          summaryBytes: summaryByteLen,
+        });
         continue;
       }
       droppedByBudget.push(skill);
-      logDecision(l, { hook: "PreToolUse", event: "budget_exhausted", skill, reason: "over_budget", budgetBytes: budget, usedBytes, skillBytes: byteLen });
+      logDecision(l, {
+        budgetBytes: budget,
+        event: "budget_exhausted",
+        hook: "PreToolUse",
+        reason: "over_budget",
+        skill,
+        skillBytes: byteLen,
+        usedBytes,
+      });
       continue;
     }
 
@@ -768,8 +1032,14 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
         loaded.push(skill);
         summaryOnly.push(skill);
         usedBytes += summaryByteLen;
-        if (injectedSkills) injectedSkills.add(skill);
-        l.debug("force-summary-companion", { skill, fullBytes: byteLen, summaryBytes: summaryByteLen });
+        if (injectedSkills) {
+          injectedSkills.add(skill);
+        }
+        l.debug("force-summary-companion", {
+          fullBytes: byteLen,
+          skill,
+          summaryBytes: summaryByteLen,
+        });
         continue;
       }
     }
@@ -780,26 +1050,50 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
     parts.push(wrapped);
     loaded.push(skill);
     usedBytes += byteLen;
-    if (injectedSkills) injectedSkills.add(skill);
+    if (injectedSkills) {
+      injectedSkills.add(skill);
+    }
   }
 
-  if (droppedByCap.length > 0 || droppedByBudget.length > 0 || summaryOnly.length > 0 || skippedByConcurrentClaim.length > 0) {
+  if (
+    droppedByCap.length > 0 ||
+    droppedByBudget.length > 0 ||
+    summaryOnly.length > 0 ||
+    skippedByConcurrentClaim.length > 0
+  ) {
     l.debug("cap-applied", {
-      max: ceiling,
       budgetBytes: budget,
-      usedBytes,
-      totalCandidates: rankedSkills.length,
-      selected: loaded.map((s) => ({ skill: s, mode: summaryOnly.includes(s) ? "summary" : "full" })),
-      droppedByCap,
       droppedByBudget,
-      summaryOnly,
+      droppedByCap,
+      max: ceiling,
+      selected: loaded.map((s) => ({
+        mode: summaryOnly.includes(s) ? "summary" : "full",
+        skill: s,
+      })),
       skippedByConcurrentClaim,
+      summaryOnly,
+      totalCandidates: rankedSkills.length,
+      usedBytes,
     });
   }
 
-  l.debug("skills-injected", { injected: loaded, summaryOnly, skippedByConcurrentClaim, totalParts: parts.length, usedBytes, budgetBytes: budget });
+  l.debug("skills-injected", {
+    budgetBytes: budget,
+    injected: loaded,
+    skippedByConcurrentClaim,
+    summaryOnly,
+    totalParts: parts.length,
+    usedBytes,
+  });
 
-  return { parts, loaded, summaryOnly, droppedByCap, droppedByBudget, skippedByConcurrentClaim };
+  return {
+    droppedByBudget,
+    droppedByCap,
+    loaded,
+    parts,
+    skippedByConcurrentClaim,
+    summaryOnly,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -807,31 +1101,31 @@ export function injectSkills(rankedSkills: string[], options?: InjectOptions): I
 // ---------------------------------------------------------------------------
 
 export interface SkillInjectionReason {
-  trigger: string;
   reasonCode: string;
+  trigger: string;
 }
 
 export interface FormatOutputParams {
-  parts: string[];
-  matched: Set<string>;
-  injectedSkills: string[];
   contextChunks?: string[];
-  summaryOnly?: string[];
-  droppedByCap: string[];
   droppedByBudget?: string[];
-  toolName: string;
-  toolTarget: string;
+  droppedByCap: string[];
+  env?: RuntimeEnvUpdates;
+  injectedSkills: string[];
+  matched: Set<string>;
   matchReasons?: Record<string, { pattern: string; matchType: string }>;
+  parts: string[];
+  platform?: HookPlatform;
   reasons?: Record<string, SkillInjectionReason>;
   skillMap?: Record<string, { docs?: string[]; sitemap?: string }>;
-  platform?: HookPlatform;
-  env?: RuntimeEnvUpdates;
+  summaryOnly?: string[];
+  toolName: string;
+  toolTarget: string;
 }
 
 function formatPlatformOutput(
   platform: HookPlatform,
   additionalContext?: string,
-  env?: RuntimeEnvUpdates,
+  env?: RuntimeEnvUpdates
 ): string {
   if (platform === "cursor") {
     const output: Record<string, unknown> = {};
@@ -848,8 +1142,8 @@ function formatPlatformOutput(
 
   if (additionalContext) {
     const hookSpecificOutput: SyncHookJSONOutput["hookSpecificOutput"] = {
-      hookEventName: "PreToolUse" as const,
       additionalContext,
+      hookEventName: "PreToolUse" as const,
     };
     output.hookSpecificOutput = hookSpecificOutput;
   }
@@ -871,15 +1165,20 @@ function buildBanner(
   injectedSkills: string[],
   toolName: string,
   toolTarget: string,
-  matchReasons?: Record<string, { pattern: string; matchType: string }>,
+  matchReasons?: Record<string, { pattern: string; matchType: string }>
 ): string {
-  const lines: string[] = ["[xylex-group-plugin] Best practices auto-suggested based on detected patterns:"];
+  const lines: string[] = [
+    "[xylex-group-plugin] Best practices auto-suggested based on detected patterns:",
+  ];
 
   for (const skill of injectedSkills) {
     const reason = matchReasons?.[skill];
     if (reason) {
-      const target = toolName === "Bash" ? redactCommand(toolTarget) : toolTarget;
-      lines.push(`  - "${skill}" matched ${reason.matchType} pattern \`${reason.pattern}\` on ${toolName}${target ? `: ${target}` : ""}`);
+      const target =
+        toolName === "Bash" ? redactCommand(toolTarget) : toolTarget;
+      lines.push(
+        `  - "${skill}" matched ${reason.matchType} pattern \`${reason.pattern}\` on ${toolName}${target ? `: ${target}` : ""}`
+      );
     } else {
       lines.push(`  - "${skill}"`);
     }
@@ -913,14 +1212,14 @@ export function formatOutput({
   }
 
   const skillInjection: Record<string, unknown> = {
-    version: SKILL_INJECTION_VERSION,
+    contextChunks: contextChunks || [],
+    droppedByBudget: droppedByBudget || [],
+    injectedSkills,
+    matchedSkills: [...matched],
+    summaryOnly: summaryOnly || [],
     toolName,
     toolTarget: toolName === "Bash" ? redactCommand(toolTarget) : toolTarget,
-    matchedSkills: [...matched],
-    injectedSkills,
-    contextChunks: contextChunks || [],
-    summaryOnly: summaryOnly || [],
-    droppedByBudget: droppedByBudget || [],
+    version: SKILL_INJECTION_VERSION,
   };
   if (reasons && Object.keys(reasons).length > 0) {
     skillInjection.reasons = reasons;
@@ -931,13 +1230,24 @@ export function formatOutput({
   //  extra keys like "skillInjection" cause validation failure)
   const metaComment = `<!-- skillInjection: ${encodeJsonForHtmlComment(skillInjection)} -->`;
 
-  const banner = buildBanner(injectedSkills, toolName, toolTarget, matchReasons);
+  const banner = buildBanner(
+    injectedSkills,
+    toolName,
+    toolTarget,
+    matchReasons
+  );
   const docsBlock = buildDocsBlock(injectedSkills, skillMap);
 
   const sections = [banner];
-  if (docsBlock) sections.push(docsBlock);
+  if (docsBlock) {
+    sections.push(docsBlock);
+  }
   sections.push(parts.join("\n\n"));
-  return formatPlatformOutput(platform, sections.join("\n\n") + "\n" + metaComment, env);
+  return formatPlatformOutput(
+    platform,
+    sections.join("\n\n") + "\n" + metaComment,
+    env
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -956,91 +1266,136 @@ function run(): string {
     return "{}";
   }
   const parsed = parseInput(raw, log);
-  if (!parsed) return "{}";
-  if (log.active) timing.stdin_parse = Math.round(log.now() - tPhase);
+  if (!parsed) {
+    return "{}";
+  }
+  if (log.active) {
+    timing.stdin_parse = Math.round(log.now() - tPhase);
+  }
 
-  const { toolName, toolInput, sessionId, cwd, platform, toolTarget, scopeId } = parsed;
+  const { toolName, toolInput, sessionId, cwd, platform, toolTarget, scopeId } =
+    parsed;
   const runtimeEnvBefore = captureRuntimeEnvSnapshot();
 
   // Stage 2: loadSkills
   const tSkillmap = log.active ? log.now() : 0;
   const skills = loadSkills(PLUGIN_ROOT, log);
-  if (!skills) return "{}";
-  if (log.active) timing.skillmap_load = Math.round(log.now() - tSkillmap);
+  if (!skills) {
+    return "{}";
+  }
+  if (log.active) {
+    timing.skillmap_load = Math.round(log.now() - tSkillmap);
+  }
 
   const { compiledSkills, usedManifest } = skills;
 
   // Session dedup state
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const hasFileDedup = !dedupOff && !!sessionId;
-  const seenEnv = typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string"
-    ? process.env.XYLEX_PLUGIN_SEEN_SKILLS
+  const seenEnv =
+    typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string"
+      ? process.env.XYLEX_PLUGIN_SEEN_SKILLS
+      : "";
+  const seenClaims = hasFileDedup
+    ? listSessionKeys(sessionId, "seen-skills", scopeId).join(",")
     : "";
-  const seenClaims = hasFileDedup ? listSessionKeys(sessionId, "seen-skills", scopeId).join(",") : "";
-  const seenFile = hasFileDedup ? readSessionFile(sessionId, "seen-skills", scopeId) : "";
+  const seenFile = hasFileDedup
+    ? readSessionFile(sessionId, "seen-skills", scopeId)
+    : "";
   const seenStateResult = dedupOff
     ? {
-      seenEnv,
-      seenState: hasFileDedup ? mergeSeenSkillStates(seenFile, seenClaims) : seenEnv,
-      compactionResetApplied: false,
-      clearedSkills: [] as string[],
-    }
+        clearedSkills: [] as string[],
+        compactionResetApplied: false,
+        seenEnv,
+        seenState: hasFileDedup
+          ? mergeSeenSkillStates(seenFile, seenClaims)
+          : seenEnv,
+      }
     : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
-      sessionId: hasFileDedup ? sessionId : undefined,
-      includeEnv: !hasFileDedup,
-      skillMap: skills.skillMap,
-    });
+        includeEnv: !hasFileDedup,
+        sessionId: hasFileDedup ? sessionId : undefined,
+        skillMap: skills.skillMap,
+      });
   const seenState = seenStateResult.seenState;
-  const hasEnvDedup = !dedupOff && typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string";
+  const hasEnvDedup =
+    !dedupOff && typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string";
   const hasSeenSkillDedup = hasFileDedup || hasEnvDedup;
-  const dedupStrategy = dedupOff ? "disabled" : hasFileDedup ? "file" : hasEnvDedup ? "env-var" : "memory-only";
+  const dedupStrategy = dedupOff
+    ? "disabled"
+    : hasFileDedup
+      ? "file"
+      : hasEnvDedup
+        ? "env-var"
+        : "memory-only";
 
   // Profiler likely-skills (set by session-start-profiler.mjs)
   const likelySkillsEnv = process.env.XYLEX_PLUGIN_LIKELY_SKILLS || "";
   const likelySkills = parseLikelySkills(likelySkillsEnv);
   const setupMode = process.env.XYLEX_PLUGIN_SETUP_MODE === "1";
 
-  log.debug("dedup-strategy", { strategy: dedupStrategy, sessionId, seenEnv: seenState });
+  log.debug("dedup-strategy", {
+    seenEnv: seenState,
+    sessionId,
+    strategy: dedupStrategy,
+  });
   if (seenStateResult.compactionResetApplied) {
     log.debug("dedup-compaction-reset", {
-      sessionId,
-      scopeId,
-      threshold: COMPACTION_REINJECT_MIN_PRIORITY,
       clearedSkills: seenStateResult.clearedSkills,
+      scopeId,
+      sessionId,
+      threshold: COMPACTION_REINJECT_MIN_PRIORITY,
     });
   }
   if (likelySkills.size > 0) {
     log.debug("likely-skills", { skills: [...likelySkills] });
   }
   if (setupMode) {
-    log.debug("setup-mode", { active: true, bootstrapSkill: SETUP_MODE_BOOTSTRAP_SKILL });
+    log.debug("setup-mode", {
+      active: true,
+      bootstrapSkill: SETUP_MODE_BOOTSTRAP_SKILL,
+    });
   }
 
-  const injectedSkills: Set<string> = dedupOff ? new Set() : parseSeenSkills(seenState);
+  const injectedSkills: Set<string> = dedupOff
+    ? new Set()
+    : parseSeenSkills(seenState);
 
   // Stage 3: matchSkills
   const tMatch = log.active ? log.now() : 0;
   const matchResult = matchSkills(toolName, toolInput, compiledSkills, log);
-  if (!matchResult) return "{}";
-  if (log.active) timing.match = Math.round(log.now() - tMatch);
+  if (!matchResult) {
+    return "{}";
+  }
+  if (log.active) {
+    timing.match = Math.round(log.now() - tMatch);
+  }
 
   const { matchedEntries, matchReasons, matched } = matchResult;
 
   // Stage 3.5: Vercel env command quick-help trigger
-  const vercelEnvHelp = checkVercelEnvHelp(toolName, toolInput, injectedSkills, dedupOff, log);
-
-  // Stage 4: deduplicateSkills
-  const dedupResult = deduplicateSkills({
-    matchedEntries,
-    matched,
+  const vercelEnvHelp = checkVercelEnvHelp(
     toolName,
     toolInput,
     injectedSkills,
     dedupOff,
-    likelySkills,
-    compiledSkills,
-    setupMode,
-  }, log);
+    log
+  );
+
+  // Stage 4: deduplicateSkills
+  const dedupResult = deduplicateSkills(
+    {
+      compiledSkills,
+      dedupOff,
+      injectedSkills,
+      likelySkills,
+      matched,
+      matchedEntries,
+      setupMode,
+      toolInput,
+      toolName,
+    },
+    log
+  );
 
   const { newEntries, rankedSkills, profilerBoosted } = dedupResult;
 
@@ -1048,7 +1403,12 @@ function run(): string {
   if (vercelEnvHelp.triggered) {
     let helpClaimed = true;
     if (sessionId) {
-      helpClaimed = tryClaimSessionKey(sessionId, "seen-skills", VERCEL_ENV_HELP_ONCE_KEY, scopeId);
+      helpClaimed = tryClaimSessionKey(
+        sessionId,
+        "seen-skills",
+        VERCEL_ENV_HELP_ONCE_KEY,
+        scopeId
+      );
       if (helpClaimed) {
         syncSessionFileFromClaims(sessionId, "seen-skills", scopeId);
       }
@@ -1056,7 +1416,9 @@ function run(): string {
     if (helpClaimed) {
       vercelEnvHelpInjected = true;
       injectedSkills.add(VERCEL_ENV_HELP_ONCE_KEY);
-      log.debug("vercel-env-help-injected", { subcommand: vercelEnvHelp.subcommand || "" });
+      log.debug("vercel-env-help-injected", {
+        subcommand: vercelEnvHelp.subcommand || "",
+      });
     }
   }
 
@@ -1066,34 +1428,43 @@ function run(): string {
       timing.skill_read = 0;
       timing.total = log.elapsed();
     }
-    log.complete(reason, {
-      matchedCount: matched.size,
-      dedupedCount: matched.size - rankedSkills.length,
-      matchedSkills: [...matched],
-      injectedSkills: [],
-      boostsApplied: profilerBoosted,
-    }, log.active ? timing : null);
+    log.complete(
+      reason,
+      {
+        boostsApplied: profilerBoosted,
+        dedupedCount: matched.size - rankedSkills.length,
+        injectedSkills: [],
+        matchedCount: matched.size,
+        matchedSkills: [...matched],
+      },
+      log.active ? timing : null
+    );
     const envUpdates = finalizeRuntimeEnvUpdates(platform, runtimeEnvBefore);
     return formatPlatformOutput(platform, undefined, envUpdates);
   }
 
   // Stage 5: injectSkills (enforces byte budget + MAX_SKILLS ceiling)
   const tSkillRead = log.active ? log.now() : 0;
-  const { parts, loaded, summaryOnly, droppedByCap, droppedByBudget } = injectSkills(rankedSkills, {
-    pluginRoot: PLUGIN_ROOT,
-    hasEnvDedup: hasSeenSkillDedup,
-    sessionId,
-    scopeId,
-    injectedSkills,
-    skillMap: skills.skillMap,
-    logger: log,
-    platform,
-  });
-  if (log.active) timing.skill_read = Math.round(log.now() - tSkillRead);
+  const { parts, loaded, summaryOnly, droppedByCap, droppedByBudget } =
+    injectSkills(rankedSkills, {
+      hasEnvDedup: hasSeenSkillDedup,
+      injectedSkills,
+      logger: log,
+      platform,
+      pluginRoot: PLUGIN_ROOT,
+      scopeId,
+      sessionId,
+      skillMap: skills.skillMap,
+    });
+  if (log.active) {
+    timing.skill_read = Math.round(log.now() - tSkillRead);
+  }
 
   if (vercelEnvHelpInjected) {
     parts.push(VERCEL_ENV_HELP);
-    log.debug("vercel-env-help-appended", { subcommand: vercelEnvHelp.subcommand || "" });
+    log.debug("vercel-env-help-appended", {
+      subcommand: vercelEnvHelp.subcommand || "",
+    });
   }
 
   const injectedContextChunks: string[] = [];
@@ -1106,42 +1477,54 @@ function run(): string {
       parts.push(chunk.wrapped);
       injectedContextChunks.push(chunk.chunkId);
       log.debug("managed-context-chunk-injected", {
+        bytes: chunk.bytes,
         chunkId: chunk.chunkId,
         skill: chunk.skill,
-        bytes: chunk.bytes,
       });
     }
   }
 
   if (parts.length === 0) {
-    if (log.active) timing.total = log.elapsed();
-    log.complete("no_matches", {
-      matchedCount: matched.size,
-      dedupedCount: matchedEntries.length - newEntries.length,
-      cappedCount: droppedByCap.length + droppedByBudget.length,
-      matchedSkills: [...matched],
-      injectedSkills: [],
-      droppedByCap,
-      droppedByBudget,
-      boostsApplied: profilerBoosted,
-    }, log.active ? timing : null);
+    if (log.active) {
+      timing.total = log.elapsed();
+    }
+    log.complete(
+      "no_matches",
+      {
+        boostsApplied: profilerBoosted,
+        cappedCount: droppedByCap.length + droppedByBudget.length,
+        dedupedCount: matchedEntries.length - newEntries.length,
+        droppedByBudget,
+        droppedByCap,
+        injectedSkills: [],
+        matchedCount: matched.size,
+        matchedSkills: [...matched],
+      },
+      log.active ? timing : null
+    );
     const envUpdates = finalizeRuntimeEnvUpdates(platform, runtimeEnvBefore);
     return formatPlatformOutput(platform, undefined, envUpdates);
   }
 
-  if (log.active) timing.total = log.elapsed();
+  if (log.active) {
+    timing.total = log.elapsed();
+  }
   const cappedCount = droppedByCap.length + droppedByBudget.length;
-  log.complete("injected", {
-    matchedCount: matched.size,
-    injectedCount: parts.length,
-    dedupedCount: matchedEntries.length - newEntries.length,
-    cappedCount,
-    matchedSkills: [...matched],
-    injectedSkills: loaded,
-    droppedByCap,
-    droppedByBudget,
-    boostsApplied: profilerBoosted,
-  }, log.active ? timing : null);
+  log.complete(
+    "injected",
+    {
+      boostsApplied: profilerBoosted,
+      cappedCount,
+      dedupedCount: matchedEntries.length - newEntries.length,
+      droppedByBudget,
+      droppedByCap,
+      injectedCount: parts.length,
+      injectedSkills: loaded,
+      matchedCount: matched.size,
+      matchedSkills: [...matched],
+    },
+    log.active ? timing : null
+  );
 
   // Stage 5.5: Build reasons map for metadata traceability
   const reasons: Record<string, SkillInjectionReason> = {};
@@ -1149,8 +1532,8 @@ function run(): string {
   for (const skill of loaded) {
     if (!reasons[skill] && matchReasons?.[skill]) {
       reasons[skill] = {
-        trigger: matchReasons[skill].matchType,
         reasonCode: "pattern-match",
+        trigger: matchReasons[skill].matchType,
       };
     }
   }
@@ -1158,35 +1541,38 @@ function run(): string {
   // Stage 6: formatOutput
   const envUpdates = finalizeRuntimeEnvUpdates(platform, runtimeEnvBefore);
   const result = formatOutput({
-    parts,
-    matched,
-    injectedSkills: loaded,
     contextChunks: injectedContextChunks,
-    summaryOnly,
-    droppedByCap,
     droppedByBudget,
-    toolName,
-    toolTarget,
+    droppedByCap,
+    env: envUpdates,
+    injectedSkills: loaded,
+    matched,
     matchReasons,
+    parts,
+    platform,
     reasons,
     skillMap: skills.skillMap,
-    platform,
-    env: envUpdates,
+    summaryOnly,
+    toolName,
+    toolTarget,
   });
 
   if (loaded.length > 0) {
-    appendAuditLog({
-      event: "skill-injection",
-      toolName,
-      toolTarget: toolName === "Bash" ? redactCommand(toolTarget) : toolTarget,
-      matchedSkills: [...matched],
-      injectedSkills: loaded,
-      contextChunks: injectedContextChunks,
-      summaryOnly,
-      droppedByCap,
-      droppedByBudget,
-    }, cwd);
-
+    appendAuditLog(
+      {
+        contextChunks: injectedContextChunks,
+        droppedByBudget,
+        droppedByCap,
+        event: "skill-injection",
+        injectedSkills: loaded,
+        matchedSkills: [...matched],
+        summaryOnly,
+        toolName,
+        toolTarget:
+          toolName === "Bash" ? redactCommand(toolTarget) : toolTarget,
+      },
+      cwd
+    );
   }
 
   return result;
@@ -1199,8 +1585,8 @@ function run(): string {
 const REDACT_MAX = 200;
 
 interface RedactRule {
-  re: RegExp;
   fn: (match: string) => string;
+  re: RegExp;
 }
 
 // Pattern descriptors: each has a regex and a replacer function.
@@ -1208,50 +1594,51 @@ interface RedactRule {
 // JSON values) must run before the broad env-var pattern.
 const REDACT_RULES: RedactRule[] = [
   {
+    fn: (match: string) =>
+      match.replace(/:\/\/[^:/?#\s]+:[^@\s]+@/, "://[REDACTED]@"),
     // Connection strings: scheme://user:password@host
     re: /\b[a-z][a-z0-9+.-]*:\/\/[^:/?#\s]+:[^@\s]+@[^\s]+/gi,
-    fn: (match: string) => match.replace(/:\/\/[^:/?#\s]+:[^@\s]+@/, "://[REDACTED]@"),
   },
   {
-    // URL query params with sensitive keys: ?token=xxx, &key=xxx, &secret=xxx, &password=xxx
-    re: /([?&])(token|key|secret|password|credential|auth|api_key|apiKey)=[^&\s]*/gi,
     fn: (match: string) => {
       const eqIdx = match.indexOf("=");
       return `${match.slice(0, eqIdx)}=[REDACTED]`;
     },
+    // URL query params with sensitive keys: ?token=xxx, &key=xxx, &secret=xxx, &password=xxx
+    re: /([?&])(token|key|secret|password|credential|auth|api_key|apiKey)=[^&\s]*/gi,
   },
   {
-    // JSON-style secret values: "secret": "val", "password": "val", "token": "val", etc.
-    re: /"(token|key|secret|password|credential|api_key|apiKey|auth)":\s*"[^"]*"/gi,
     fn: (match: string) => {
       const colonIdx = match.indexOf(":");
       return `${match.slice(0, colonIdx)}: "[REDACTED]"`;
     },
+    // JSON-style secret values: "secret": "val", "password": "val", "token": "val", etc.
+    re: /"(token|key|secret|password|credential|api_key|apiKey|auth)":\s*"[^"]*"/gi,
   },
   {
+    fn: (match: string) => `${match.split(":")[0]}: [REDACTED]`,
     // Cookie headers: Cookie: key=value; key2=value2
     re: /\b(Cookie|Set-Cookie):\s*\S[^\r\n]*/gi,
-    fn: (match: string) => `${match.split(":")[0]}: [REDACTED]`,
   },
   {
+    fn: (match: string) => `${match.split(/\s+/)[0]} [REDACTED]`,
     // Bearer / token authorization headers: "Bearer xxx", "token xxx" (case-insensitive)
     re: /\b(Bearer|token)\s+[A-Za-z0-9_\-.+/=]{8,}\b/gi,
-    fn: (match: string) => `${match.split(/\s+/)[0]} [REDACTED]`,
   },
   {
+    fn: (match: string) => `${match.split(/\s+/)[0]} [REDACTED]`,
     // --token value, --password value, --api-key value, --secret value, --auth value
     re: /--(token|password|api-key|secret|auth|credential)\s+\S+/gi,
-    fn: (match: string) => `${match.split(/\s+/)[0]} [REDACTED]`,
   },
   {
-    // ENV_VAR_TOKEN=value, MY_KEY=value, SECRET=value, PASSWORD=value (env-style, may be prefixed)
-    // Matches keys that contain a sensitive word anywhere (e.g. MY_SECRET_VALUE=...)
-    // [^\s&] prevents consuming URL query-param delimiters
-    re: /\b\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*=[^\s&]+/gi,
     fn: (match: string) => {
       const eqIdx = match.indexOf("=");
       return `${match.slice(0, eqIdx)}=[REDACTED]`;
     },
+    // ENV_VAR_TOKEN=value, MY_KEY=value, SECRET=value, PASSWORD=value (env-style, may be prefixed)
+    // Matches keys that contain a sensitive word anywhere (e.g. MY_SECRET_VALUE=...)
+    // [^\s&] prevents consuming URL query-param delimiters
+    re: /\b\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*=[^\s&]+/gi,
   },
 ];
 
@@ -1260,7 +1647,9 @@ const REDACT_RULES: RedactRule[] = [
  * Only intended for debug logging — never mutates the actual command.
  */
 export function redactCommand(command: string): string {
-  if (typeof command !== "string") return "";
+  if (typeof command !== "string") {
+    return "";
+  }
   let redacted = command;
   for (const { re, fn } of REDACT_RULES) {
     re.lastIndex = 0;
@@ -1318,7 +1707,4 @@ if (isMainModule()) {
   }
 }
 
-export {
-  run, validateSkillMap,
-  checkVercelEnvHelp,
-};
+export { checkVercelEnvHelp, run, validateSkillMap };

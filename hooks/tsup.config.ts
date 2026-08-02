@@ -1,17 +1,16 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
-import { readFileSync, readdirSync } from "node:fs";
 
-const packageJson = JSON.parse(readFileSync("package.json", "utf-8")) as { version: string };
+const packageJson = JSON.parse(readFileSync("package.json", "utf-8")) as {
+  version: string;
+};
 
 // Build each .mts source file as a separate .mjs output (no bundling)
 const discoveredEntries = readdirSync("hooks/src")
   .filter((f) => f.endsWith(".mts"))
   .map((f) => `hooks/src/${f}`);
 const entries = Array.from(
-  new Set([
-    ...discoveredEntries,
-    "hooks/src/session-end-cleanup.mts",
-  ]),
+  new Set([...discoveredEntries, "hooks/src/session-end-cleanup.mts"])
 ).sort();
 
 // Local hook-to-hook imports stay as external (sibling .mjs files at runtime).
@@ -23,24 +22,17 @@ const entries = Array.from(
 // Fix: use an esbuild plugin to mark sibling .mjs imports as external before
 // tsup's noExternal logic runs.
 const hookExternalSet = new Set(
-  entries.map((e) => `./${e.replace("hooks/src/", "").replace(".mts", ".mjs")}`),
+  entries.map((e) => `./${e.replace("hooks/src/", "").replace(".mts", ".mjs")}`)
 );
 
 export default defineConfig({
-  entry: entries,
-  format: ["esm"],
-  outDir: "hooks",
-  outExtension: () => ({ js: ".mjs" }),
   bundle: true,
-  splitting: false,
-  noExternal: [/.*/], // bundle ALL npm deps — plugins can't install
-  sourcemap: false,
-  dts: false,
   clean: false, // don't wipe hooks/ — it has hooks.json, src/, etc.
-  target: "node20",
   define: {
     __XYLEX_PLUGIN_VERSION__: JSON.stringify(packageJson.version),
   },
+  dts: false,
+  entry: entries,
   esbuildPlugins: [
     {
       name: "externalize-sibling-hooks",
@@ -49,12 +41,18 @@ export default defineConfig({
         // inlined. This runs before tsup's noExternal catch-all.
         build.onResolve({ filter: /^\.\/.*\.mjs$/ }, (args) => {
           if (hookExternalSet.has(args.path)) {
-            return { path: args.path, external: true };
+            return { external: true, path: args.path };
           }
-          return undefined;
         });
       },
     },
   ],
+  format: ["esm"],
+  noExternal: [/.*/], // bundle ALL npm deps — plugins can't install
+  outDir: "hooks",
+  outExtension: () => ({ js: ".mjs" }),
+  sourcemap: false,
+  splitting: false,
+  target: "node20",
   // No banner — source files that need a shebang already include #!/usr/bin/env node
 });

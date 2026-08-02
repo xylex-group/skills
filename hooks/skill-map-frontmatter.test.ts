@@ -2,11 +2,17 @@ import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildSkillMap, extractFrontmatter, parseSkillFrontmatter, scanSkillsDir } from "./skill-map-frontmatter.mjs";
+import {
+  buildSkillMap,
+  extractFrontmatter,
+  parseSkillFrontmatter,
+  scanSkillsDir,
+} from "./skill-map-frontmatter.mjs";
 
 describe("skill-map frontmatter regression coverage", () => {
   it("extractFrontmatter should strip BOM and split frontmatter/body", () => {
-    const markdown = "\uFEFF---\nname: ai-sdk\ndescription: AI SDK skill\n---\n# Markdown body\n";
+    const markdown =
+      "\uFEFF---\nname: ai-sdk\ndescription: AI SDK skill\n---\n# Markdown body\n";
 
     const { yaml, body } = extractFrontmatter(markdown);
 
@@ -30,8 +36,36 @@ describe("skill-map frontmatter regression coverage", () => {
     expect(parsed.name).toBe("ai-sdk");
     expect(parsed.metadata.priority).toBe(8);
     expect(typeof parsed.metadata.priority).toBe("number");
-    expect(parsed.metadata.pathPatterns).toEqual(["app/api/chat/**", "src/lib/ai/**"]);
-    expect(parsed.metadata.pathPatterns?.every((item: string) => typeof item === "string")).toBe(true);
+    expect(parsed.metadata.pathPatterns).toEqual([
+      "app/api/chat/**",
+      "src/lib/ai/**",
+    ]);
+    expect(
+      parsed.metadata.pathPatterns?.every(
+        (item: string) => typeof item === "string"
+      )
+    ).toBe(true);
+  });
+
+  it("parseSkillFrontmatter should fold block scalar descriptions (>)", () => {
+    const yaml = [
+      "name: create-xylex-skill",
+      "description: >",
+      "  Scaffold a new skill under skills/<name>/SKILL.md with the",
+      "  required YAML frontmatter.",
+      "summary: Create a skill",
+      "metadata:",
+      "  priority: 9",
+    ].join("\n");
+
+    const parsed = parseSkillFrontmatter(yaml);
+
+    expect(parsed.name).toBe("create-xylex-skill");
+    expect(parsed.description).toBe(
+      "Scaffold a new skill under skills/<name>/SKILL.md with the required YAML frontmatter."
+    );
+    expect(parsed.summary).toBe("Create a skill");
+    expect(parsed.metadata.priority).toBe(9);
   });
 
   it("parseSkillFrontmatter should parse inline arrays and preserve regex-like strings", () => {
@@ -61,17 +95,19 @@ describe("skill-map frontmatter regression coverage", () => {
           "  filePattern: app/api/chat/**",
           "---",
           "# Foo",
-        ].join("\n"),
+        ].join("\n")
       );
 
       const result = buildSkillMap(root);
 
       expect(result.skills.foo.pathPatterns).toEqual(["app/api/chat/**"]);
       expect(
-        result.warnings.some((warning: string) => warning.includes("filePattern is deprecated")),
+        result.warnings.some((warning: string) =>
+          warning.includes("filePattern is deprecated")
+        )
       ).toBe(true);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, { force: true, recursive: true });
     }
   });
 
@@ -90,7 +126,7 @@ describe("skill-map frontmatter regression coverage", () => {
           "\tpriority: 3",
           "---",
           "# Broken",
-        ].join("\n"),
+        ].join("\n")
       );
 
       const result = scanSkillsDir(root);
@@ -98,7 +134,7 @@ describe("skill-map frontmatter regression coverage", () => {
       expect(result.diagnostics.length).toBe(1);
       expect(result.skills.length).toBe(0);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, { force: true, recursive: true });
     }
   });
 });

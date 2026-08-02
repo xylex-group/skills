@@ -18,39 +18,56 @@
  * Deduplicates via session seen-skill state when available.
  */
 
-import type { SyncHookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
 import { readFileSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+/** Minimal Claude Code hook JSON shape (avoids hard dep on claude-agent-sdk). */
+type SyncHookJSONOutput = {
+  hookSpecificOutput?: {
+    hookEventName: "PreToolUse" | "UserPromptSubmit" | string;
+    additionalContext?: string;
+    [key: string]: unknown;
+  };
+  env?: Record<string, string>;
+  [key: string]: unknown;
+};
+
 import {
   appendAuditLog,
   listSessionKeys,
-  pluginRoot as resolvePluginRoot,
   readSessionFile,
-  safeReadFile,
+  pluginRoot as resolvePluginRoot,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
   writeSessionFile,
-} from "./hook-env.mjs";
-import { loadSkills, injectSkills } from "./pretooluse-skill-inject.mjs";
-import type { LoadedSkills } from "./pretooluse-skill-inject.mjs";
+} from "./hook-env.mts";
+import { initializeLexicalIndex, searchSkills } from "./lexical-index.mts";
+import type { Logger } from "./logger.mts";
+import { createLogger, logDecision } from "./logger.mts";
 import {
+  buildDocsBlock,
   COMPACTION_REINJECT_MIN_PRIORITY,
-  parseSeenSkills,
   mergeSeenSkillStates,
   mergeSeenSkillStatesWithCompactionReset,
-  buildDocsBlock,
-} from "./patterns.mjs";
-import { normalizePromptText, compilePromptSignals, matchPromptWithReason, scorePromptWithLexical, classifyTroubleshootingIntent, lexicalFallbackMeetsFloor } from "./prompt-patterns.mjs";
-import { searchSkills, initializeLexicalIndex } from "./lexical-index.mjs";
-import { analyzePrompt } from "./prompt-analysis.mjs";
-import type { PromptAnalysisReport } from "./prompt-analysis.mjs";
-import { createLogger, logDecision } from "./logger.mjs";
-import type { Logger } from "./logger.mjs";
-import { selectManagedContextChunk } from "./vercel-context.mjs";
+  parseSeenSkills,
+} from "./patterns.mts";
+import type { LoadedSkills } from "./pretooluse-skill-inject.mts";
+import { injectSkills, loadSkills } from "./pretooluse-skill-inject.mts";
+import type { PromptAnalysisReport } from "./prompt-analysis.mts";
+import { analyzePrompt } from "./prompt-analysis.mts";
+import {
+  classifyTroubleshootingIntent,
+  compilePromptSignals,
+  lexicalFallbackMeetsFloor,
+  matchPromptWithReason,
+  normalizePromptText,
+  scorePromptWithLexical,
+} from "./prompt-patterns.mts";
+import { selectManagedContextChunk } from "./vercel-context.mts";
 
 const MAX_SKILLS = 2;
-const DEFAULT_INJECTION_BUDGET_BYTES = 8_000;
+const DEFAULT_INJECTION_BUDGET_BYTES = 8000;
 const MIN_PROMPT_LENGTH = 10;
 const PLUGIN_ROOT = resolvePluginRoot();
 const SKILL_INJECTION_VERSION = 1;
@@ -88,7 +105,9 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function detectPromptHookPlatform(input: Record<string, unknown>): PromptHookPlatform {
+function detectPromptHookPlatform(
+  input: Record<string, unknown>
+): PromptHookPlatform {
   if ("conversation_id" in input || "cursor_version" in input) {
     return "cursor";
   }
@@ -109,31 +128,44 @@ function detectPromptHookPlatformFromRaw(raw: string): PromptHookPlatform {
   return "claude-code";
 }
 
-function resolvePromptSessionId(input: Record<string, unknown>, env: NodeJS.ProcessEnv): string | null {
-  return nonEmptyString(input.session_id)
-    ?? nonEmptyString(input.conversation_id)
-    ?? nonEmptyString(env.SESSION_ID);
+function resolvePromptSessionId(
+  input: Record<string, unknown>,
+  env: NodeJS.ProcessEnv
+): string | null {
+  return (
+    nonEmptyString(input.session_id) ??
+    nonEmptyString(input.conversation_id) ??
+    nonEmptyString(env.SESSION_ID)
+  );
 }
 
-function resolvePromptCwd(input: Record<string, unknown>, env: NodeJS.ProcessEnv): string {
+function resolvePromptCwd(
+  input: Record<string, unknown>,
+  env: NodeJS.ProcessEnv
+): string {
   const workspaceRoot = Array.isArray(input.workspace_roots)
-    ? input.workspace_roots.find((entry) => typeof entry === "string" && entry.trim() !== "")
+    ? input.workspace_roots.find(
+        (entry) => typeof entry === "string" && entry.trim() !== ""
+      )
     : null;
 
-  return nonEmptyString(input.cwd)
-    ?? (typeof workspaceRoot === "string" ? workspaceRoot : null)
-    ?? nonEmptyString(env.CURSOR_PROJECT_DIR)
-    ?? nonEmptyString(env.CLAUDE_PROJECT_ROOT)
-    ?? process.cwd();
+  return (
+    nonEmptyString(input.cwd) ??
+    (typeof workspaceRoot === "string" ? workspaceRoot : null) ??
+    nonEmptyString(env.CURSOR_PROJECT_DIR) ??
+    nonEmptyString(env.CLAUDE_PROJECT_ROOT) ??
+    process.cwd()
+  );
 }
 
 function resolvePromptText(input: Record<string, unknown>): string {
-  return nonEmptyString(input.prompt)
-    ?? nonEmptyString(input.message)
-    ?? "";
+  return nonEmptyString(input.prompt) ?? nonEmptyString(input.message) ?? "";
 }
 
-function formatEmptyOutput(platform: PromptHookPlatform, env?: Record<string, string>): string {
+function formatEmptyOutput(
+  platform: PromptHookPlatform,
+  env?: Record<string, string>
+): string {
   if (platform === "cursor") {
     const output: Record<string, unknown> = { continue: true };
     if (env && Object.keys(env).length > 0) {
@@ -149,24 +181,28 @@ function formatEmptyOutput(platform: PromptHookPlatform, env?: Record<string, st
 function getInjectionBudget(): number {
   const envVal = process.env.XYLEX_PLUGIN_PROMPT_INJECTION_BUDGET;
   if (envVal != null && envVal !== "") {
-    const parsed = parseInt(envVal, 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    const parsed = Number.parseInt(envVal, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
   return DEFAULT_INJECTION_BUDGET_BYTES;
 }
 
 export interface PromptSeenSkillState {
+  clearedSkills: string[];
+  compactionResetApplied: boolean;
   dedupOff: boolean;
   hasFileDedup: boolean;
   seenClaims: string;
-  seenFile: string;
   seenEnv: string;
+  seenFile: string;
   seenState: string;
-  compactionResetApplied: boolean;
-  clearedSkills: string[];
 }
 
-function capturePromptEnvSnapshot(env: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+function capturePromptEnvSnapshot(
+  env: NodeJS.ProcessEnv = process.env
+): Record<string, string | undefined> {
   return {
     [ENV_SEEN_SKILLS_KEY]: env[ENV_SEEN_SKILLS_KEY],
     [ENV_CONTEXT_COMPACTED_KEY]: env[ENV_CONTEXT_COMPACTED_KEY],
@@ -176,9 +212,11 @@ function capturePromptEnvSnapshot(env: NodeJS.ProcessEnv = process.env): Record<
 function finalizePromptEnvUpdates(
   platform: PromptHookPlatform,
   before: Record<string, string | undefined>,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): Record<string, string> | undefined {
-  if (platform !== "cursor") return undefined;
+  if (platform !== "cursor") {
+    return;
+  }
 
   const updates: Record<string, string> = {};
   for (const key of [ENV_SEEN_SKILLS_KEY, ENV_CONTEXT_COMPACTED_KEY]) {
@@ -193,25 +231,31 @@ function finalizePromptEnvUpdates(
 
 export function resolvePromptSeenSkillState(
   sessionId: string | null,
-  skillMap?: LoadedSkills["skillMap"],
+  skillMap?: LoadedSkills["skillMap"]
 ): PromptSeenSkillState {
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const hasFileDedup = !dedupOff && !!sessionId;
   const seenEnv = getSeenSkillsEnv();
-  const seenClaims = hasFileDedup ? listSessionKeys(sessionId as string, "seen-skills").join(",") : "";
-  const seenFile = hasFileDedup ? readSessionFile(sessionId as string, "seen-skills") : "";
+  const seenClaims = hasFileDedup
+    ? listSessionKeys(sessionId as string, "seen-skills").join(",")
+    : "";
+  const seenFile = hasFileDedup
+    ? readSessionFile(sessionId as string, "seen-skills")
+    : "";
   const seenStateResult = dedupOff
     ? {
-      seenEnv,
-      seenState: hasFileDedup ? mergeSeenSkillStates(seenFile, seenClaims) : seenEnv,
-      compactionResetApplied: false,
-      clearedSkills: [] as string[],
-    }
+        clearedSkills: [] as string[],
+        compactionResetApplied: false,
+        seenEnv,
+        seenState: hasFileDedup
+          ? mergeSeenSkillStates(seenFile, seenClaims)
+          : seenEnv,
+      }
     : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
-      sessionId: hasFileDedup ? sessionId : undefined,
-      includeEnv: !hasFileDedup,
-      skillMap,
-    });
+        includeEnv: !hasFileDedup,
+        sessionId: hasFileDedup ? sessionId : undefined,
+        skillMap,
+      });
   const seenState = seenStateResult.seenState;
 
   if (hasFileDedup) {
@@ -219,18 +263,21 @@ export function resolvePromptSeenSkillState(
   }
 
   return {
+    clearedSkills: seenStateResult.clearedSkills,
+    compactionResetApplied: seenStateResult.compactionResetApplied,
     dedupOff,
     hasFileDedup,
     seenClaims,
-    seenFile,
     seenEnv: seenStateResult.seenEnv,
+    seenFile,
     seenState,
-    compactionResetApplied: seenStateResult.compactionResetApplied,
-    clearedSkills: seenStateResult.clearedSkills,
   };
 }
 
-export function syncPromptSeenSkillClaims(sessionId: string, loadedSkills: string[]): string {
+export function syncPromptSeenSkillClaims(
+  sessionId: string,
+  loadedSkills: string[]
+): string {
   for (const skill of loadedSkills) {
     tryClaimSessionKey(sessionId, "seen-skills", skill);
   }
@@ -242,17 +289,21 @@ export function syncPromptSeenSkillClaims(sessionId: string, loadedSkills: strin
 // ---------------------------------------------------------------------------
 
 export interface ParsedPromptInput {
-  prompt: string;
-  platform: PromptHookPlatform;
-  sessionId: string | null;
   cwd: string;
+  platform: PromptHookPlatform;
+  prompt: string;
+  sessionId: string | null;
 }
 
 /**
  * Parse raw stdin JSON into a normalized input descriptor.
  * Returns null if input is empty, unparseable, or prompt is too short.
  */
-export function parsePromptInput(raw: string, logger?: Logger, env: NodeJS.ProcessEnv = process.env): ParsedPromptInput | null {
+export function parsePromptInput(
+  raw: string,
+  logger?: Logger,
+  env: NodeJS.ProcessEnv = process.env
+): ParsedPromptInput | null {
   const l = logger || log;
   const trimmed = (raw || "").trim();
   if (!trimmed) {
@@ -269,7 +320,12 @@ export function parsePromptInput(raw: string, logger?: Logger, env: NodeJS.Proce
     }
     input = parsed;
   } catch (err) {
-    l.issue("STDIN_PARSE_FAIL", "Failed to parse stdin as JSON", "Verify stdin contains valid JSON", { error: String(err) });
+    l.issue(
+      "STDIN_PARSE_FAIL",
+      "Failed to parse stdin as JSON",
+      "Verify stdin contains valid JSON",
+      { error: String(err) }
+    );
     return null;
   }
 
@@ -279,18 +335,21 @@ export function parsePromptInput(raw: string, logger?: Logger, env: NodeJS.Proce
   const cwd = resolvePromptCwd(input, env);
 
   if (prompt.length < MIN_PROMPT_LENGTH) {
-    l.debug("prompt-too-short", { length: prompt.length, min: MIN_PROMPT_LENGTH });
+    l.debug("prompt-too-short", {
+      length: prompt.length,
+      min: MIN_PROMPT_LENGTH,
+    });
     return null;
   }
 
   l.debug("input-parsed", {
-    promptLength: prompt.length,
-    sessionId,
     cwd,
     platform,
+    promptLength: prompt.length,
+    sessionId,
   });
 
-  return { prompt, platform, sessionId, cwd };
+  return { cwd, platform, prompt, sessionId };
 }
 
 // ---------------------------------------------------------------------------
@@ -298,10 +357,10 @@ export function parsePromptInput(raw: string, logger?: Logger, env: NodeJS.Proce
 // ---------------------------------------------------------------------------
 
 export interface PromptMatchEntry {
-  skill: string;
-  score: number;
-  reason: string;
   priority: number;
+  reason: string;
+  score: number;
+  skill: string;
 }
 
 interface PromptScoreState extends PromptMatchEntry {
@@ -310,7 +369,9 @@ interface PromptScoreState extends PromptMatchEntry {
   suppressed: boolean;
 }
 
-function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS): Set<string> {
+function parseLikelySkillsEnv(
+  envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS
+): Set<string> {
   if (typeof envValue !== "string" || envValue.trim() === "") {
     return new Set();
   }
@@ -319,11 +380,13 @@ function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS)
     envValue
       .split(",")
       .map((skill) => skill.trim())
-      .filter((skill) => skill.length > 0),
+      .filter((skill) => skill.length > 0)
   );
 }
 
-function getPromptSignalMinScore(skillConfig: LoadedSkills["skillMap"][string] | undefined): number {
+function getPromptSignalMinScore(
+  skillConfig: LoadedSkills["skillMap"][string] | undefined
+): number {
   const minScore = skillConfig?.promptSignals?.minScore;
   return typeof minScore === "number" && !Number.isNaN(minScore)
     ? minScore
@@ -335,7 +398,9 @@ function formatPromptScore(score: number): string {
 }
 
 function extractLexicalScore(reason: string): number | null {
-  const match = reason.match(/lexical [^(]*\((?:raw |score )([0-9]+(?:\.[0-9]+)?)/);
+  const match = reason.match(
+    /lexical [^(]*\((?:raw |score )([0-9]+(?:\.[0-9]+)?)/
+  );
   return match ? Number(match[1]) : null;
 }
 
@@ -346,7 +411,11 @@ function extractBelowThresholdScore(reason: string): number | null {
 
 function applyLexicalFallbackFloor(entry: PromptScoreState): PromptScoreState {
   const lexicalScore = extractLexicalScore(entry.reason);
-  if (lexicalScore == null || lexicalFallbackMeetsFloor(lexicalScore) || entry.score === -Infinity) {
+  if (
+    lexicalScore == null ||
+    lexicalFallbackMeetsFloor(lexicalScore) ||
+    entry.score === Number.NEGATIVE_INFINITY
+  ) {
     return entry;
   }
 
@@ -355,45 +424,49 @@ function applyLexicalFallbackFloor(entry: PromptScoreState): PromptScoreState {
 
   return {
     ...entry,
-    score,
     matched: score >= entry.minScore,
     reason: `${entry.reason}; lexical floor rejected (raw ${formatPromptScore(lexicalScore)} < 20)`,
+    score,
   };
 }
 
 function applyProjectContextBoost(
   entry: PromptScoreState,
-  likelySkills: Set<string>,
+  likelySkills: Set<string>
 ): PromptScoreState {
-  if (!likelySkills.has(entry.skill) || entry.score === -Infinity) {
+  if (
+    !likelySkills.has(entry.skill) ||
+    entry.score === Number.NEGATIVE_INFINITY
+  ) {
     return entry;
   }
 
   const boostedScore = entry.score + PROJECT_CONTEXT_PROMPT_SCORE_BOOST;
   const boostReason = `project-context +${PROJECT_CONTEXT_PROMPT_SCORE_BOOST} (${formatPromptScore(entry.score)} -> ${formatPromptScore(boostedScore)})`;
-  const reason = entry.reason.startsWith("below threshold:") && boostedScore >= entry.minScore
-    ? boostReason
-    : entry.reason
-      ? `${entry.reason}; ${boostReason}`
-      : boostReason;
+  const reason =
+    entry.reason.startsWith("below threshold:") &&
+    boostedScore >= entry.minScore
+      ? boostReason
+      : entry.reason
+        ? `${entry.reason}; ${boostReason}`
+        : boostReason;
 
   return {
     ...entry,
-    score: boostedScore,
-    reason,
     matched: boostedScore >= entry.minScore,
+    reason,
+    score: boostedScore,
   };
 }
 
 function applyDominantTopicSuppression(
   entry: PromptScoreState,
-  topScore: number,
+  topScore: number
 ): PromptScoreState {
   if (
-    !entry.matched
-    || !Number.isFinite(entry.score)
-    || entry.score >= DOMINANT_TOPIC_MIN_SCORE
-    || topScore < DOMINANT_TOPIC_SCORE_THRESHOLD
+    !(entry.matched && Number.isFinite(entry.score)) ||
+    entry.score >= DOMINANT_TOPIC_MIN_SCORE ||
+    topScore < DOMINANT_TOPIC_SCORE_THRESHOLD
   ) {
     return entry;
   }
@@ -401,14 +474,14 @@ function applyDominantTopicSuppression(
   return {
     ...entry,
     matched: false,
-    suppressed: true,
     reason: `${entry.reason}; suppressed by dominant topic (${formatPromptScore(topScore)} >= ${DOMINANT_TOPIC_SCORE_THRESHOLD}, score < ${DOMINANT_TOPIC_MIN_SCORE})`,
+    suppressed: true,
   };
 }
 
 function applyPromptScoreAdjustments(
   entries: PromptScoreState[],
-  logger?: Logger,
+  logger?: Logger
 ): PromptScoreState[] {
   const l = logger || log;
   const likelySkills = parseLikelySkillsEnv();
@@ -449,7 +522,7 @@ function applyPromptScoreAdjustments(
       return entry.score;
     }
     return max;
-  }, -Infinity);
+  }, Number.NEGATIVE_INFINITY);
 
   if (topScore < DOMINANT_TOPIC_SCORE_THRESHOLD) {
     return boostedEntries;
@@ -466,24 +539,32 @@ function applyPromptScoreAdjustments(
 
   if (suppressedSkills.length > 0) {
     l.debug("prompt-dominant-topic-suppression", {
-      topScore,
       minScore: DOMINANT_TOPIC_MIN_SCORE,
       suppressedSkills,
+      topScore,
     });
   }
 
   return adjustedEntries;
 }
 
-function sortPromptScoreStates<T extends Pick<PromptMatchEntry, "skill" | "score" | "priority">>(entries: T[]): void {
+function sortPromptScoreStates<
+  T extends Pick<PromptMatchEntry, "skill" | "score" | "priority">,
+>(entries: T[]): void {
   entries.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.priority !== a.priority) return b.priority - a.priority;
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
     return a.skill.localeCompare(b.skill);
   });
 }
 
-function estimatePromptSkillSize(skillConfig: LoadedSkills["skillMap"][string] | undefined): number {
+function estimatePromptSkillSize(
+  skillConfig: LoadedSkills["skillMap"][string] | undefined
+): number {
   return skillConfig?.summary
     ? Math.max(skillConfig.summary.length * 10, 500)
     : 500;
@@ -493,17 +574,17 @@ function rerankPromptAnalysisReport(
   report: PromptAnalysisReport,
   skillMap: LoadedSkills["skillMap"],
   maxSkills: number,
-  budgetBytes: number,
+  budgetBytes: number
 ): void {
   const ranked = Object.entries(report.perSkillResults)
     .filter(([, result]) => result.matched)
     .map(([skill, result]) => ({
-      skill,
-      score: result.score,
-      reason: result.reason,
-      priority: skillMap[skill]?.priority ?? 0,
       matched: true,
       minScore: getPromptSignalMinScore(skillMap[skill]),
+      priority: skillMap[skill]?.priority ?? 0,
+      reason: result.reason,
+      score: result.score,
+      skill,
       suppressed: result.suppressed,
     }));
 
@@ -544,26 +625,26 @@ function applyPromptScoreAdjustmentsToReport(
   report: PromptAnalysisReport,
   skillMap: LoadedSkills["skillMap"],
   logger?: Logger,
-  options?: { maxSkills?: number; budgetBytes?: number },
+  options?: { maxSkills?: number; budgetBytes?: number }
 ): PromptAnalysisReport {
-  const scoredEntries: PromptScoreState[] = Object.entries(report.perSkillResults).map(
-    ([skill, result]) => ({
-      skill,
-      score: result.score,
-      reason: result.reason,
-      priority: skillMap[skill]?.priority ?? 0,
-      matched: result.matched,
-      minScore: getPromptSignalMinScore(skillMap[skill]),
-      suppressed: result.suppressed,
-    }),
-  );
+  const scoredEntries: PromptScoreState[] = Object.entries(
+    report.perSkillResults
+  ).map(([skill, result]) => ({
+    matched: result.matched,
+    minScore: getPromptSignalMinScore(skillMap[skill]),
+    priority: skillMap[skill]?.priority ?? 0,
+    reason: result.reason,
+    score: result.score,
+    skill,
+    suppressed: result.suppressed,
+  }));
 
   const adjustedEntries = applyPromptScoreAdjustments(scoredEntries, logger);
   for (const entry of adjustedEntries) {
     report.perSkillResults[entry.skill] = {
-      score: entry.score,
-      reason: entry.reason,
       matched: entry.matched,
+      reason: entry.reason,
+      score: entry.score,
       suppressed: entry.suppressed,
     };
   }
@@ -572,7 +653,7 @@ function applyPromptScoreAdjustmentsToReport(
     report,
     skillMap,
     options?.maxSkills ?? MAX_SKILLS,
-    options?.budgetBytes ?? report.budgetBytes,
+    options?.budgetBytes ?? report.budgetBytes
   );
 
   return report;
@@ -590,7 +671,7 @@ export function matchPromptSignals(
   normalizedPrompt: string,
   skills: LoadedSkills,
   logger?: Logger,
-  options?: { lexical?: boolean },
+  options?: { lexical?: boolean }
 ): PromptMatchEntry[] {
   const l = logger || log;
   const lexical = options?.lexical ?? false;
@@ -601,42 +682,52 @@ export function matchPromptSignals(
   const lexicalHits = lexical ? searchSkills(normalizedPrompt) : undefined;
 
   for (const [skill, config] of Object.entries(skillMap)) {
-    if (!config.promptSignals) continue;
+    if (!config.promptSignals) {
+      continue;
+    }
 
     const compiled = compilePromptSignals(config.promptSignals);
 
     if (lexical) {
       // Lexical path: use scorePromptWithLexical for hybrid scoring
-      const lexResult = scorePromptWithLexical(normalizedPrompt, skill, compiled, lexicalHits);
-      const lexicalFloorRejected = lexResult.source !== "exact"
-        && !lexicalFallbackMeetsFloor(lexResult.lexicalScore);
-      const isMatched = lexResult.score >= compiled.minScore && !lexicalFloorRejected;
+      const lexResult = scorePromptWithLexical(
+        normalizedPrompt,
+        skill,
+        compiled,
+        lexicalHits
+      );
+      const lexicalFloorRejected =
+        lexResult.source !== "exact" &&
+        !lexicalFallbackMeetsFloor(lexResult.lexicalScore);
+      const isMatched =
+        lexResult.score >= compiled.minScore && !lexicalFloorRejected;
 
-      const reason = lexResult.source === "exact"
-        ? matchPromptWithReason(normalizedPrompt, compiled).reason
-        : `${matchPromptWithReason(normalizedPrompt, compiled).reason}; lexical ${lexResult.source} (score ${lexResult.lexicalScore.toFixed(1)}, tier ${lexResult.boostTier ?? "none"})${lexicalFloorRejected ? "; lexical floor rejected" : ""}`;
+      const reason =
+        lexResult.source === "exact"
+          ? matchPromptWithReason(normalizedPrompt, compiled).reason
+          : `${matchPromptWithReason(normalizedPrompt, compiled).reason}; lexical ${lexResult.source} (score ${lexResult.lexicalScore.toFixed(1)}, tier ${lexResult.boostTier ?? "none"})${lexicalFloorRejected ? "; lexical floor rejected" : ""}`;
 
       scoredEntries.push({
-        skill,
-        score: lexResult.score,
-        reason,
-        priority: config.priority,
         matched: isMatched,
         minScore: compiled.minScore,
-        suppressed: lexResult.score === -Infinity,
+        priority: config.priority,
+        reason,
+        score: lexResult.score,
+        skill,
+        suppressed: lexResult.score === Number.NEGATIVE_INFINITY,
       });
     } else {
       // Exact-match path (default): unchanged behavior
       const result = matchPromptWithReason(normalizedPrompt, compiled);
 
       scoredEntries.push({
-        skill,
         matched: result.matched,
-        score: result.score,
-        reason: result.reason,
-        priority: config.priority,
         minScore: compiled.minScore,
-        suppressed: result.score === -Infinity,
+        priority: config.priority,
+        reason: result.reason,
+        score: result.score,
+        skill,
+        suppressed: result.score === Number.NEGATIVE_INFINITY,
       });
     }
   }
@@ -644,10 +735,10 @@ export function matchPromptSignals(
   const adjustedEntries = applyPromptScoreAdjustments(scoredEntries, l);
   for (const entry of adjustedEntries) {
     l.trace("prompt-signal-eval", {
-      skill: entry.skill,
       matched: entry.matched,
-      score: entry.score,
       reason: entry.reason,
+      score: entry.score,
+      skill: entry.skill,
       suppressed: entry.suppressed,
     });
   }
@@ -655,19 +746,20 @@ export function matchPromptSignals(
   const matches = adjustedEntries
     .filter((entry) => entry.matched)
     .map(({ skill, score, reason, priority }) => ({
-      skill,
-      score,
-      reason,
       priority,
+      reason,
+      score,
+      skill,
     }));
 
   // Sort by score DESC, then priority DESC, then skill name ASC
   sortPromptScoreStates(matches);
 
   l.debug("prompt-matches", {
-    totalWithSignals: Object.values(skillMap).filter((c) => c.promptSignals).length,
-    matched: matches.map((m) => ({ skill: m.skill, score: m.score })),
     lexical,
+    matched: matches.map((m) => ({ score: m.score, skill: m.skill })),
+    totalWithSignals: Object.values(skillMap).filter((c) => c.promptSignals)
+      .length,
   });
 
   return matches;
@@ -678,12 +770,12 @@ export function matchPromptSignals(
 // ---------------------------------------------------------------------------
 
 export interface PromptInjectResult {
-  parts: string[];
-  loaded: string[];
-  summaryOnly: string[];
-  droppedByCap: string[];
   droppedByBudget: string[];
+  droppedByCap: string[];
+  loaded: string[];
   matchedSkills: string[];
+  parts: string[];
+  summaryOnly: string[];
 }
 
 /**
@@ -693,12 +785,14 @@ export function deduplicateAndInject(
   matches: PromptMatchEntry[],
   skills: LoadedSkills,
   logger?: Logger,
-  platform?: PromptHookPlatform,
+  platform?: PromptHookPlatform
 ): PromptInjectResult {
   const l = logger || log;
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const seenState = getSeenSkillsEnv();
-  const injectedSkills: Set<string> = dedupOff ? new Set() : parseSeenSkills(seenState);
+  const injectedSkills: Set<string> = dedupOff
+    ? new Set()
+    : parseSeenSkills(seenState);
   const budget = getInjectionBudget();
 
   const allMatched = matches.map((m) => m.skill);
@@ -709,8 +803,18 @@ export function deduplicateAndInject(
     : matches.filter((m) => !injectedSkills.has(m.skill));
 
   if (newMatches.length === 0) {
-    l.debug("all-prompt-matches-deduped", { matched: allMatched, seen: [...injectedSkills] });
-    return { parts: [], loaded: [], summaryOnly: [], droppedByCap: [], droppedByBudget: [], matchedSkills: allMatched };
+    l.debug("all-prompt-matches-deduped", {
+      matched: allMatched,
+      seen: [...injectedSkills],
+    });
+    return {
+      droppedByBudget: [],
+      droppedByCap: [],
+      loaded: [],
+      matchedSkills: allMatched,
+      parts: [],
+      summaryOnly: [],
+    };
   }
 
   // Cap at MAX_SKILLS — take the top-scored entries
@@ -718,21 +822,21 @@ export function deduplicateAndInject(
   const droppedByCap = newMatches.slice(MAX_SKILLS).map((m) => m.skill);
 
   l.debug("prompt-dedup", {
-    rankedSkills,
     droppedByCap,
     previouslyInjected: [...injectedSkills],
+    rankedSkills,
   });
 
   // Reuse injectSkills from pretooluse with our budget/cap
   const result = injectSkills(rankedSkills, {
-    pluginRoot: PLUGIN_ROOT,
+    budgetBytes: budget,
     hasEnvDedup: !dedupOff,
     injectedSkills,
-    budgetBytes: budget,
-    maxSkills: MAX_SKILLS,
-    skillMap: skills.skillMap,
     logger: l,
+    maxSkills: MAX_SKILLS,
     platform: platform ?? "claude-code",
+    pluginRoot: PLUGIN_ROOT,
+    skillMap: skills.skillMap,
   });
 
   return {
@@ -757,26 +861,28 @@ export function formatOutput(
   promptMatchReasons?: Record<string, string>,
   skillMap?: Record<string, { docs?: string[]; sitemap?: string }>,
   platform: PromptHookPlatform = "claude-code",
-  env?: Record<string, string>,
+  env?: Record<string, string>
 ): string {
   if (parts.length === 0) {
     return formatEmptyOutput(platform, env);
   }
 
   const skillInjection = {
-    version: SKILL_INJECTION_VERSION,
-    hookEvent: "UserPromptSubmit",
-    matchedSkills,
-    injectedSkills,
     contextChunks,
-    summaryOnly,
     droppedByBudget,
+    hookEvent: "UserPromptSubmit",
+    injectedSkills,
+    matchedSkills,
+    summaryOnly,
+    version: SKILL_INJECTION_VERSION,
   };
 
   const metaComment = `<!-- skillInjection: ${JSON.stringify(skillInjection)} -->`;
 
   // Build banner describing why skills were auto-suggested
-  const bannerLines: string[] = ["[xylex-group-plugin] Best practices auto-suggested based on prompt analysis:"];
+  const bannerLines: string[] = [
+    "[xylex-group-plugin] Best practices auto-suggested based on prompt analysis:",
+  ];
   for (const skill of injectedSkills) {
     const reason = promptMatchReasons?.[skill];
     if (reason) {
@@ -789,7 +895,9 @@ export function formatOutput(
   const docsBlock = buildDocsBlock(injectedSkills, skillMap);
 
   const sections = [banner];
-  if (docsBlock) sections.push(docsBlock);
+  if (docsBlock) {
+    sections.push(docsBlock);
+  }
   sections.push(parts.join("\n\n"));
 
   const additionalContext = sections.join("\n\n") + "\n" + metaComment;
@@ -807,8 +915,8 @@ export function formatOutput(
 
   const output: SyncHookJSONOutput = {
     hookSpecificOutput: {
-      hookEventName: "UserPromptSubmit" as const,
       additionalContext,
+      hookEventName: "UserPromptSubmit" as const,
     },
   };
   return JSON.stringify(output);
@@ -831,8 +939,12 @@ export function run(): string {
   }
   const platform = detectPromptHookPlatformFromRaw(raw);
   const parsed = parsePromptInput(raw, log);
-  if (!parsed) return formatEmptyOutput(platform);
-  if (log.active) timing.stdin_parse = Math.round(log.now() - tPhase);
+  if (!parsed) {
+    return formatEmptyOutput(platform);
+  }
+  if (log.active) {
+    timing.stdin_parse = Math.round(log.now() - tPhase);
+  }
 
   const { prompt, sessionId, cwd } = parsed;
   const promptEnvBefore = capturePromptEnvSnapshot();
@@ -847,18 +959,25 @@ export function run(): string {
   // Stage 2: loadSkills (reuse from pretooluse)
   const tSkillmap = log.active ? log.now() : 0;
   const skills = loadSkills(PLUGIN_ROOT, log);
-  if (!skills) return formatEmptyOutput(platform);
-  if (log.active) timing.skillmap_load = Math.round(log.now() - tSkillmap);
+  if (!skills) {
+    return formatEmptyOutput(platform);
+  }
+  if (log.active) {
+    timing.skillmap_load = Math.round(log.now() - tSkillmap);
+  }
 
   // Stage 3: analyzePrompt — structured analysis of matching + dedup + cap
   const tAnalyze = log.active ? log.now() : 0;
-  const seenSkillState = resolvePromptSeenSkillState(sessionId, skills.skillMap);
+  const seenSkillState = resolvePromptSeenSkillState(
+    sessionId,
+    skills.skillMap
+  );
   const { dedupOff, hasFileDedup, seenState } = seenSkillState;
   if (seenSkillState.compactionResetApplied) {
     log.debug("dedup-compaction-reset", {
+      clearedSkills: seenSkillState.clearedSkills,
       sessionId,
       threshold: COMPACTION_REINJECT_MIN_PRIORITY,
-      clearedSkills: seenSkillState.clearedSkills,
     });
   }
   const budget = getInjectionBudget();
@@ -866,34 +985,46 @@ export function run(): string {
   if (lexicalEnabled) {
     initializeLexicalIndex(new Map(Object.entries(skills.skillMap)));
   }
-  const report = analyzePrompt(prompt, skills.skillMap, seenState, budget, MAX_SKILLS, { lexicalEnabled });
+  const report = analyzePrompt(
+    prompt,
+    skills.skillMap,
+    seenState,
+    budget,
+    MAX_SKILLS,
+    { lexicalEnabled }
+  );
   applyPromptScoreAdjustmentsToReport(report, skills.skillMap, log, {
-    maxSkills: MAX_SKILLS,
     budgetBytes: budget,
+    maxSkills: MAX_SKILLS,
   });
-  if (log.active) timing.analyze = Math.round(log.now() - tAnalyze);
+  if (log.active) {
+    timing.analyze = Math.round(log.now() - tAnalyze);
+  }
 
   // --- Trace: full report ---
-  log.trace("prompt-analysis-full", report as unknown as Record<string, unknown>);
+  log.trace(
+    "prompt-analysis-full",
+    report as unknown as Record<string, unknown>
+  );
 
   // --- Debug: per-skill breakdown ---
   for (const [skill, r] of Object.entries(report.perSkillResults)) {
     log.debug("prompt-signal-eval", {
-      skill,
-      score: r.score,
-      reason: r.reason,
       matched: r.matched,
+      reason: r.reason,
+      score: r.score,
+      skill,
       suppressed: r.suppressed,
     });
   }
 
   log.debug("prompt-selection", {
-    selectedSkills: report.selectedSkills,
-    droppedByCap: report.droppedByCap,
-    droppedByBudget: report.droppedByBudget,
-    dedupStrategy: report.dedupState.strategy,
-    filteredByDedup: report.dedupState.filteredByDedup,
     budgetBytes: report.budgetBytes,
+    dedupStrategy: report.dedupState.strategy,
+    droppedByBudget: report.droppedByBudget,
+    droppedByCap: report.droppedByCap,
+    filteredByDedup: report.dedupState.filteredByDedup,
+    selectedSkills: report.selectedSkills,
     timingMs: report.timingMs,
   });
 
@@ -910,39 +1041,45 @@ export function run(): string {
       }
     }
     logDecision(log, {
-      hook: "UserPromptSubmit",
-      event: "troubleshooting_intent_routed",
-      intent: intentResult.intent,
-      skills: intentResult.skills,
-      reason: intentResult.reason,
       durationMs: log.active ? log.elapsed() : undefined,
+      event: "troubleshooting_intent_routed",
+      hook: "UserPromptSubmit",
+      intent: intentResult.intent,
+      reason: intentResult.reason,
+      skills: intentResult.skills,
     });
   } else if (intentResult.reason === "suppressed by test framework mention") {
     // Suppress all verification-family skills
     const suppressSet = new Set(["verification"]);
     const before = report.selectedSkills.length;
-    report.selectedSkills = report.selectedSkills.filter((s: string) => !suppressSet.has(s));
+    report.selectedSkills = report.selectedSkills.filter(
+      (s: string) => !suppressSet.has(s)
+    );
     if (report.selectedSkills.length < before) {
       logDecision(log, {
-        hook: "UserPromptSubmit",
-        event: "verification_family_suppressed",
-        reason: intentResult.reason,
         durationMs: log.active ? log.elapsed() : undefined,
+        event: "verification_family_suppressed",
+        hook: "UserPromptSubmit",
+        reason: intentResult.reason,
       });
     }
   }
 
   // Detect investigation/debugging intent from matched skills
   const investigationSkills = ["workflow"];
-  const matchedInvestigation = Object.entries(report.perSkillResults)
-    .filter(([skill, r]) => r.matched && investigationSkills.includes(skill));
+  const matchedInvestigation = Object.entries(report.perSkillResults).filter(
+    ([skill, r]) => r.matched && investigationSkills.includes(skill)
+  );
   if (matchedInvestigation.length > 0) {
     logDecision(log, {
-      hook: "UserPromptSubmit",
-      event: "investigation_intent_detected",
-      reason: "frustration_or_debug_signals",
-      skills: matchedInvestigation.map(([skill, r]) => ({ skill, score: r.score })),
       durationMs: log.active ? log.elapsed() : undefined,
+      event: "investigation_intent_detected",
+      hook: "UserPromptSubmit",
+      reason: "frustration_or_debug_signals",
+      skills: matchedInvestigation.map(([skill, r]) => ({
+        score: r.score,
+        skill,
+      })),
     });
   }
 
@@ -953,47 +1090,65 @@ export function run(): string {
 
   if (allMatched.length === 0) {
     log.debug("prompt-analysis-issue", {
-      issue: "no_prompt_matches",
       evaluatedSkills: Object.keys(report.perSkillResults),
+      issue: "no_prompt_matches",
       suppressedSkills: Object.entries(report.perSkillResults)
         .filter(([, r]) => r.suppressed)
         .map(([skill]) => skill),
     });
-    log.complete("no_prompt_matches", { matchedCount: 0 }, log.active ? timing : null);
-    return formatEmptyOutput(platform, finalizePromptEnvUpdates(platform, promptEnvBefore));
+    log.complete(
+      "no_prompt_matches",
+      { matchedCount: 0 },
+      log.active ? timing : null
+    );
+    return formatEmptyOutput(
+      platform,
+      finalizePromptEnvUpdates(platform, promptEnvBefore)
+    );
   }
 
   // All matched but filtered by dedup
   if (report.selectedSkills.length === 0) {
     log.debug("prompt-analysis-issue", {
+      dedupStrategy: report.dedupState.strategy,
       issue: "all_deduped",
       matchedSkills: allMatched,
       seenSkills: report.dedupState.seenSkills,
-      dedupStrategy: report.dedupState.strategy,
     });
-    log.complete("all_deduped", {
-      matchedCount: allMatched.length,
-      dedupedCount: allMatched.length,
-    }, log.active ? timing : null);
-    return formatEmptyOutput(platform, finalizePromptEnvUpdates(platform, promptEnvBefore));
+    log.complete(
+      "all_deduped",
+      {
+        dedupedCount: allMatched.length,
+        matchedCount: allMatched.length,
+      },
+      log.active ? timing : null
+    );
+    return formatEmptyOutput(
+      platform,
+      finalizePromptEnvUpdates(platform, promptEnvBefore)
+    );
   }
 
   // Stage 4: inject selected skills (file I/O for SKILL.md bodies)
   const tInject = log.active ? log.now() : 0;
-  const injectedSkills = dedupOff ? new Set<string>() : parseSeenSkills(seenState);
+  const injectedSkills = dedupOff
+    ? new Set<string>()
+    : parseSeenSkills(seenState);
 
   const injectResult = injectSkills(report.selectedSkills, {
-    pluginRoot: PLUGIN_ROOT,
-    hasEnvDedup: !dedupOff,
-    sessionId,
-    injectedSkills,
     budgetBytes: budget,
-    maxSkills: MAX_SKILLS,
-    skillMap: skills.skillMap,
+    hasEnvDedup: !dedupOff,
+    injectedSkills,
     logger: log,
+    maxSkills: MAX_SKILLS,
     platform: platform as "claude-code" | "cursor",
+    pluginRoot: PLUGIN_ROOT,
+    sessionId,
+    skillMap: skills.skillMap,
   });
-  if (log.active) timing.inject = Math.round(log.now() - tInject);
+  if (log.active) {
+    timing.inject = Math.round(log.now() - tInject);
+  }
 
   const { parts, loaded, summaryOnly } = injectResult;
   const injectedContextChunks: string[] = [];
@@ -1005,9 +1160,9 @@ export function run(): string {
     parts.push(chunk.wrapped);
     injectedContextChunks.push(chunk.chunkId);
     log.debug("managed-context-chunk-injected", {
+      bytes: chunk.bytes,
       chunkId: chunk.chunkId,
       skill: chunk.skill,
-      bytes: chunk.bytes,
     });
   }
   let syncedSeenSkills = seenState;
@@ -1015,38 +1170,57 @@ export function run(): string {
     syncedSeenSkills = syncPromptSeenSkillClaims(sessionId as string, loaded);
   }
   const droppedByCap = [...injectResult.droppedByCap, ...report.droppedByCap];
-  const droppedByBudget = [...injectResult.droppedByBudget, ...report.droppedByBudget];
+  const droppedByBudget = [
+    ...injectResult.droppedByBudget,
+    ...report.droppedByBudget,
+  ];
   const matchedSkills = allMatched;
 
   if (parts.length === 0) {
-    log.complete("all_deduped", {
-      matchedCount: matchedSkills.length,
-      dedupedCount: matchedSkills.length,
-    }, log.active ? timing : null);
+    log.complete(
+      "all_deduped",
+      {
+        dedupedCount: matchedSkills.length,
+        matchedCount: matchedSkills.length,
+      },
+      log.active ? timing : null
+    );
     return formatEmptyOutput(platform);
   }
 
-  if (log.active) timing.total = log.elapsed();
-  log.complete("injected", {
-    matchedCount: matchedSkills.length,
-    injectedCount: loaded.length,
-    dedupedCount: matchedSkills.length - loaded.length - droppedByCap.length - droppedByBudget.length,
-    cappedCount: droppedByCap.length + droppedByBudget.length,
-  }, log.active ? timing : null);
+  if (log.active) {
+    timing.total = log.elapsed();
+  }
+  log.complete(
+    "injected",
+    {
+      cappedCount: droppedByCap.length + droppedByBudget.length,
+      dedupedCount:
+        matchedSkills.length -
+        loaded.length -
+        droppedByCap.length -
+        droppedByBudget.length,
+      injectedCount: loaded.length,
+      matchedCount: matchedSkills.length,
+    },
+    log.active ? timing : null
+  );
 
   // Audit log
   if (loaded.length > 0) {
-    appendAuditLog({
-      event: "prompt-skill-injection",
-      hookEvent: "UserPromptSubmit",
-      matchedSkills,
-      injectedSkills: loaded,
-      contextChunks: injectedContextChunks,
-      summaryOnly,
-      droppedByCap,
-      droppedByBudget,
-    }, cwd);
-
+    appendAuditLog(
+      {
+        contextChunks: injectedContextChunks,
+        droppedByBudget,
+        droppedByCap,
+        event: "prompt-skill-injection",
+        hookEvent: "UserPromptSubmit",
+        injectedSkills: loaded,
+        matchedSkills,
+        summaryOnly,
+      },
+      cwd
+    );
   }
 
   let outputEnv: Record<string, string> | undefined;
@@ -1078,7 +1252,7 @@ export function run(): string {
     promptMatchReasons,
     skills.skillMap,
     platform,
-    outputEnv,
+    outputEnv
   );
 }
 

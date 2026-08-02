@@ -6,35 +6,39 @@
  * prompt-patterns.mts — no logic duplication.
  */
 
-import { normalizePromptText, compilePromptSignals, matchPromptWithReason, scorePromptWithLexical } from "./prompt-patterns.mjs";
-import type { CompiledPromptSignals, PromptMatchResult } from "./prompt-patterns.mjs";
-import { searchSkills } from "./lexical-index.mjs";
-import { parseSeenSkills } from "./patterns.mjs";
-import type { SkillConfig, PromptSignals } from "./skill-map-frontmatter.mjs";
+import { searchSkills } from "./lexical-index.mts";
+import { parseSeenSkills } from "./patterns.mts";
+import {
+  compilePromptSignals,
+  matchPromptWithReason,
+  normalizePromptText,
+  scorePromptWithLexical,
+} from "./prompt-patterns.mts";
+import type { SkillConfig } from "./skill-map-frontmatter.mts";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface PerSkillResult {
-  score: number;
-  reason: string;
   matched: boolean;
+  reason: string;
+  score: number;
   suppressed: boolean;
 }
 
 export interface PromptAnalysisReport {
-  normalizedPrompt: string;
-  perSkillResults: Record<string, PerSkillResult>;
-  selectedSkills: string[];
-  droppedByCap: string[];
-  droppedByBudget: string[];
+  budgetBytes: number;
   dedupState: {
     strategy: "env-var" | "memory-only" | "disabled";
     seenSkills: string[];
     filteredByDedup: string[];
   };
-  budgetBytes: number;
+  droppedByBudget: string[];
+  droppedByCap: string[];
+  normalizedPrompt: string;
+  perSkillResults: Record<string, PerSkillResult>;
+  selectedSkills: string[];
   timingMs: number;
 }
 
@@ -52,7 +56,9 @@ export interface AnalyzePromptOptions {
   likelySkills?: Iterable<string>;
 }
 
-function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS): Set<string> {
+function parseLikelySkillsEnv(
+  envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS
+): Set<string> {
   if (typeof envValue !== "string" || envValue.trim() === "") {
     return new Set();
   }
@@ -61,7 +67,7 @@ function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS)
     envValue
       .split(",")
       .map((skill) => skill.trim())
-      .filter((skill) => skill.length > 0),
+      .filter((skill) => skill.length > 0)
   );
 }
 
@@ -83,16 +89,16 @@ export function analyzePrompt(
   seenSkills: string,
   budgetBytes: number,
   maxSkills: number,
-  options?: AnalyzePromptOptions,
+  options?: AnalyzePromptOptions
 ): PromptAnalysisReport {
   const t0 = performance.now();
   const lexicalEnabled = options?.lexicalEnabled ?? false;
   const likelySkills = options?.likelySkills
     ? new Set(
-      [...options.likelySkills]
-        .map((skill) => String(skill).trim())
-        .filter((skill) => skill.length > 0),
-    )
+        [...options.likelySkills]
+          .map((skill) => String(skill).trim())
+          .filter((skill) => skill.length > 0)
+      )
     : parseLikelySkillsEnv();
 
   const normalizedPrompt = normalizePromptText(prompt);
@@ -123,7 +129,7 @@ export function analyzePrompt(
   // Even then, the repo profiler must have already marked the skill as likely.
   const RETRIEVAL_TOP_K = 5;
   const topKLexicalSkills = new Set(
-    lexicalHits.slice(0, RETRIEVAL_TOP_K).map((h) => h.skill),
+    lexicalHits.slice(0, RETRIEVAL_TOP_K).map((h) => h.skill)
   );
 
   // Evaluate skills
@@ -135,7 +141,9 @@ export function analyzePrompt(
     // Prompt-time matching must remain anchored to explicit promptSignals.
     // Retrieval metadata is used only as a lexical boost, not as a primary
     // recall path for prompt suggestions.
-    if (!hasPromptSignals) continue;
+    if (!hasPromptSignals) {
+      continue;
+    }
 
     const compiled = hasPromptSignals
       ? compilePromptSignals(config.promptSignals!)
@@ -146,14 +154,14 @@ export function analyzePrompt(
       // Stage 1: exact matching (always primary for skills with promptSignals)
       const exactResult = compiled
         ? matchPromptWithReason(normalizedPrompt, compiled)
-        : { matched: false, score: 0, reason: "no promptSignals" };
+        : { matched: false, reason: "no promptSignals", score: 0 };
 
       // noneOf hard suppression — always respected regardless of lexical score
-      if (exactResult.score === -Infinity) {
+      if (exactResult.score === Number.NEGATIVE_INFINITY) {
         perSkillResults[skill] = {
-          score: -Infinity,
-          reason: exactResult.reason,
           matched: false,
+          reason: exactResult.reason,
+          score: Number.NEGATIVE_INFINITY,
           suppressed: true,
         };
         continue;
@@ -165,26 +173,31 @@ export function analyzePrompt(
       if (exactResult.matched) {
         // Exact match succeeded — use it directly (preserves existing behavior)
         perSkillResults[skill] = {
-          score: exactResult.score,
-          reason: exactResult.reason,
           matched: true,
+          reason: exactResult.reason,
+          score: exactResult.score,
           suppressed: false,
         };
-        matched.push({ skill, score: exactResult.score, priority: config.priority });
+        matched.push({
+          priority: config.priority,
+          score: exactResult.score,
+          skill,
+        });
       } else {
-        const allowLexicalOnlyRecall = (
-          exactResult.score <= 0
-          && rawLexical > 0
-          && topKLexicalSkills.has(skill)
-          && likelySkills.has(skill)
-        );
+        const allowLexicalOnlyRecall =
+          exactResult.score <= 0 &&
+          rawLexical > 0 &&
+          topKLexicalSkills.has(skill) &&
+          likelySkills.has(skill);
 
-        if (!(rawLexical > 0 && (exactResult.score > 0 || allowLexicalOnlyRecall))) {
+        if (
+          !(rawLexical > 0 && (exactResult.score > 0 || allowLexicalOnlyRecall))
+        ) {
           // No lexical hit we trust enough — record sub-threshold result
           perSkillResults[skill] = {
-            score: exactResult.score,
-            reason: exactResult.reason,
             matched: false,
+            reason: exactResult.reason,
+            score: exactResult.score,
             suppressed: false,
           };
           continue;
@@ -194,36 +207,49 @@ export function analyzePrompt(
         // Lexical can always boost a weak exact match.
         // Lexical-only recall is much stricter: only top-ranked hits for
         // profiler-confirmed skills are allowed to cross the threshold.
-        const lexResult = scorePromptWithLexical(prompt, skill, compiled, lexicalHits);
+        const lexResult = scorePromptWithLexical(
+          prompt,
+          skill,
+          compiled,
+          lexicalHits
+        );
         // Cap effective score: exact score + bounded lexical boost.
         // Lexical-only recall gets a higher cap, but only after the profiler
         // has already established stack evidence for the skill.
         const isRetrievalRecall = allowLexicalOnlyRecall;
-        const boostCap = isRetrievalRecall ? RETRIEVAL_LEXICAL_BOOST_CAP : LEXICAL_BOOST_CAP;
+        const boostCap = isRetrievalRecall
+          ? RETRIEVAL_LEXICAL_BOOST_CAP
+          : LEXICAL_BOOST_CAP;
         const lexicalBoost = Math.min(
           Math.max(lexResult.score - exactResult.score, 0),
-          boostCap,
+          boostCap
         );
         const effectiveScore = exactResult.score + lexicalBoost;
         const isMatched = effectiveScore >= minScore;
 
         // Build reason
         const parts: string[] = [];
-        if (exactResult.score > 0) parts.push(exactResult.reason);
+        if (exactResult.score > 0) {
+          parts.push(exactResult.reason);
+        }
         parts.push(
-          `lexical ${isMatched ? "recall" : "boost"} (raw ${rawLexical.toFixed(1)}, capped +${lexicalBoost.toFixed(1)}, source: ${lexResult.source})`,
+          `lexical ${isMatched ? "recall" : "boost"} (raw ${rawLexical.toFixed(1)}, capped +${lexicalBoost.toFixed(1)}, source: ${lexResult.source})`
         );
         const reason = parts.join("; ");
 
         perSkillResults[skill] = {
-          score: effectiveScore,
-          reason,
           matched: isMatched,
+          reason,
+          score: effectiveScore,
           suppressed: false,
         };
 
         if (isMatched) {
-          matched.push({ skill, score: effectiveScore, priority: config.priority });
+          matched.push({
+            priority: config.priority,
+            score: effectiveScore,
+            skill,
+          });
         }
       }
     } else {
@@ -231,22 +257,26 @@ export function analyzePrompt(
       const result = matchPromptWithReason(normalizedPrompt, compiled!);
 
       perSkillResults[skill] = {
-        score: result.score,
-        reason: result.reason,
         matched: result.matched,
-        suppressed: result.score === -Infinity,
+        reason: result.reason,
+        score: result.score,
+        suppressed: result.score === Number.NEGATIVE_INFINITY,
       };
 
       if (result.matched) {
-        matched.push({ skill, score: result.score, priority: config.priority });
+        matched.push({ priority: config.priority, score: result.score, skill });
       }
     }
   }
 
   // Sort by score DESC, priority DESC, skill ASC (same as matchPromptSignals)
   matched.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.priority !== a.priority) return b.priority - a.priority;
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
     return a.skill.localeCompare(b.skill);
   });
 
@@ -277,7 +307,9 @@ export function analyzePrompt(
     const config = skillMap[skill];
     // Estimate: summary is typically a small fraction of SKILL.md body
     // Use summary length * 10 as rough proxy, minimum 500 bytes
-    const estimatedSize = config?.summary ? Math.max(config.summary.length * 10, 500) : 500;
+    const estimatedSize = config?.summary
+      ? Math.max(config.summary.length * 10, 500)
+      : 500;
     if (usedBytes + estimatedSize > budgetBytes && finalSelected.length > 0) {
       droppedByBudget.push(skill);
     } else {
@@ -289,17 +321,17 @@ export function analyzePrompt(
   const timingMs = Math.round(performance.now() - t0);
 
   return {
+    budgetBytes,
+    dedupState: {
+      filteredByDedup,
+      seenSkills: [...seenSet],
+      strategy,
+    },
+    droppedByBudget,
+    droppedByCap,
     normalizedPrompt,
     perSkillResults,
     selectedSkills: finalSelected,
-    droppedByCap,
-    droppedByBudget,
-    dedupState: {
-      strategy,
-      seenSkills: [...seenSet],
-      filteredByDedup,
-    },
-    budgetBytes,
     timingMs,
   };
 }

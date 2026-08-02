@@ -1,13 +1,12 @@
 #!/usr/bin/env bun
 
 import {
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  existsSync,
-  mkdirSync,
   cpSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -16,13 +15,13 @@ const SKILLS_DIR = join(ROOT, "skills");
 const UPSTREAM_DIRS = ["references", "rules", "templates", "command"];
 
 interface BuildResult {
-  skill: string;
-  status: "updated" | "unchanged" | "error";
-  overlayLines: number;
-  upstreamBodyLines: number;
-  outputLines: number;
   copiedDirs: string[];
   error?: string;
+  outputLines: number;
+  overlayLines: number;
+  skill: string;
+  status: "updated" | "unchanged" | "error";
+  upstreamBodyLines: number;
 }
 
 function extractUpstreamBody(upstreamPath: string): string {
@@ -41,7 +40,9 @@ function extractUpstreamBody(upstreamPath: string): string {
     }
   }
 
-  if (bodyStart === -1) return raw;
+  if (bodyStart === -1) {
+    return raw;
+  }
   return lines.slice(bodyStart).join("\n");
 }
 
@@ -52,12 +53,12 @@ function buildSkill(skillName: string): BuildResult {
   const outputPath = join(skillDir, "SKILL.md");
 
   const result: BuildResult = {
+    copiedDirs: [],
+    outputLines: 0,
+    overlayLines: 0,
     skill: skillName,
     status: "unchanged",
-    overlayLines: 0,
     upstreamBodyLines: 0,
-    outputLines: 0,
-    copiedDirs: [],
   };
 
   try {
@@ -84,8 +85,12 @@ function buildSkill(skillName: string): BuildResult {
     for (const dir of UPSTREAM_DIRS) {
       const srcDir = join(upstreamDir, dir);
       const destDir = join(skillDir, dir);
-      if (!existsSync(srcDir)) continue;
-      if (existsSync(destDir)) rmSync(destDir, { recursive: true });
+      if (!existsSync(srcDir)) {
+        continue;
+      }
+      if (existsSync(destDir)) {
+        rmSync(destDir, { recursive: true });
+      }
       cpSync(srcDir, destDir, { recursive: true });
       result.copiedDirs.push(dir);
     }
@@ -113,7 +118,9 @@ if (import.meta.main) {
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .filter((name) => {
-      if (filter && name !== filter) return false;
+      if (filter && name !== filter) {
+        return false;
+      }
       return existsSync(join(SKILLS_DIR, name, "overlay.yaml"));
     });
 
@@ -142,7 +149,7 @@ if (import.meta.main) {
             ? ` + ${result.copiedDirs.join(", ")}`
             : "";
         console.log(
-          `  updated  ${skill} (${result.overlayLines}L overlay + ${result.upstreamBodyLines}L body → ${result.outputLines}L${dirs})`,
+          `  updated  ${skill} (${result.overlayLines}L overlay + ${result.upstreamBodyLines}L body → ${result.outputLines}L${dirs})`
         );
         updated++;
       }
@@ -154,7 +161,9 @@ if (import.meta.main) {
 
   const summary = check ? "build:skills --check" : "build:skills";
   console.log(
-    `\n${summary} — ${updated} updated, ${unchanged} unchanged, ${errors} errors`,
+    `\n${summary} — ${updated} updated, ${unchanged} unchanged, ${errors} errors`
   );
-  if (errors > 0) process.exit(1);
+  if (errors > 0) {
+    process.exit(1);
+  }
 }

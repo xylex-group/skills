@@ -19,26 +19,27 @@ export type LogLevel = "off" | "summary" | "debug" | "trace";
 
 const LEVELS = ["off", "summary", "debug", "trace"] as const;
 const LEVEL_INDEX: Record<string, number> = {
+  debug: 2,
   off: 0,
   summary: 1,
-  debug: 2,
   trace: 3,
 };
 
-const XYLEX_PLUGIN_SHARED_LOGGER_CONTEXT_KEY = "__xylexPluginSharedLoggerContext__" as const;
+const XYLEX_PLUGIN_SHARED_LOGGER_CONTEXT_KEY =
+  "__xylexPluginSharedLoggerContext__" as const;
 
 interface CompleteCounts {
-  matchedCount: number;
-  injectedCount: number;
-  dedupedCount: number;
-  cappedCount: number;
-  tsxReviewTriggered?: boolean;
-  devServerVerifyTriggered?: boolean;
-  matchedSkills?: string[];
-  injectedSkills?: string[];
-  droppedByCap?: string[];
-  droppedByBudget?: string[];
   boostsApplied?: string[];
+  cappedCount: number;
+  dedupedCount: number;
+  devServerVerifyTriggered?: boolean;
+  droppedByBudget?: string[];
+  droppedByCap?: string[];
+  injectedCount: number;
+  injectedSkills?: string[];
+  matchedCount: number;
+  matchedSkills?: string[];
+  tsxReviewTriggered?: boolean;
 }
 
 interface SharedLoggerContext {
@@ -50,37 +51,50 @@ type LoggerGlobal = typeof globalThis & {
 };
 
 export interface CreateLoggerOptions {
-  level?: LogLevel;
   invocationId?: string;
+  level?: LogLevel;
 }
 
 export interface Logger {
-  level: string;
   active: boolean;
-  t0: number;
-  now: () => number;
-  elapsed: () => number;
-  summary: (event: string, data: Record<string, unknown>) => void;
-  issue: (code: string, message: string, hint: string, context: Record<string, unknown>) => void;
-  complete: (reason: string, counts?: Partial<CompleteCounts>, timing?: Record<string, number> | null) => void;
+  complete: (
+    reason: string,
+    counts?: Partial<CompleteCounts>,
+    timing?: Record<string, number> | null
+  ) => void;
   debug: (event: string, data: Record<string, unknown>) => void;
-  trace: (event: string, data: Record<string, unknown>) => void;
+  elapsed: () => number;
   isEnabled: (minLevel: string) => boolean;
+  issue: (
+    code: string,
+    message: string,
+    hint: string,
+    context: Record<string, unknown>
+  ) => void;
+  level: string;
+  now: () => number;
+  summary: (event: string, data: Record<string, unknown>) => void;
+  t0: number;
+  trace: (event: string, data: Record<string, unknown>) => void;
 }
 
-function readErrorField(error: Record<string, unknown>, field: string): unknown {
+function readErrorField(
+  error: Record<string, unknown>,
+  field: string
+): unknown {
   return field in error ? error[field] : undefined;
 }
 
 export function serializeErrorForLog(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
     const maybeCode =
-      "code" in error && typeof (error as Error & { code?: unknown }).code !== "undefined"
+      "code" in error &&
+      typeof (error as Error & { code?: unknown }).code !== "undefined"
         ? { code: (error as Error & { code?: unknown }).code }
         : {};
     return {
-      name: error.name,
       message: error.message,
+      name: error.name,
       ...maybeCode,
       ...(error.stack ? { stack: error.stack } : {}),
     };
@@ -90,10 +104,18 @@ export function serializeErrorForLog(error: unknown): Record<string, unknown> {
     const record = error as Record<string, unknown>;
     return {
       type: error.constructor?.name || "Object",
-      ...(readErrorField(record, "name") !== undefined ? { name: readErrorField(record, "name") } : {}),
-      ...(readErrorField(record, "message") !== undefined ? { message: readErrorField(record, "message") } : {}),
-      ...(readErrorField(record, "code") !== undefined ? { code: readErrorField(record, "code") } : {}),
-      ...(readErrorField(record, "stack") !== undefined ? { stack: readErrorField(record, "stack") } : {}),
+      ...(readErrorField(record, "name") === undefined
+        ? {}
+        : { name: readErrorField(record, "name") }),
+      ...(readErrorField(record, "message") === undefined
+        ? {}
+        : { message: readErrorField(record, "message") }),
+      ...(readErrorField(record, "code") === undefined
+        ? {}
+        : { code: readErrorField(record, "code") }),
+      ...(readErrorField(record, "stack") === undefined
+        ? {}
+        : { stack: readErrorField(record, "stack") }),
     };
   }
 
@@ -104,7 +126,7 @@ export function logCaughtError(
   logger: Logger,
   event: string,
   error: unknown,
-  context: Record<string, unknown> = {},
+  context: Record<string, unknown> = {}
 ): void {
   logger.debug(event, { ...context, error: serializeErrorForLog(error) });
 }
@@ -113,7 +135,9 @@ export function logCaughtError(
  * Resolve the active log level from environment variables.
  */
 export function resolveLogLevel(): LogLevel {
-  const explicit = (process.env.XYLEX_PLUGIN_LOG_LEVEL || "").toLowerCase().trim();
+  const explicit = (process.env.XYLEX_PLUGIN_LOG_LEVEL || "")
+    .toLowerCase()
+    .trim();
   if (explicit && LEVEL_INDEX[explicit] !== undefined) {
     return explicit as LogLevel;
   }
@@ -140,9 +164,16 @@ function getSharedLoggerContext(): SharedLoggerContext {
   return loggerGlobal[XYLEX_PLUGIN_SHARED_LOGGER_CONTEXT_KEY]!;
 }
 
-function resolveInvocationId(active: boolean, explicitInvocationId?: string): string {
-  if (!active) return "";
-  if (explicitInvocationId) return explicitInvocationId;
+function resolveInvocationId(
+  active: boolean,
+  explicitInvocationId?: string
+): string {
+  if (!active) {
+    return "";
+  }
+  if (explicitInvocationId) {
+    return explicitInvocationId;
+  }
 
   const sharedContext = getSharedLoggerContext();
   if (!sharedContext.invocationId) {
@@ -156,7 +187,7 @@ function resolveInvocationId(active: boolean, explicitInvocationId?: string): st
  * All hook modules in the same process reuse one invocationId by default.
  */
 export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
-  const options = typeof opts === "string" ? { level: opts } : (opts || {});
+  const options = typeof opts === "string" ? { level: opts } : opts || {};
   const level = options.level || resolveLogLevel();
   const rank = LEVEL_INDEX[level] || 0;
   const active = rank > 0;
@@ -168,11 +199,17 @@ export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
       : () => Date.now();
   const t0 = active ? safeNow() : 0;
 
-  function emit(minLevel: string, event: string, data: Record<string, unknown>): void {
-    if (rank < (LEVEL_INDEX[minLevel] || 0)) return;
+  function emit(
+    minLevel: string,
+    event: string,
+    data: Record<string, unknown>
+  ): void {
+    if (rank < (LEVEL_INDEX[minLevel] || 0)) {
+      return;
+    }
     const line = JSON.stringify({
-      invocationId,
       event,
+      invocationId,
       timestamp: new Date().toISOString(),
       ...data,
     });
@@ -180,21 +217,7 @@ export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
   }
 
   return {
-    level,
     active,
-    t0,
-    now: safeNow,
-    elapsed() {
-      return Math.round(safeNow() - t0);
-    },
-
-    summary(event, data) {
-      emit("summary", event, data);
-    },
-
-    issue(code, message, hint, context) {
-      emit("summary", "issue", { code, message, hint, context });
-    },
 
     complete(reason, counts, timing) {
       const {
@@ -211,17 +234,21 @@ export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
         boostsApplied,
       } = counts || {};
       emit("summary", "complete", {
-        reason,
-        matchedCount,
-        injectedCount,
-        dedupedCount,
         cappedCount,
-        ...(tsxReviewTriggered !== undefined ? { tsxReviewTriggered } : {}),
-        ...(devServerVerifyTriggered !== undefined ? { devServerVerifyTriggered } : {}),
+        dedupedCount,
+        injectedCount,
+        matchedCount,
+        reason,
+        ...(tsxReviewTriggered === undefined ? {} : { tsxReviewTriggered }),
+        ...(devServerVerifyTriggered === undefined
+          ? {}
+          : { devServerVerifyTriggered }),
         ...(matchedSkills ? { matchedSkills } : {}),
         ...(injectedSkills ? { injectedSkills } : {}),
         ...(droppedByCap && droppedByCap.length > 0 ? { droppedByCap } : {}),
-        ...(droppedByBudget && droppedByBudget.length > 0 ? { droppedByBudget } : {}),
+        ...(droppedByBudget && droppedByBudget.length > 0
+          ? { droppedByBudget }
+          : {}),
         ...(boostsApplied && boostsApplied.length > 0 ? { boostsApplied } : {}),
         elapsed_ms: Math.round(safeNow() - t0),
         ...(timing ? { timing_ms: timing } : {}),
@@ -231,13 +258,27 @@ export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
     debug(event, data) {
       emit("debug", event, data);
     },
-
-    trace(event, data) {
-      emit("trace", event, data);
+    elapsed() {
+      return Math.round(safeNow() - t0);
     },
 
     isEnabled(minLevel) {
       return rank >= (LEVEL_INDEX[minLevel] || 0);
+    },
+
+    issue(code, message, hint, context) {
+      emit("summary", "issue", { code, context, hint, message });
+    },
+    level,
+    now: safeNow,
+
+    summary(event, data) {
+      emit("summary", event, data);
+    },
+    t0,
+
+    trace(event, data) {
+      emit("trace", event, data);
     },
   };
 }
@@ -247,12 +288,12 @@ export function createLogger(opts?: CreateLoggerOptions | LogLevel): Logger {
  * Emits at debug level with consistent fields across all hooks.
  */
 export interface DecisionFields {
-  hook: string;
-  event: string;
-  skill?: string;
-  score?: number;
-  reason?: string;
   durationMs?: number;
+  event: string;
+  hook: string;
+  reason?: string;
+  score?: number;
+  skill?: string;
   [key: string]: unknown;
 }
 
@@ -261,7 +302,10 @@ export interface DecisionFields {
  * Provides a consistent shape for skill routing decisions across hooks.
  */
 export function logDecision(logger: Logger, fields: DecisionFields): void {
-  logger.debug(`decision:${fields.event}`, fields as unknown as Record<string, unknown>);
+  logger.debug(
+    `decision:${fields.event}`,
+    fields as unknown as Record<string, unknown>
+  );
 }
 
-export { LEVELS, LEVEL_INDEX };
+export { LEVEL_INDEX, LEVELS };

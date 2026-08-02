@@ -10,7 +10,7 @@
  * 5. Non-canonical skill slugs (naming drift detection)
  */
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -56,10 +56,12 @@ function extractSkillCounts(
   const regex = /\b(\d+)\s+skills?\b/gi;
   let m: RegExpExecArray | null;
   while ((m = regex.exec(content)) !== null) {
-    const count = parseInt(m[1], 10);
+    const count = Number.parseInt(m[1], 10);
     // Skip small numbers that are likely budget/config limits, not total counts
     // Skill counts are 20+ in practice; budget limits are typically 2-5
-    if (count < 10) continue;
+    if (count < 10) {
+      continue;
+    }
 
     const lineNum = content.slice(0, m.index).split("\n").length;
     matches.push({ count, line: `${label}:${lineNum}` });
@@ -85,7 +87,7 @@ function extractTestCounts(
   const regex = /\b(\d+)\s+test\s+files?\b/gi;
   let m: RegExpExecArray | null;
   while ((m = regex.exec(content)) !== null) {
-    const count = parseInt(m[1], 10);
+    const count = Number.parseInt(m[1], 10);
     const lineNum = content.slice(0, m.index).split("\n").length;
     matches.push({ count, line: `${label}:${lineNum}` });
   }
@@ -98,15 +100,26 @@ const docsToCheck: [string, string][] = [
   [join(ROOT, "README.md"), "README.md"],
   [join(ROOT, "docs/README.md"), "docs/README.md"],
   [join(ROOT, "CLAUDE.md"), "CLAUDE.md"],
-  [join(ROOT, "docs/01-architecture-overview.md"), "docs/01-architecture-overview.md"],
-  [join(ROOT, "docs/02-injection-pipeline.md"), "docs/02-injection-pipeline.md"],
+  [
+    join(ROOT, "docs/01-architecture-overview.md"),
+    "docs/01-architecture-overview.md",
+  ],
+  [
+    join(ROOT, "docs/02-injection-pipeline.md"),
+    "docs/02-injection-pipeline.md",
+  ],
   [join(ROOT, "docs/03-skill-authoring.md"), "docs/03-skill-authoring.md"],
-  [join(ROOT, "docs/04-operations-debugging.md"), "docs/04-operations-debugging.md"],
+  [
+    join(ROOT, "docs/04-operations-debugging.md"),
+    "docs/04-operations-debugging.md",
+  ],
   [join(ROOT, "docs/05-reference.md"), "docs/05-reference.md"],
 ];
 
 for (const [filePath, label] of docsToCheck) {
-  if (!existsSync(filePath)) continue;
+  if (!existsSync(filePath)) {
+    continue;
+  }
 
   // Skill counts
   const skillMentions = extractSkillCounts(filePath, label);
@@ -137,7 +150,9 @@ const driftMap: Record<string, string> = {
 };
 
 for (const [filePath, label] of docsToCheck) {
-  if (!existsSync(filePath)) continue;
+  if (!existsSync(filePath)) {
+    continue;
+  }
   const content = readFileSync(filePath, "utf-8");
 
   for (const [wrong, correct] of Object.entries(driftMap)) {
@@ -169,14 +184,14 @@ for (const [filePath, label] of docsToCheck) {
 // ─── 4. Hook table in CLAUDE.md matches hooks/hooks.json ────────────────────
 
 interface HookEntryJson {
-  type: string;
   command: string;
   timeout?: number;
+  type: string;
 }
 
 interface HookMatcher {
-  matcher?: string;
   hooks: HookEntryJson[];
+  matcher?: string;
 }
 
 interface HooksConfig {
@@ -193,7 +208,9 @@ for (const matchers of Object.values(hooksJson.hooks)) {
   for (const matcher of matchers) {
     for (const hook of matcher.hooks) {
       const match = hook.command.match(/hooks\/([a-z0-9-]+\.mjs)/);
-      if (match) actualHookFiles.add(match[1]);
+      if (match) {
+        actualHookFiles.add(match[1]);
+      }
     }
   }
 }
@@ -210,7 +227,9 @@ while ((hm = hookTableRegex.exec(claudeMd)) !== null) {
 // Diff: hooks in code but not in CLAUDE.md
 for (const f of actualHookFiles) {
   if (!claudeHookFiles.has(f)) {
-    fail(`Hook ${f} exists in hooks.json but missing from CLAUDE.md hook table`);
+    fail(
+      `Hook ${f} exists in hooks.json but missing from CLAUDE.md hook table`
+    );
   }
 }
 
@@ -246,13 +265,17 @@ const docsForScripts: [string, string][] = [
 const scriptRefRegex = /bun\s+run\s+([a-z0-9:_./\\-]+)/g;
 
 for (const [filePath, label] of docsForScripts) {
-  if (!existsSync(filePath)) continue;
+  if (!existsSync(filePath)) {
+    continue;
+  }
   const content = readFileSync(filePath, "utf-8");
   let sm: RegExpExecArray | null;
   const checked = new Set<string>();
   while ((sm = scriptRefRegex.exec(content)) !== null) {
     const scriptName = sm[1];
-    if (checked.has(scriptName)) continue;
+    if (checked.has(scriptName)) {
+      continue;
+    }
     checked.add(scriptName);
 
     // Skip references to file paths (e.g., "bun run scripts/build-manifest.ts", "bun run src/cli/index.ts")

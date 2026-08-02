@@ -26,9 +26,9 @@ describe("lexical index", () => {
           {
             retrieval: {
               aliases: ["deploy"],
-              intents: ["publish release"],
               entities: ["environment secret"],
               examples: ["push this app live"],
+              intents: ["publish release"],
             },
           },
         ],
@@ -38,18 +38,20 @@ describe("lexical index", () => {
             metadata: {
               retrieval: {
                 aliases: ["auth"],
-                intents: ["login"],
                 entities: ["session credentials"],
                 examples: ["cannot signin"],
+                intents: ["login"],
               },
             },
           },
         ],
-      ]),
+      ])
     );
 
     expect(searchSkills("ship my env config")[0]?.skill).toBe("deployments");
-    expect(searchSkills("cant signin with session credentials")[0]?.skill).toBe("auth");
+    expect(searchSkills("cant signin with session credentials")[0]?.skill).toBe(
+      "auth"
+    );
   });
 
   it("test_searchSkills_filters_results_using_env_min_score", () => {
@@ -60,13 +62,13 @@ describe("lexical index", () => {
           {
             retrieval: {
               aliases: ["api"],
-              intents: ["endpoint route"],
               entities: ["graphql handler"],
               examples: ["build a rest api"],
+              intents: ["endpoint route"],
             },
           },
         ],
-      ]),
+      ])
     );
 
     process.env.XYLEX_PLUGIN_LEXICAL_RESULT_MIN_SCORE = "999";

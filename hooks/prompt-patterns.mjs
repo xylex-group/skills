@@ -1,31 +1,32 @@
 // hooks/src/prompt-patterns.mts
 import { searchSkills } from "./lexical-index.mjs";
+
 var MIN_LEXICAL_FALLBACK_SCORE = 20;
 function lexicalFallbackMeetsFloor(score) {
   return score >= MIN_LEXICAL_FALLBACK_SCORE;
 }
 var CONTRACTIONS = {
-  "it's": "it is",
-  "what's": "what is",
-  "where's": "where is",
-  "that's": "that is",
-  "there's": "there is",
-  "who's": "who is",
-  "how's": "how is",
-  "isn't": "is not",
   "aren't": "are not",
-  "wasn't": "was not",
-  "weren't": "were not",
-  "doesn't": "does not",
-  "don't": "do not",
-  "didn't": "did not",
-  "won't": "will not",
   "can't": "cannot",
   "couldn't": "could not",
-  "wouldn't": "would not",
-  "shouldn't": "should not",
+  "didn't": "did not",
+  "doesn't": "does not",
+  "don't": "do not",
   "hasn't": "has not",
-  "haven't": "have not"
+  "haven't": "have not",
+  "how's": "how is",
+  "isn't": "is not",
+  "it's": "it is",
+  "shouldn't": "should not",
+  "that's": "that is",
+  "there's": "there is",
+  "wasn't": "was not",
+  "weren't": "were not",
+  "what's": "what is",
+  "where's": "where is",
+  "who's": "who is",
+  "won't": "will not",
+  "wouldn't": "would not",
 };
 var CONTRACTION_ENTRIES = Object.entries(CONTRACTIONS);
 function expandContractions(text) {
@@ -38,7 +39,9 @@ function expandContractions(text) {
   return t;
 }
 function normalizePromptText(text) {
-  if (typeof text !== "string") return "";
+  if (typeof text !== "string") {
+    return "";
+  }
   let t = text.toLowerCase();
   t = expandContractions(t);
   return t.replace(/\s+/g, " ").trim();
@@ -46,16 +49,19 @@ function normalizePromptText(text) {
 function compilePromptSignals(signals) {
   const norm = (s) => expandContractions(s.toLowerCase());
   return {
-    phrases: (signals.phrases || []).map(norm),
     allOf: (signals.allOf || []).map((group) => group.map(norm)),
     anyOf: (signals.anyOf || []).map(norm),
+    minScore:
+      typeof signals.minScore === "number" && !Number.isNaN(signals.minScore)
+        ? signals.minScore
+        : 6,
     noneOf: (signals.noneOf || []).map(norm),
-    minScore: typeof signals.minScore === "number" && !Number.isNaN(signals.minScore) ? signals.minScore : 6
+    phrases: (signals.phrases || []).map(norm),
   };
 }
 function matchPromptWithReason(normalizedPrompt, compiled) {
   if (!normalizedPrompt) {
-    return { matched: false, score: 0, reason: "empty prompt" };
+    return { matched: false, reason: "empty prompt", score: 0 };
   }
   for (const term of compiled.noneOf) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -63,8 +69,8 @@ function matchPromptWithReason(normalizedPrompt, compiled) {
     if (re.test(normalizedPrompt)) {
       return {
         matched: false,
-        score: -Infinity,
-        reason: `suppressed by noneOf "${term}"`
+        reason: `suppressed by noneOf "${term}"`,
+        score: Number.NEGATIVE_INFINITY,
       };
     }
   }
@@ -99,46 +105,54 @@ function matchPromptWithReason(normalizedPrompt, compiled) {
     const detail = reasons.length > 0 ? ` (${reasons.join("; ")})` : "";
     return {
       matched: false,
+      reason: `below threshold: score ${score} < ${compiled.minScore}${detail}`,
       score,
-      reason: `below threshold: score ${score} < ${compiled.minScore}${detail}`
     };
   }
   return {
     matched: true,
+    reason: reasons.join("; "),
     score,
-    reason: reasons.join("; ")
   };
 }
 function findMatchedPhrases(normalizedPrompt, compiled) {
-  if (!compiled) return [];
+  if (!compiled) {
+    return [];
+  }
   return compiled.phrases.filter((phrase) => normalizedPrompt.includes(phrase));
 }
 function adaptiveBoostTier(exactScore, minScore) {
-  if (exactScore <= 0) return { multiplier: 1.5, tier: "high" };
-  if (exactScore < minScore / 2) return { multiplier: 1.35, tier: "mid" };
+  if (exactScore <= 0) {
+    return { multiplier: 1.5, tier: "high" };
+  }
+  if (exactScore < minScore / 2) {
+    return { multiplier: 1.35, tier: "mid" };
+  }
   return { multiplier: 1.1, tier: "low" };
 }
 function scorePromptWithLexical(prompt, skillSlug, compiled, lexicalHits) {
   const normalizedPrompt = normalizePromptText(prompt);
   const matchedPhrases = findMatchedPhrases(normalizedPrompt, compiled);
-  const exactResult = compiled ? matchPromptWithReason(normalizedPrompt, compiled) : { score: 0, matched: false };
+  const exactResult = compiled
+    ? matchPromptWithReason(normalizedPrompt, compiled)
+    : { matched: false, score: 0 };
   const exactScore = exactResult.score;
   if (compiled && exactScore >= compiled.minScore) {
     return {
-      score: exactScore,
-      matchedPhrases,
+      boostTier: null,
       lexicalScore: 0,
+      matchedPhrases,
+      score: exactScore,
       source: "exact",
-      boostTier: null
     };
   }
-  if (exactScore === -Infinity) {
+  if (exactScore === Number.NEGATIVE_INFINITY) {
     return {
-      score: -Infinity,
-      matchedPhrases: [],
+      boostTier: null,
       lexicalScore: 0,
+      matchedPhrases: [],
+      score: Number.NEGATIVE_INFINITY,
       source: "exact",
-      boostTier: null
     };
   }
   const lexicalHit = (lexicalHits ?? searchSkills(prompt)).find(
@@ -146,62 +160,72 @@ function scorePromptWithLexical(prompt, skillSlug, compiled, lexicalHits) {
   );
   if (!lexicalHit) {
     return {
-      score: exactScore,
-      matchedPhrases,
+      boostTier: null,
       lexicalScore: 0,
+      matchedPhrases,
+      score: exactScore,
       source: "exact",
-      boostTier: null
     };
   }
   const minScore = compiled?.minScore ?? 6;
   const { multiplier, tier } = adaptiveBoostTier(exactScore, minScore);
   const lexicalBoost = lexicalHit.score * multiplier;
   return {
-    score: Math.max(exactScore, lexicalBoost),
-    matchedPhrases,
+    boostTier: tier,
     lexicalScore: lexicalHit.score,
-    source: lexicalBoost > exactScore ? "lexical" : matchedPhrases.length > 0 || exactScore > 0 ? "combined" : "lexical",
-    boostTier: tier
+    matchedPhrases,
+    score: Math.max(exactScore, lexicalBoost),
+    source:
+      lexicalBoost > exactScore
+        ? "lexical"
+        : matchedPhrases.length > 0 || exactScore > 0
+          ? "combined"
+          : "lexical",
   };
 }
-var FLOW_VERIFICATION_RE = /\b(?:loads?\s+but|submits?\s+but|redirects?\s+but|works?\s+(?:locally\s+)?but|saves?\s+but|sends?\s+but|returns?\s+but|fetches?\s+but|connects?\s+but|renders?\s+but|deploys?\s+but|builds?\s+but)\b/;
-var STUCK_INVESTIGATION_RE = /\b(?:stuck|hung|frozen|tim(?:ed?|ing)\s*out|timeout|hanging|not\s+responding|no\s+response|spinning\s+forever|still\s+waiting|nothing\s+happened|nothing\s+is\s+happening|just\s+sits?\s+there)\b/;
-var BROWSER_ONLY_RE = /\b(?:blank\s+page|white\s+screen|screen\s+is\s+(?:blank|white)|console\s+errors?|browser\s+errors?|nothing\s+(?:render(?:s|ed|ing)?|show(?:s|ing|n)?)|page\s+(?:is\s+)?(?:broken|empty)|ui\s+is\s+broken)\b/;
-var TEST_FRAMEWORK_RE = /\b(?:jest|vitest|playwright\s+test|cypress\s+test|mocha|karma|testing\s+library)\b/;
+var FLOW_VERIFICATION_RE =
+  /\b(?:loads?\s+but|submits?\s+but|redirects?\s+but|works?\s+(?:locally\s+)?but|saves?\s+but|sends?\s+but|returns?\s+but|fetches?\s+but|connects?\s+but|renders?\s+but|deploys?\s+but|builds?\s+but)\b/;
+var STUCK_INVESTIGATION_RE =
+  /\b(?:stuck|hung|frozen|tim(?:ed?|ing)\s*out|timeout|hanging|not\s+responding|no\s+response|spinning\s+forever|still\s+waiting|nothing\s+happened|nothing\s+is\s+happening|just\s+sits?\s+there)\b/;
+var BROWSER_ONLY_RE =
+  /\b(?:blank\s+page|white\s+screen|screen\s+is\s+(?:blank|white)|console\s+errors?|browser\s+errors?|nothing\s+(?:render(?:s|ed|ing)?|show(?:s|ing|n)?)|page\s+(?:is\s+)?(?:broken|empty)|ui\s+is\s+broken)\b/;
+var TEST_FRAMEWORK_RE =
+  /\b(?:jest|vitest|playwright\s+test|cypress\s+test|mocha|karma|testing\s+library)\b/;
 function classifyTroubleshootingIntent(normalizedPrompt) {
   if (!normalizedPrompt) {
-    return { intent: null, skills: [], reason: "empty prompt" };
+    return { intent: null, reason: "empty prompt", skills: [] };
   }
   if (TEST_FRAMEWORK_RE.test(normalizedPrompt)) {
     return {
       intent: null,
+      reason: "suppressed by test framework mention",
       skills: [],
-      reason: "suppressed by test framework mention"
     };
   }
   if (BROWSER_ONLY_RE.test(normalizedPrompt)) {
     return {
       intent: "browser-only",
+      reason: "browser-only pattern matched",
       skills: ["verification"],
-      reason: "browser-only pattern matched"
     };
   }
   if (FLOW_VERIFICATION_RE.test(normalizedPrompt)) {
     return {
       intent: "flow-verification",
+      reason: "flow-verification pattern matched",
       skills: ["verification"],
-      reason: "flow-verification pattern matched"
     };
   }
   if (STUCK_INVESTIGATION_RE.test(normalizedPrompt)) {
     return {
       intent: "stuck-investigation",
+      reason: "stuck-investigation pattern matched",
       skills: ["verification"],
-      reason: "stuck-investigation pattern matched"
     };
   }
-  return { intent: null, skills: [], reason: "no troubleshooting intent" };
+  return { intent: null, reason: "no troubleshooting intent", skills: [] };
 }
+
 export {
   adaptiveBoostTier,
   classifyTroubleshootingIntent,
@@ -209,5 +233,5 @@ export {
   lexicalFallbackMeetsFloor,
   matchPromptWithReason,
   normalizePromptText,
-  scorePromptWithLexical
+  scorePromptWithLexical,
 };

@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-08-02T10:10:25.599Z",
+  "version": 2,
+  "skills": {
+    "create-xylex-skill": {
+      "priority": 9,
+      "summary": "Create a skills/*/SKILL.md with correct --- frontmatter",
+      "docs": [
+        "https://agentskills.io/specification",
+        "https://skills.sh/"
+      ],
+      "pathPatterns": [
+        "skills/**/SKILL.md",
+        "skills/**/overlay.yaml"
+      ],
+      "bashPatterns": [
+        "\\bbun\\s+run\\s+validate\\b",
+        "\\bnpx\\s+skills\\s+add\\b"
+      ],
+      "importPatterns": [],
+      "bodyPath": "skills/create-xylex-skill/SKILL.md",
+      "pathRegexSources": [
+        "^skills\\/(?:[^/]+\\/)*SKILL\\.md$",
+        "^skills\\/(?:[^/]+\\/)*overlay\\.yaml$"
+      ],
+      "bashRegexSources": [
+        "\\bbun\\s+run\\s+validate\\b",
+        "\\bnpx\\s+skills\\s+add\\b"
+      ],
+      "importRegexSources": [],
+      "promptSignals": {
+        "phrases": [
+          "create a skill",
+          "new skill",
+          "SKILL.md",
+          "skill frontmatter",
+          "add a skill",
+          "create-xylex-skill"
+        ],
+        "allOf": [
+          [
+            "skill",
+            "frontmatter"
+          ],
+          [
+            "skill",
+            "create"
+          ],
+          [
+            "skills",
+            "SKILL"
+          ]
+        ],
+        "anyOf": [
+          "skill",
+          "skills",
+          "agent skills"
+        ],
+        "noneOf": [
+          "vercel skill marketplace only"
+        ],
+        "minScore": 5
+      },
+      "retrieval": {
+        "aliases": [
+          "skill scaffold",
+          "SKILL.md template",
+          "agent skill format"
+        ],
+        "intents": [
+          "create a new skill",
+          "fix skill frontmatter",
+          "document a skill for agents"
+        ],
+        "entities": [
+          "SKILL.md",
+          "frontmatter",
+          "pathPatterns",
+          "bashPatterns",
+          "retrieval"
+        ],
+        "examples": [
+          "add a skill for athena-js",
+          "scaffold skills/my-skill/SKILL.md",
+          "what frontmatter does a skill need"
+        ]
+      }
+    }
+  }
+}

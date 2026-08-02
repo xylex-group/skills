@@ -17,26 +17,26 @@
  */
 
 import { readFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   extractFrontmatter,
   parseSkillFrontmatter,
 } from "../hooks/skill-map-frontmatter.mjs";
 
-export {
-  extractSkillSection,
-  resolveIncludes,
-  loadSkillContent,
-  compileTemplate,
-  DiagnosticCode,
-};
 export type {
-  CompileResult,
+  BuildManifest,
   CompileDiagnostic,
+  CompileResult,
+  ManifestEntry,
   ResolvedInclude,
   ResolveOptions,
-  ManifestEntry,
-  BuildManifest,
+};
+export {
+  compileTemplate,
+  DiagnosticCode,
+  extractSkillSection,
+  loadSkillContent,
+  resolveIncludes,
 };
 
 const ROOT = resolve(import.meta.dir, "..");
@@ -48,9 +48,9 @@ const DEFAULT_SKILLS_DIR = join(ROOT, "skills");
 
 /** Stable error codes for machine-readable diagnostics. */
 const DiagnosticCode = {
-  SKILL_NOT_FOUND: "SKILL_NOT_FOUND",
-  HEADING_NOT_FOUND: "HEADING_NOT_FOUND",
   FRONTMATTER_NOT_FOUND: "FRONTMATTER_NOT_FOUND",
+  HEADING_NOT_FOUND: "HEADING_NOT_FOUND",
+  SKILL_NOT_FOUND: "SKILL_NOT_FOUND",
   STALE_OUTPUT: "STALE_OUTPUT",
 } as const;
 
@@ -59,29 +59,27 @@ type DiagnosticCode = (typeof DiagnosticCode)[keyof typeof DiagnosticCode];
 /** A single diagnostic emitted during compilation. */
 interface CompileDiagnostic {
   code: DiagnosticCode;
-  message: string;
   marker: string;
+  message: string;
   /** Suggested fix or next step. */
   suggestion?: string;
 }
 
 /** A successfully resolved include with provenance. */
 interface ResolvedInclude {
+  /** Number of characters resolved. */
+  contentLength: number;
+  /** 1-based line number in the template where the marker appears. */
+  lineNumber?: number;
   marker: string;
   skillName: string;
   target: string;
   /** "section" or "frontmatter" */
   type: "section" | "frontmatter";
-  /** Number of characters resolved. */
-  contentLength: number;
-  /** 1-based line number in the template where the marker appears. */
-  lineNumber?: number;
 }
 
 /** Manifest entry for a single template file. */
 interface ManifestEntry {
-  template: string;
-  output: string;
   dependencies: string[];
   includes: Array<{
     marker: string;
@@ -90,25 +88,27 @@ interface ManifestEntry {
     type: "section" | "frontmatter";
     lineNumber: number;
   }>;
+  output: string;
+  template: string;
 }
 
 /** Top-level manifest structure. */
 interface BuildManifest {
-  version: 1;
   generatedAt: string;
   templates: ManifestEntry[];
+  version: 1;
 }
 
 /** Structured result from compileTemplate / resolveIncludes with structured: true. */
 interface CompileResult {
+  /** Skill names referenced (resolved or not). */
+  dependencies: string[];
+  /** Includes that could not be resolved (non-strict mode). */
+  diagnostics: CompileDiagnostic[];
   /** The fully resolved output string. */
   output: string;
   /** All successfully resolved includes. */
   resolved: ResolvedInclude[];
-  /** Includes that could not be resolved (non-strict mode). */
-  diagnostics: CompileDiagnostic[];
-  /** Skill names referenced (resolved or not). */
-  dependencies: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +119,13 @@ const skillCache = new Map<string, { body: string; yaml: string }>();
 
 function loadSkillContent(
   skillName: string,
-  skillsDir: string = DEFAULT_SKILLS_DIR,
+  skillsDir: string = DEFAULT_SKILLS_DIR
 ): { body: string; yaml: string } {
   const cacheKey = `${skillsDir}:${skillName}`;
   const cached = skillCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
 
   const skillFile = join(skillsDir, skillName, "SKILL.md");
   let raw: string;
@@ -131,7 +133,7 @@ function loadSkillContent(
     raw = readFileSync(skillFile, "utf-8");
   } catch {
     throw new Error(
-      `Skill "${skillName}" not found: ${skillFile} does not exist`,
+      `Skill "${skillName}" not found: ${skillFile} does not exist`
     );
   }
 
@@ -159,7 +161,7 @@ function loadSkillContent(
 function extractSkillSection(
   skillName: string,
   heading: string,
-  skillsDir: string = DEFAULT_SKILLS_DIR,
+  skillsDir: string = DEFAULT_SKILLS_DIR
 ): string {
   const { body } = loadSkillContent(skillName, skillsDir);
   return extractSectionFromMarkdown(body, heading);
@@ -185,7 +187,7 @@ function parseHeadingSpec(spec: string): {
  */
 function extractSectionFromMarkdown(
   markdown: string,
-  headingPath: string,
+  headingPath: string
 ): string {
   const parts = headingPath.split(">").map((p) => p.trim());
 
@@ -198,7 +200,9 @@ function extractSectionFromMarkdown(
   let scope = markdown;
   for (const part of parts) {
     scope = extractDirectSection(scope, part);
-    if (!scope) return "";
+    if (!scope) {
+      return "";
+    }
   }
   return scope;
 }
@@ -221,10 +225,14 @@ function extractDirectSection(markdown: string, headingSpec: string): string {
       inCodeBlock = !inCodeBlock;
       continue;
     }
-    if (inCodeBlock) continue;
+    if (inCodeBlock) {
+      continue;
+    }
 
     const hMatch = lines[i].match(/^(#{1,6})\s+(.+)$/);
-    if (!hMatch) continue;
+    if (!hMatch) {
+      continue;
+    }
 
     const lineLevel = hMatch[1].length;
     const lineText = hMatch[2].trim().toLowerCase();
@@ -239,7 +247,9 @@ function extractDirectSection(markdown: string, headingSpec: string): string {
     }
   }
 
-  if (startLine === -1) return "";
+  if (startLine === -1) {
+    return "";
+  }
 
   // Collect lines until next heading of equal or higher level (skip code blocks)
   inCodeBlock = false;
@@ -255,7 +265,9 @@ function extractDirectSection(markdown: string, headingSpec: string): string {
       continue;
     }
     const hMatch = lines[i].match(/^(#{1,6})\s+/);
-    if (hMatch && hMatch[1].length <= headingLevel) break;
+    if (hMatch && hMatch[1].length <= headingLevel) {
+      break;
+    }
     contentLines.push(lines[i]);
   }
 
@@ -296,19 +308,19 @@ interface ResolveOptions {
  */
 function resolveIncludes(
   template: string,
-  options: ResolveOptions & { structured: true },
+  options: ResolveOptions & { structured: true }
 ): CompileResult;
 function resolveIncludes(
   template: string,
-  options?: ResolveOptions & { structured?: false },
+  options?: ResolveOptions & { structured?: false }
 ): string;
 function resolveIncludes(
   template: string,
-  options?: ResolveOptions,
+  options?: ResolveOptions
 ): string | CompileResult;
 function resolveIncludes(
   template: string,
-  options: ResolveOptions = {},
+  options: ResolveOptions = {}
 ): string | CompileResult {
   const {
     skillsDir = DEFAULT_SKILLS_DIR,
@@ -333,12 +345,12 @@ function resolveIncludes(
           const field = target.slice(FRONTMATTER_PREFIX.length);
           const content = resolveFrontmatterField(skillName, field, skillsDir);
           resolved.push({
+            contentLength: content.length,
+            lineNumber,
             marker,
             skillName,
             target,
             type: "frontmatter",
-            contentLength: content.length,
-            lineNumber,
           });
           return content;
         }
@@ -348,15 +360,15 @@ function resolveIncludes(
           const content = resolveFileReference(
             skillName,
             fileTarget,
-            skillsDir,
+            skillsDir
           );
           resolved.push({
+            contentLength: content.length,
+            lineNumber,
             marker,
             skillName,
             target,
             type: "section",
-            contentLength: content.length,
-            lineNumber,
           });
           return content;
         }
@@ -364,16 +376,16 @@ function resolveIncludes(
         const section = extractSkillSection(skillName, target, skillsDir);
         if (!section) {
           throw new Error(
-            `Heading "${target}" not found in skill "${skillName}"`,
+            `Heading "${target}" not found in skill "${skillName}"`
           );
         }
         resolved.push({
+          contentLength: section.length,
+          lineNumber,
           marker,
           skillName,
           target,
           type: "section",
-          contentLength: section.length,
-          lineNumber,
         });
         return section;
       } catch (err) {
@@ -384,8 +396,8 @@ function resolveIncludes(
         const code = classifyError(errMsg);
         diagnostics.push({
           code,
-          message: errMsg,
           marker,
+          message: errMsg,
           suggestion: suggestFix(code, skillName, target),
         });
 
@@ -394,17 +406,17 @@ function resolveIncludes(
         }
         return `<!-- ${msg} -->`;
       }
-    },
+    }
   );
 
   if (!structured && errors.length > 0) {
     throw new Error(
-      `Failed to resolve ${errors.length} include(s):\n${errors.map((e) => `  - ${e}`).join("\n")}`,
+      `Failed to resolve ${errors.length} include(s):\n${errors.map((e) => `  - ${e}`).join("\n")}`
     );
   }
 
   if (structured) {
-    return { output, resolved, diagnostics, dependencies: [...depSet] };
+    return { dependencies: [...depSet], diagnostics, output, resolved };
   }
 
   return output;
@@ -412,14 +424,19 @@ function resolveIncludes(
 
 /** Classify an error message into a stable diagnostic code. */
 function classifyError(message: string): DiagnosticCode {
-  if (/not found.*does not exist/i.test(message))
+  if (/not found.*does not exist/i.test(message)) {
     return DiagnosticCode.SKILL_NOT_FOUND;
-  if (/heading.*not found/i.test(message))
+  }
+  if (/heading.*not found/i.test(message)) {
     return DiagnosticCode.HEADING_NOT_FOUND;
-  if (/frontmatter.*not found/i.test(message))
+  }
+  if (/frontmatter.*not found/i.test(message)) {
     return DiagnosticCode.FRONTMATTER_NOT_FOUND;
+  }
   // Default to SKILL_NOT_FOUND for other load errors
-  if (/not found/i.test(message)) return DiagnosticCode.SKILL_NOT_FOUND;
+  if (/not found/i.test(message)) {
+    return DiagnosticCode.SKILL_NOT_FOUND;
+  }
   return DiagnosticCode.SKILL_NOT_FOUND;
 }
 
@@ -427,7 +444,7 @@ function classifyError(message: string): DiagnosticCode {
 function suggestFix(
   code: DiagnosticCode,
   skillName: string,
-  target: string,
+  target: string
 ): string {
   switch (code) {
     case DiagnosticCode.SKILL_NOT_FOUND:
@@ -437,7 +454,7 @@ function suggestFix(
     case DiagnosticCode.FRONTMATTER_NOT_FOUND:
       return `Check frontmatter fields in skills/${skillName}/SKILL.md — looking for "${target.replace("frontmatter:", "")}"`;
     case DiagnosticCode.STALE_OUTPUT:
-      return `Run \`bun run build:from-skills\` to regenerate`;
+      return "Run `bun run build:from-skills` to regenerate";
     default:
       return "";
   }
@@ -448,7 +465,7 @@ function suggestFix(
  */
 function compileTemplate(
   templatePath: string,
-  opts: { skillsDir?: string } = {},
+  opts: { skillsDir?: string } = {}
 ): CompileResult {
   const { skillsDir = DEFAULT_SKILLS_DIR } = opts;
   const template = readFileSync(templatePath, "utf-8");
@@ -470,7 +487,7 @@ function compileTemplate(
 function resolveFileReference(
   skillName: string,
   fileTarget: string,
-  skillsDir: string,
+  skillsDir: string
 ): string {
   const colonIdx = fileTarget.indexOf(":");
   const filePath = colonIdx === -1 ? fileTarget : fileTarget.slice(0, colonIdx);
@@ -482,7 +499,7 @@ function resolveFileReference(
     content = readFileSync(fullPath, "utf-8");
   } catch {
     throw new Error(
-      `File "${filePath}" not found in skill "${skillName}": ${fullPath} does not exist`,
+      `File "${filePath}" not found in skill "${skillName}": ${fullPath} does not exist`
     );
   }
 
@@ -493,7 +510,7 @@ function resolveFileReference(
   const section = extractSectionFromMarkdown(content, heading);
   if (!section) {
     throw new Error(
-      `Heading "${heading}" not found in file "${filePath}" of skill "${skillName}"`,
+      `Heading "${heading}" not found in file "${filePath}" of skill "${skillName}"`
     );
   }
   return section;
@@ -505,7 +522,7 @@ function resolveFileReference(
 function resolveFrontmatterField(
   skillName: string,
   field: string,
-  skillsDir: string,
+  skillsDir: string
 ): string {
   const { yaml } = loadSkillContent(skillName, skillsDir);
   const frontmatter = parseSkillFrontmatter(yaml);
@@ -516,7 +533,7 @@ function resolveFrontmatterField(
   for (const part of parts) {
     if (value == null || typeof value !== "object") {
       throw new Error(
-        `Frontmatter field "${field}" not found in skill "${skillName}" (failed at "${part}")`,
+        `Frontmatter field "${field}" not found in skill "${skillName}" (failed at "${part}")`
       );
     }
     value = (value as Record<string, unknown>)[part];
@@ -524,7 +541,7 @@ function resolveFrontmatterField(
 
   if (value === undefined) {
     throw new Error(
-      `Frontmatter field "${field}" not found in skill "${skillName}"`,
+      `Frontmatter field "${field}" not found in skill "${skillName}"`
     );
   }
 
@@ -558,20 +575,24 @@ if (import.meta.main) {
   const jsonMode = args.includes("--json");
   const audit = args.includes("--audit");
   const skillIdx = args.indexOf("--skill");
-  const skillQuery = skillIdx !== -1 ? args[skillIdx + 1] : null;
+  const skillQuery = skillIdx === -1 ? null : args[skillIdx + 1];
   const filters = args.filter(
     (a) =>
       !a.startsWith("--") &&
-      (skillIdx === -1 || args.indexOf(a) !== skillIdx + 1),
+      (skillIdx === -1 || args.indexOf(a) !== skillIdx + 1)
   );
 
   const tmplDirs = [join(ROOT, "agents"), join(ROOT, "commands")];
   const templates: string[] = [];
 
   for (const dir of tmplDirs) {
-    if (!existsSync(dir)) continue;
+    if (!existsSync(dir)) {
+      continue;
+    }
     for (const f of readdirSync(dir)) {
-      if (!f.endsWith(".md.tmpl")) continue;
+      if (!f.endsWith(".md.tmpl")) {
+        continue;
+      }
       const fullPath = join(dir, f);
       if (
         filters.length === 0 ||
@@ -618,14 +639,14 @@ if (import.meta.main) {
 
       if (result.diagnostics.length > 0) {
         errors.push(
-          `${tmpl}: ${result.diagnostics.length} unresolved include(s)`,
+          `${tmpl}: ${result.diagnostics.length} unresolved include(s)`
         );
         jsonResults.push({
-          template: label,
-          output: outFile,
-          status: "error",
-          result,
           error: result.diagnostics.map((d) => d.message).join("; "),
+          output: outFile,
+          result,
+          status: "error",
+          template: label,
         });
       } else if (check && isStale) {
         stale++;
@@ -633,32 +654,34 @@ if (import.meta.main) {
         // Add STALE_OUTPUT diagnostic
         result.diagnostics.push({
           code: DiagnosticCode.STALE_OUTPUT,
-          message: `Output file is out of date`,
           marker: outFile,
+          message: "Output file is out of date",
           suggestion: "Run `bun run build:from-skills` to regenerate",
         });
         jsonResults.push({
-          template: label,
           output: outFile,
-          status: "stale",
           result,
+          status: "stale",
+          template: label,
         });
       } else if (isStale) {
-        if (!dryRun) writeFileSync(outFile, result.output);
+        if (!dryRun) {
+          writeFileSync(outFile, result.output);
+        }
         changed++;
         jsonResults.push({
-          template: label,
           output: outFile,
-          status: "updated",
           result,
+          status: "updated",
+          template: label,
         });
       } else {
         unchanged++;
         jsonResults.push({
-          template: label,
           output: outFile,
-          status: "unchanged",
           result,
+          status: "unchanged",
+          template: label,
         });
       }
       continue;
@@ -678,20 +701,28 @@ if (import.meta.main) {
 
       if (existing === resolved) {
         unchanged++;
-        if (!skillQuery) console.log(`  unchanged  ${label}`);
+        if (!skillQuery) {
+          console.log(`  unchanged  ${label}`);
+        }
       } else if (check) {
         stale++;
         staleFiles.push(label);
-        if (!skillQuery) console.log(`  STALE      ${label}`);
+        if (!skillQuery) {
+          console.log(`  STALE      ${label}`);
+        }
       } else {
-        if (!skillQuery) writeFileSync(outFile, resolved);
+        if (!skillQuery) {
+          writeFileSync(outFile, resolved);
+        }
         changed++;
-        if (!skillQuery) console.log(`  updated    ${label}`);
+        if (!skillQuery) {
+          console.log(`  updated    ${label}`);
+        }
       }
     } catch (err) {
       errors.push(`${tmpl}: ${(err as Error).message}`);
       console.error(
-        `  ERROR      ${basename(dirname(tmpl))}/${basename(tmpl)}`,
+        `  ERROR      ${basename(dirname(tmpl))}/${basename(tmpl)}`
       );
       console.error(`             ${(err as Error).message}`);
     }
@@ -710,23 +741,23 @@ if (import.meta.main) {
     });
 
     manifestEntries.push({
-      template: tmplLabel,
-      output: outLabel,
       dependencies: result.dependencies,
       includes: result.resolved.map((r) => ({
+        lineNumber: r.lineNumber ?? 0,
         marker: r.marker,
         skillName: r.skillName,
         target: r.target,
         type: r.type,
-        lineNumber: r.lineNumber ?? 0,
       })),
+      output: outLabel,
+      template: tmplLabel,
     });
   }
 
   // --- Handle --skill <name> reverse-dependency query ---
   if (skillQuery) {
     const dependents = manifestEntries.filter((e) =>
-      e.dependencies.includes(skillQuery),
+      e.dependencies.includes(skillQuery)
     );
     if (dependents.length === 0) {
       console.log(`No templates depend on skill "${skillQuery}".`);
@@ -735,7 +766,7 @@ if (import.meta.main) {
       for (const entry of dependents) {
         console.log(`  ${entry.template}`);
         for (const inc of entry.includes.filter(
-          (i) => i.skillName === skillQuery,
+          (i) => i.skillName === skillQuery
         )) {
           console.log(`    L${inc.lineNumber}: ${inc.marker}`);
         }
@@ -748,11 +779,11 @@ if (import.meta.main) {
   if (audit) {
     const MIGRATION_THRESHOLD = 30;
     interface AuditEntry {
+      coveragePercent: number;
+      includedBytes: number;
+      migrationCandidate: boolean;
       template: string;
       totalBytes: number;
-      includedBytes: number;
-      coveragePercent: number;
-      migrationCandidate: boolean;
     }
     const auditResults: AuditEntry[] = [];
 
@@ -766,35 +797,35 @@ if (import.meta.main) {
       const totalBytes = Buffer.byteLength(result.output, "utf-8");
       const includedBytes = result.resolved.reduce(
         (sum, r) => sum + r.contentLength,
-        0,
+        0
       );
       const coveragePercent =
         totalBytes > 0 ? Math.round((includedBytes / totalBytes) * 100) : 0;
 
       auditResults.push({
+        coveragePercent,
+        includedBytes,
+        migrationCandidate: coveragePercent < MIGRATION_THRESHOLD,
         template: tmplLabel,
         totalBytes,
-        includedBytes,
-        coveragePercent,
-        migrationCandidate: coveragePercent < MIGRATION_THRESHOLD,
       });
     }
 
     if (jsonMode) {
       console.log(
         JSON.stringify(
-          { threshold: MIGRATION_THRESHOLD, templates: auditResults },
+          { templates: auditResults, threshold: MIGRATION_THRESHOLD },
           null,
-          2,
-        ),
+          2
+        )
       );
     } else {
       console.log("\nbuild:from-skills --audit\n");
       console.log(
-        "  Template                                       Coverage   Status",
+        "  Template                                       Coverage   Status"
       );
       console.log(
-        "  ─────────────────────────────────────────────  ─────────  ──────────────────",
+        "  ─────────────────────────────────────────────  ─────────  ──────────────────"
       );
       for (const entry of auditResults) {
         const pct = `${entry.coveragePercent}%`.padStart(4);
@@ -803,17 +834,17 @@ if (import.meta.main) {
           ? "⚠ MIGRATION CANDIDATE"
           : "✓ ok";
         console.log(
-          `  ${entry.template.padEnd(47)} ${pct} ${bar.padEnd(22)} ${status}`,
+          `  ${entry.template.padEnd(47)} ${pct} ${bar.padEnd(22)} ${status}`
         );
       }
 
       const candidates = auditResults.filter((e) => e.migrationCandidate);
       console.log(
-        `\n  ${candidates.length} of ${auditResults.length} templates below ${MIGRATION_THRESHOLD}% threshold`,
+        `\n  ${candidates.length} of ${auditResults.length} templates below ${MIGRATION_THRESHOLD}% threshold`
       );
       if (candidates.length > 0) {
         console.log(
-          `  Migration candidates: ${candidates.map((c) => c.template).join(", ")}`,
+          `  Migration candidates: ${candidates.map((c) => c.template).join(", ")}`
         );
       }
     }
@@ -821,7 +852,7 @@ if (import.meta.main) {
   }
 
   // --- Emit manifest file ---
-  if (!dryRun && !check) {
+  if (!(dryRun || check)) {
     const { mkdirSync } = await import("node:fs");
     const generatedDir = join(ROOT, "generated");
     mkdirSync(generatedDir, { recursive: true });
@@ -833,38 +864,38 @@ if (import.meta.main) {
     if (filters.length > 0 && existsSync(manifestPath)) {
       try {
         const existing: BuildManifest = JSON.parse(
-          readFileSync(manifestPath, "utf-8"),
+          readFileSync(manifestPath, "utf-8")
         );
         const updatedTemplateNames = new Set(
-          manifestEntries.map((e) => e.template),
+          manifestEntries.map((e) => e.template)
         );
         // Keep existing entries that weren't part of this filtered run
         const merged = existing.templates.filter(
-          (e) => !updatedTemplateNames.has(e.template),
+          (e) => !updatedTemplateNames.has(e.template)
         );
         merged.push(...manifestEntries);
         // Sort by template name for stable ordering across filtered/full builds
         merged.sort((a, b) => a.template.localeCompare(b.template));
         const manifest: BuildManifest = {
-          version: 1,
           generatedAt: new Date().toISOString(),
           templates: merged,
+          version: 1,
         };
         writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
       } catch {
         // If existing manifest is corrupt, overwrite
         const manifest: BuildManifest = {
-          version: 1,
           generatedAt: new Date().toISOString(),
           templates: manifestEntries,
+          version: 1,
         };
         writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
       }
     } else {
       const manifest: BuildManifest = {
-        version: 1,
         generatedAt: new Date().toISOString(),
         templates: manifestEntries,
+        version: 1,
       };
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     }
@@ -873,28 +904,32 @@ if (import.meta.main) {
   if (jsonMode) {
     const summary = {
       changed,
-      unchanged,
-      stale,
       errors: errors.length,
+      stale,
       templates: jsonResults,
+      unchanged,
     };
     console.log(JSON.stringify(summary, null, 2));
-    if (errors.length > 0 || stale > 0) process.exit(1);
+    if (errors.length > 0 || stale > 0) {
+      process.exit(1);
+    }
   } else if (!dryRun) {
     if (check) {
       console.log(
-        `\nbuild:from-skills --check — ${stale} stale, ${unchanged} up-to-date, ${errors.length} errors`,
+        `\nbuild:from-skills --check — ${stale} stale, ${unchanged} up-to-date, ${errors.length} errors`
       );
       if (stale > 0) {
         console.error(
-          `\nStale files detected. Run \`bun run build:from-skills\` to update:\n${staleFiles.map((f) => `  - ${f}`).join("\n")}`,
+          `\nStale files detected. Run \`bun run build:from-skills\` to update:\n${staleFiles.map((f) => `  - ${f}`).join("\n")}`
         );
       }
     } else {
       console.log(
-        `\nbuild:from-skills — ${changed} updated, ${unchanged} unchanged, ${errors.length} errors`,
+        `\nbuild:from-skills — ${changed} updated, ${unchanged} unchanged, ${errors.length} errors`
       );
     }
-    if (errors.length > 0 || stale > 0) process.exit(1);
+    if (errors.length > 0 || stale > 0) {
+      process.exit(1);
+    }
   }
 }

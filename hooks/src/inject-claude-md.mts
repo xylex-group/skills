@@ -8,14 +8,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatOutput, type HookPlatform } from "./compat.mjs";
-import { pluginRoot, safeReadFile } from "./hook-env.mjs";
-import { hasSessionStartActivationMarkers, isGreenfieldDirectory } from "./session-start-activation.mjs";
+import { formatOutput, type HookPlatform } from "./compat.mts";
+import { pluginRoot, safeReadFile } from "./hook-env.mts";
+import {
+  hasSessionStartActivationMarkers,
+  isGreenfieldDirectory,
+} from "./session-start-activation.mts";
 
 interface InjectClaudeMdInput {
-  session_id?: string;
   conversation_id?: string;
   cursor_version?: string;
+  session_id?: string;
   [key: string]: unknown;
 }
 
@@ -29,9 +32,13 @@ Start executing with real tool calls.
 Use non-interactive scaffolding commands (--yes) where available.
 Only ask follow-up questions when blocked by missing credentials or irreversible decisions.`;
 
-export function parseInjectClaudeMdInput(raw: string): InjectClaudeMdInput | null {
+export function parseInjectClaudeMdInput(
+  raw: string
+): InjectClaudeMdInput | null {
   try {
-    if (!raw.trim()) return null;
+    if (!raw.trim()) {
+      return null;
+    }
     return JSON.parse(raw) as InjectClaudeMdInput;
   } catch {
     return null;
@@ -40,7 +47,7 @@ export function parseInjectClaudeMdInput(raw: string): InjectClaudeMdInput | nul
 
 export function detectInjectClaudeMdPlatform(
   input: InjectClaudeMdInput | null,
-  _env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env
 ): HookPlatform {
   if (input && ("conversation_id" in input || "cursor_version" in input)) {
     return "cursor";
@@ -53,7 +60,7 @@ export function buildInjectClaudeMdParts(
   content: string | null,
   env: NodeJS.ProcessEnv = process.env,
   knowledgeUpdate: string | null = null,
-  greenfield = env.XYLEX_PLUGIN_GREENFIELD === "true",
+  greenfield = env.XYLEX_PLUGIN_GREENFIELD === "true"
 ): string[] {
   const parts: string[] = [];
 
@@ -72,15 +79,22 @@ export function buildInjectClaudeMdParts(
   return parts;
 }
 
-export function formatInjectClaudeMdOutput(platform: HookPlatform, content: string): string {
+export function formatInjectClaudeMdOutput(
+  platform: HookPlatform,
+  content: string
+): string {
   if (platform === "cursor") {
-    return JSON.stringify(formatOutput(platform, { additionalContext: content }));
+    return JSON.stringify(
+      formatOutput(platform, { additionalContext: content })
+    );
   }
 
   return content;
 }
 
-function resolveInjectClaudeMdProjectRoot(env: NodeJS.ProcessEnv = process.env): string {
+function resolveInjectClaudeMdProjectRoot(
+  env: NodeJS.ProcessEnv = process.env
+): string {
   return env.CLAUDE_PROJECT_ROOT ?? env.CURSOR_PROJECT_DIR ?? process.cwd();
 }
 
@@ -96,28 +110,38 @@ function main(): void {
   const isGreenfield = isGreenfieldDirectory(projectRoot);
   const greenfieldOverride = process.env.XYLEX_PLUGIN_GREENFIELD === "true";
   const shouldActivate =
-    isGreenfield || greenfieldOverride || !existsSync(projectRoot) || hasSessionStartActivationMarkers(projectRoot);
+    isGreenfield ||
+    greenfieldOverride ||
+    !existsSync(projectRoot) ||
+    hasSessionStartActivationMarkers(projectRoot);
   if (!shouldActivate) {
     if (platform === "cursor") {
       process.stdout.write(JSON.stringify(formatOutput(platform, {})));
     }
     return;
   }
-  const thinSessionContext = safeReadFile(join(pluginRoot(), "vercel-session.md"));
-  const knowledgeUpdateRaw = safeReadFile(join(pluginRoot(), "skills", "knowledge-update", "SKILL.md"));
-  const knowledgeUpdate = knowledgeUpdateRaw !== null ? stripFrontmatter(knowledgeUpdateRaw) : null;
+  const thinSessionContext =
+    safeReadFile(join(pluginRoot(), "xylex-session.md")) ??
+    safeReadFile(join(pluginRoot(), "vercel-session.md"));
+  const knowledgeUpdateRaw = safeReadFile(
+    join(pluginRoot(), "skills", "knowledge-update", "SKILL.md")
+  );
+  const knowledgeUpdate =
+    knowledgeUpdateRaw === null ? null : stripFrontmatter(knowledgeUpdateRaw);
   const parts = buildInjectClaudeMdParts(
     thinSessionContext,
     process.env,
     knowledgeUpdate,
-    isGreenfield || greenfieldOverride,
+    isGreenfield || greenfieldOverride
   );
 
   if (parts.length === 0) {
     return;
   }
 
-  process.stdout.write(formatInjectClaudeMdOutput(platform, parts.join("\n\n")));
+  process.stdout.write(
+    formatInjectClaudeMdOutput(platform, parts.join("\n\n"))
+  );
 }
 
 const INJECT_CLAUDE_MD_ENTRYPOINT = fileURLToPath(import.meta.url);

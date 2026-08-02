@@ -14,47 +14,58 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { checkCoverage, type CoverageResult } from "./coverage-baseline";
-import { extractFrontmatter, parseSkillFrontmatter, buildSkillMap, validateSkillMap } from "../hooks/skill-map-frontmatter.mjs";
-import { globToRegex, importPatternToRegex, compileSkillPatterns, matchPathWithReason, matchBashWithReason } from "../hooks/patterns.mjs";
-import { buildManifest, writeManifestFile } from "./build-manifest";
+import {
+  compileSkillPatterns,
+  globToRegex,
+  importPatternToRegex,
+  matchBashWithReason,
+  matchPathWithReason,
+} from "../hooks/patterns.mjs";
+import {
+  buildSkillMap,
+  extractFrontmatter,
+  parseSkillFrontmatter,
+  validateSkillMap,
+} from "../hooks/skill-map-frontmatter.mjs";
+import { buildManifest, writeManifestFile } from "./build-manifest.ts";
+import { type CoverageResult, checkCoverage } from "./coverage-baseline.ts";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface Issue {
-  code: string;
-  severity: "error" | "warning";
-  message: string;
   check: string;
+  code: string;
   file?: string;
-  line?: number;
   hint?: string;
+  line?: number;
+  message: string;
+  severity: "error" | "warning";
 }
 
 interface CheckResult {
-  name: string;
-  label: string;
-  status: "pass" | "fail" | "warn";
   durationMs: number;
   errorCount: number;
+  label: string;
+  name: string;
+  status: "pass" | "fail" | "warn";
   warningCount: number;
 }
 
 interface ValidationReport {
-  version: 1;
-  timestamp: string;
-  summary: { errors: number; warnings: number; checks: number };
   checkResults: CheckResult[];
-  metrics: CheckMetric[];
   issues: Issue[];
+  metrics: CheckMetric[];
   orphanSkills: string[];
+  summary: { errors: number; warnings: number; checks: number };
+  timestamp: string;
+  version: 1;
 }
 
 interface CheckMetric {
-  name: string;
   durationMs: number;
+  name: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,9 +84,9 @@ Options:
 const { values: flags } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    format: { type: "string", default: "pretty" },
-    coverage: { type: "string", default: "run" },
-    help: { type: "boolean", default: false },
+    coverage: { default: "run", type: "string" },
+    format: { default: "pretty", type: "string" },
+    help: { default: false, type: "boolean" },
   },
   strict: true,
 });
@@ -97,23 +108,51 @@ const issues: Issue[] = [];
 let checks = 0;
 let currentCheck = "unknown";
 
-function fail(code: string, message: string, extra?: { file?: string; line?: number; hint?: string }) {
-  issues.push({ code, severity: "error", message, check: currentCheck, ...extra });
-  if (FORMAT === "pretty") console.error(`  ✗ ${message}`);
+function fail(
+  code: string,
+  message: string,
+  extra?: { file?: string; line?: number; hint?: string }
+) {
+  issues.push({
+    check: currentCheck,
+    code,
+    message,
+    severity: "error",
+    ...extra,
+  });
+  if (FORMAT === "pretty") {
+    console.error(`  ✗ ${message}`);
+  }
 }
 
-function warn(code: string, message: string, extra?: { file?: string; line?: number; hint?: string }) {
-  issues.push({ code, severity: "warning", message, check: currentCheck, ...extra });
-  if (FORMAT === "pretty") console.log(`  ⚠ ${message}`);
+function warn(
+  code: string,
+  message: string,
+  extra?: { file?: string; line?: number; hint?: string }
+) {
+  issues.push({
+    check: currentCheck,
+    code,
+    message,
+    severity: "warning",
+    ...extra,
+  });
+  if (FORMAT === "pretty") {
+    console.log(`  ⚠ ${message}`);
+  }
 }
 
 function pass(msg: string) {
-  if (FORMAT === "pretty") console.log(`  ✓ ${msg}`);
+  if (FORMAT === "pretty") {
+    console.log(`  ✓ ${msg}`);
+  }
 }
 
 function section(label: string) {
   checks++;
-  if (FORMAT === "pretty") console.log(`\n${label}`);
+  if (FORMAT === "pretty") {
+    console.log(`\n${label}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -136,15 +175,23 @@ async function exists(path: string): Promise<boolean> {
  */
 function parseFrontmatter(content: string): Record<string, any> | null {
   const { yaml: yamlStr } = extractFrontmatter(content);
-  if (!yamlStr) return null;
+  if (!yamlStr) {
+    return null;
+  }
   // parseSkillFrontmatter uses js-yaml; let YAML parse errors propagate
   const parsed = parseSkillFrontmatter(yamlStr);
-  return { name: parsed.name, description: parsed.description, metadata: parsed.metadata };
+  return {
+    description: parsed.description,
+    metadata: parsed.metadata,
+    name: parsed.name,
+  };
 }
 
 function lineOf(content: string, needle: string): number | undefined {
   const idx = content.indexOf(needle);
-  if (idx === -1) return undefined;
+  if (idx === -1) {
+    return;
+  }
   return content.slice(0, idx).split("\n").length;
 }
 
@@ -165,10 +212,12 @@ async function validateGraphSkillRefs() {
   }
 
   const graph = await readFile(graphPath, "utf-8");
-  const refs = [...graph.matchAll(/⤳\s*skill:\s*([a-z][a-z0-9-]*)/g)].map((m) => ({
-    name: m[1],
-    line: lineOf(graph, m[0]),
-  }));
+  const refs = [...graph.matchAll(/⤳\s*skill:\s*([a-z][a-z0-9-]*)/g)].map(
+    (m) => ({
+      line: lineOf(graph, m[0]),
+      name: m[1],
+    })
+  );
 
   if (refs.length === 0) {
     fail("GRAPH_NO_REFS", "No ⤳ skill: references found in ecosystem graph", {
@@ -180,17 +229,23 @@ async function validateGraphSkillRefs() {
 
   const seen = new Set<string>();
   for (const { name, line } of refs) {
-    if (seen.has(name)) continue;
+    if (seen.has(name)) {
+      continue;
+    }
     seen.add(name);
     const skillPath = join(ROOT, "skills", name, "SKILL.md");
     if (await exists(skillPath)) {
       pass(`⤳ skill:${name} → skills/${name}/SKILL.md`);
     } else {
-      fail("SKILL_REF_BROKEN", `⤳ skill:${name} referenced in graph but skills/${name}/SKILL.md not found`, {
-        file: "xylex.md",
-        line,
-        hint: `Create skills/${name}/SKILL.md or remove the reference`,
-      });
+      fail(
+        "SKILL_REF_BROKEN",
+        `⤳ skill:${name} referenced in graph but skills/${name}/SKILL.md not found`,
+        {
+          file: "xylex.md",
+          hint: `Create skills/${name}/SKILL.md or remove the reference`,
+          line,
+        }
+      );
     }
   }
 }
@@ -202,32 +257,44 @@ async function validateGraphSkillRefs() {
 const orphanSkills: string[] = [];
 
 async function validateOrphanSkills() {
-  section("[1b] Orphan skill detection (skills/ dirs without graph references)");
+  section(
+    "[1b] Orphan skill detection (skills/ dirs without graph references)"
+  );
 
   const graphPath = join(ROOT, "xylex.md");
-  if (!(await exists(graphPath))) return; // already reported in [1]
+  if (!(await exists(graphPath))) {
+    return; // already reported in [1]
+  }
 
   const graph = await readFile(graphPath, "utf-8");
   const referencedSkills = new Set(
-    [...graph.matchAll(/⤳\s*skill:\s*([a-z][a-z0-9-]*)/g)].map((m) => m[1]),
+    [...graph.matchAll(/⤳\s*skill:\s*([a-z][a-z0-9-]*)/g)].map((m) => m[1])
   );
 
   const skillsDir = join(ROOT, "skills");
-  if (!(await exists(skillsDir))) return;
+  if (!(await exists(skillsDir))) {
+    return;
+  }
 
   const dirs = await readdir(skillsDir);
   for (const dir of dirs.sort()) {
     const skillPath = join(skillsDir, dir, "SKILL.md");
-    if (!(await exists(skillPath))) continue;
+    if (!(await exists(skillPath))) {
+      continue;
+    }
 
     if (referencedSkills.has(dir)) {
       pass(`skills/${dir} referenced in ecosystem graph`);
     } else {
       orphanSkills.push(dir);
-      fail("ORPHAN_SKILL", `skills/${dir} has no ⤳ skill:${dir} reference in ecosystem graph`, {
-        file: `skills/${dir}/SKILL.md`,
-        hint: `Add "⤳ skill: ${dir}" to the appropriate section in xylex.md`,
-      });
+      fail(
+        "ORPHAN_SKILL",
+        `skills/${dir} has no ⤳ skill:${dir} reference in ecosystem graph`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: `Add "⤳ skill: ${dir}" to the appropriate section in xylex.md`,
+        }
+      );
     }
   }
 
@@ -248,7 +315,9 @@ async function validateSkillFrontmatter(): Promise<void> {
 
   for (const dir of dirs.sort()) {
     const skillPath = join(skillsDir, dir, "SKILL.md");
-    if (!(await exists(skillPath))) continue;
+    if (!(await exists(skillPath))) {
+      continue;
+    }
 
     const content = await readFile(skillPath, "utf-8");
 
@@ -256,11 +325,15 @@ async function validateSkillFrontmatter(): Promise<void> {
     try {
       fm = parseFrontmatter(content);
     } catch (err: any) {
-      fail("FM_INVALID_YAML", `skills/${dir}/SKILL.md — invalid YAML frontmatter: ${err.message}`, {
-        file: `skills/${dir}/SKILL.md`,
-        line: 1,
-        hint: "Fix the YAML syntax in the frontmatter block",
-      });
+      fail(
+        "FM_INVALID_YAML",
+        `skills/${dir}/SKILL.md — invalid YAML frontmatter: ${err.message}`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: "Fix the YAML syntax in the frontmatter block",
+          line: 1,
+        }
+      );
       continue;
     }
 
@@ -272,37 +345,53 @@ async function validateSkillFrontmatter(): Promise<void> {
       continue;
     }
     if (!fm.name) {
-      fail("FM_NO_NAME", `skills/${dir}/SKILL.md — frontmatter missing 'name' field`, {
-        file: `skills/${dir}/SKILL.md`,
-        line: 1,
-        hint: "Add 'name: <skill-name>' to the YAML frontmatter block",
-      });
+      fail(
+        "FM_NO_NAME",
+        `skills/${dir}/SKILL.md — frontmatter missing 'name' field`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: "Add 'name: <skill-name>' to the YAML frontmatter block",
+          line: 1,
+        }
+      );
     }
     if (!fm.description) {
-      fail("FM_NO_DESC", `skills/${dir}/SKILL.md — frontmatter missing 'description' field`, {
-        file: `skills/${dir}/SKILL.md`,
-        line: 1,
-        hint: "Add 'description: <brief summary>' to the YAML frontmatter block",
-      });
+      fail(
+        "FM_NO_DESC",
+        `skills/${dir}/SKILL.md — frontmatter missing 'description' field`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: "Add 'description: <brief summary>' to the YAML frontmatter block",
+          line: 1,
+        }
+      );
     }
 
     // Validate metadata.docs: must be a non-empty array of HTTPS URLs
     const docs = fm.metadata?.docs;
-    if (!docs || !Array.isArray(docs) || docs.length === 0) {
-      fail("FM_NO_DOCS", `skills/${dir}/SKILL.md — metadata.docs is missing or empty`, {
-        file: `skills/${dir}/SKILL.md`,
-        line: 1,
-        hint: "Add metadata.docs with at least one HTTPS URL to official documentation",
-      });
+    if (!(docs && Array.isArray(docs)) || docs.length === 0) {
+      fail(
+        "FM_NO_DOCS",
+        `skills/${dir}/SKILL.md — metadata.docs is missing or empty`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: "Add metadata.docs with at least one HTTPS URL to official documentation",
+          line: 1,
+        }
+      );
     } else {
       for (let i = 0; i < docs.length; i++) {
         const url = docs[i];
         if (typeof url !== "string" || !url.startsWith("https://")) {
-          fail("FM_DOCS_INVALID_URL", `skills/${dir}/SKILL.md — metadata.docs[${i}] is not a valid HTTPS URL: ${url}`, {
-            file: `skills/${dir}/SKILL.md`,
-            line: 1,
-            hint: "Each docs entry must be an HTTPS URL (e.g., 'https://nextjs.org/docs')",
-          });
+          fail(
+            "FM_DOCS_INVALID_URL",
+            `skills/${dir}/SKILL.md — metadata.docs[${i}] is not a valid HTTPS URL: ${url}`,
+            {
+              file: `skills/${dir}/SKILL.md`,
+              hint: "Each docs entry must be an HTTPS URL (e.g., 'https://nextjs.org/docs')",
+              line: 1,
+            }
+          );
         }
       }
     }
@@ -324,58 +413,95 @@ async function validateSkillFrontmatter(): Promise<void> {
   for (const d of built.warningDetails) {
     const skillName = d.skill || "unknown";
 
-    if (d.field === "pathPatterns" && (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")) {
+    if (
+      d.field === "pathPatterns" &&
+      (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")
+    ) {
       const suffix = d.code === "COERCE_STRING_TO_ARRAY" ? ", got string" : "";
-      fail("FM_PATHPATTERNS_TYPE", `skills/${skillName}/SKILL.md — metadata.pathPatterns must be an array${suffix}`, {
-        file: `skills/${skillName}/SKILL.md`,
-        line: 1,
-        hint: d.hint || "Change metadata.pathPatterns to a YAML list (e.g., pathPatterns:\\n  - 'src/**')",
-      });
-    } else if (d.field === "bashPatterns" && (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")) {
+      fail(
+        "FM_PATHPATTERNS_TYPE",
+        `skills/${skillName}/SKILL.md — metadata.pathPatterns must be an array${suffix}`,
+        {
+          file: `skills/${skillName}/SKILL.md`,
+          hint:
+            d.hint ||
+            "Change metadata.pathPatterns to a YAML list (e.g., pathPatterns:\\n  - 'src/**')",
+          line: 1,
+        }
+      );
+    } else if (
+      d.field === "bashPatterns" &&
+      (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")
+    ) {
       const suffix = d.code === "COERCE_STRING_TO_ARRAY" ? ", got string" : "";
-      fail("FM_BASHPATTERNS_TYPE", `skills/${skillName}/SKILL.md — metadata.bashPatterns must be an array${suffix}`, {
-        file: `skills/${skillName}/SKILL.md`,
-        line: 1,
-        hint: d.hint || "Change metadata.bashPatterns to a YAML list (e.g., bashPatterns:\\n  - '\\\\bvercel\\\\b')",
-      });
-    } else if (d.field === "importPatterns" && (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")) {
+      fail(
+        "FM_BASHPATTERNS_TYPE",
+        `skills/${skillName}/SKILL.md — metadata.bashPatterns must be an array${suffix}`,
+        {
+          file: `skills/${skillName}/SKILL.md`,
+          hint:
+            d.hint ||
+            "Change metadata.bashPatterns to a YAML list (e.g., bashPatterns:\\n  - '\\\\bvercel\\\\b')",
+          line: 1,
+        }
+      );
+    } else if (
+      d.field === "importPatterns" &&
+      (d.code === "INVALID_TYPE" || d.code === "COERCE_STRING_TO_ARRAY")
+    ) {
       const suffix = d.code === "COERCE_STRING_TO_ARRAY" ? ", got string" : "";
-      fail("FM_IMPORTPATTERNS_TYPE", `skills/${skillName}/SKILL.md — metadata.importPatterns must be an array${suffix}`, {
-        file: `skills/${skillName}/SKILL.md`,
-        line: 1,
-        hint: d.hint || "Change metadata.importPatterns to a YAML list (e.g., importPatterns:\\n  - '@ai-sdk/gateway')",
-      });
+      fail(
+        "FM_IMPORTPATTERNS_TYPE",
+        `skills/${skillName}/SKILL.md — metadata.importPatterns must be an array${suffix}`,
+        {
+          file: `skills/${skillName}/SKILL.md`,
+          hint:
+            d.hint ||
+            "Change metadata.importPatterns to a YAML list (e.g., importPatterns:\\n  - '@ai-sdk/gateway')",
+          line: 1,
+        }
+      );
     } else if (d.code === "DEPRECATED_FIELD") {
-      warn("FM_DEPRECATED_FIELD", `skills/${skillName}/SKILL.md — ${d.message}`, {
-        file: `skills/${skillName}/SKILL.md`,
-        line: 1,
-        hint: d.hint || `Rename metadata.${d.field} to its canonical name`,
-      });
+      warn(
+        "FM_DEPRECATED_FIELD",
+        `skills/${skillName}/SKILL.md — ${d.message}`,
+        {
+          file: `skills/${skillName}/SKILL.md`,
+          hint: d.hint || `Rename metadata.${d.field} to its canonical name`,
+          line: 1,
+        }
+      );
     }
   }
 
   // Run shared validator on the built map for structural issues
   const validation = validateSkillMap(built);
-  if (!validation.ok) {
-    for (const d of (validation.errorDetails ?? [])) {
-      const skillName = d.skill || "unknown";
-      fail("FM_VALIDATION", `skills/${skillName}/SKILL.md — ${d.message}`, {
-        file: `skills/${skillName}/SKILL.md`,
-        line: 1,
-        hint: d.hint || "Fix the YAML frontmatter metadata fields",
-      });
-    }
-  } else {
-    for (const d of (validation.warningDetails ?? [])) {
+  if (validation.ok) {
+    for (const d of validation.warningDetails ?? []) {
       const skillName = d.skill || "unknown";
 
       if (d.code === "INVALID_PRIORITY") {
-        fail("FM_PRIORITY_TYPE", `skills/${skillName}/SKILL.md — metadata.priority must be a number`, {
-          file: `skills/${skillName}/SKILL.md`,
-          line: 1,
-          hint: d.hint || "Set metadata.priority to a numeric value (e.g., priority: 5)",
-        });
+        fail(
+          "FM_PRIORITY_TYPE",
+          `skills/${skillName}/SKILL.md — metadata.priority must be a number`,
+          {
+            file: `skills/${skillName}/SKILL.md`,
+            hint:
+              d.hint ||
+              "Set metadata.priority to a numeric value (e.g., priority: 5)",
+            line: 1,
+          }
+        );
       }
+    }
+  } else {
+    for (const d of validation.errorDetails ?? []) {
+      const skillName = d.skill || "unknown";
+      fail("FM_VALIDATION", `skills/${skillName}/SKILL.md — ${d.message}`, {
+        file: `skills/${skillName}/SKILL.md`,
+        hint: d.hint || "Fix the YAML frontmatter metadata fields",
+        line: 1,
+      });
     }
   }
 }
@@ -410,12 +536,18 @@ async function validatePluginJson() {
   // Required metadata fields (open-plugin spec — components are discovered from directories)
   for (const field of ["name", "version", "description"]) {
     if (manifest[field]) {
-      pass(`plugin.json has "${field}": "${String(manifest[field]).slice(0, 60)}${String(manifest[field]).length > 60 ? "…" : ""}"`);
+      pass(
+        `plugin.json has "${field}": "${String(manifest[field]).slice(0, 60)}${String(manifest[field]).length > 60 ? "…" : ""}"`
+      );
     } else {
-      fail("MANIFEST_FIELD_MISSING", `plugin.json missing required field "${field}"`, {
-        file: ".plugin/plugin.json",
-        hint: `Add "${field}" to .plugin/plugin.json`,
-      });
+      fail(
+        "MANIFEST_FIELD_MISSING",
+        `plugin.json missing required field "${field}"`,
+        {
+          file: ".plugin/plugin.json",
+          hint: `Add "${field}" to .plugin/plugin.json`,
+        }
+      );
     }
   }
 
@@ -461,7 +593,9 @@ async function validateHooksJson() {
 async function validateCoverageBaseline() {
   if (SKIP_COVERAGE) {
     section("[5] llms.txt coverage baseline (skipped)");
-    if (FORMAT === "pretty") console.log("  — skipped via --coverage skip");
+    if (FORMAT === "pretty") {
+      console.log("  — skipped via --coverage skip");
+    }
     return;
   }
 
@@ -474,9 +608,13 @@ async function validateCoverageBaseline() {
     if (missing.length === 0) {
       pass(`All ${total} llms.txt products covered in ecosystem graph`);
     } else {
-      warn("COVERAGE_GAP", `Coverage: ${covered.length}/${total} products covered, ${missing.length} missing`, {
-        hint: "Run: bun run scripts/coverage-baseline.ts for details",
-      });
+      warn(
+        "COVERAGE_GAP",
+        `Coverage: ${covered.length}/${total} products covered, ${missing.length} missing`,
+        {
+          hint: "Run: bun run scripts/coverage-baseline.ts for details",
+        }
+      );
     }
   } catch (e) {
     warn("COVERAGE_SKIPPED", `Coverage check skipped: ${e}`, {
@@ -490,8 +628,16 @@ async function validateCoverageBaseline() {
 // ---------------------------------------------------------------------------
 
 const CRITICAL_COMMAND_SECTIONS = ["Preflight", "Verification"];
-const RECOMMENDED_COMMAND_SECTIONS = ["Plan", "Commands", "Summary", "Next Steps"];
-const ALL_COMMAND_SECTIONS = [...CRITICAL_COMMAND_SECTIONS, ...RECOMMENDED_COMMAND_SECTIONS];
+const RECOMMENDED_COMMAND_SECTIONS = [
+  "Plan",
+  "Commands",
+  "Summary",
+  "Next Steps",
+];
+const ALL_COMMAND_SECTIONS = [
+  ...CRITICAL_COMMAND_SECTIONS,
+  ...RECOMMENDED_COMMAND_SECTIONS,
+];
 
 const DESTRUCTIVE_PATTERNS = [
   /vercel\s+--prod\b/,
@@ -529,38 +675,57 @@ async function validateCommandConventions() {
 
     // Check frontmatter
     const fm = parseFrontmatter(content);
-    if (!fm || !fm.description) {
-      fail("CMD_NO_DESCRIPTION", `commands/${file} — missing frontmatter description`, {
-        file: `commands/${file}`,
-        line: 1,
-        hint: "Add YAML frontmatter with a 'description' field",
-      });
+    if (!(fm && fm.description)) {
+      fail(
+        "CMD_NO_DESCRIPTION",
+        `commands/${file} — missing frontmatter description`,
+        {
+          file: `commands/${file}`,
+          hint: "Add YAML frontmatter with a 'description' field",
+          line: 1,
+        }
+      );
     }
 
     // Check required sections (look for ## headings containing the section name)
     const missingSections: string[] = [];
     for (const sectionName of ALL_COMMAND_SECTIONS) {
-      const pattern = new RegExp(`^#{2,3}\\s+.*${sectionName.replace(/\s+/g, "\\s+")}`, "im");
+      const pattern = new RegExp(
+        `^#{2,3}\\s+.*${sectionName.replace(/\s+/g, "\\s+")}`,
+        "im"
+      );
       if (!pattern.test(content)) {
         missingSections.push(sectionName);
       }
     }
 
     if (missingSections.length > 0) {
-      const critical = missingSections.filter((s) => CRITICAL_COMMAND_SECTIONS.includes(s));
-      const recommended = missingSections.filter((s) => RECOMMENDED_COMMAND_SECTIONS.includes(s));
+      const critical = missingSections.filter((s) =>
+        CRITICAL_COMMAND_SECTIONS.includes(s)
+      );
+      const recommended = missingSections.filter((s) =>
+        RECOMMENDED_COMMAND_SECTIONS.includes(s)
+      );
 
       if (critical.length > 0) {
-        fail("CMD_MISSING_CRITICAL_SECTIONS", `commands/${file} — missing critical sections: ${critical.join(", ")}`, {
-          file: `commands/${file}`,
-          hint: `Add the following required sections: ${critical.join(", ")}. See commands/_conventions.md for details.`,
-        });
+        fail(
+          "CMD_MISSING_CRITICAL_SECTIONS",
+          `commands/${file} — missing critical sections: ${critical.join(", ")}`,
+          {
+            file: `commands/${file}`,
+            hint: `Add the following required sections: ${critical.join(", ")}. See commands/_conventions.md for details.`,
+          }
+        );
       }
       if (recommended.length > 0) {
-        warn("CMD_MISSING_SECTIONS", `commands/${file} — missing recommended sections: ${recommended.join(", ")}`, {
-          file: `commands/${file}`,
-          hint: `Add the following sections: ${recommended.join(", ")}. See commands/_conventions.md for details.`,
-        });
+        warn(
+          "CMD_MISSING_SECTIONS",
+          `commands/${file} — missing recommended sections: ${recommended.join(", ")}`,
+          {
+            file: `commands/${file}`,
+            hint: `Add the following sections: ${recommended.join(", ")}. See commands/_conventions.md for details.`,
+          }
+        );
       }
     } else {
       pass(`commands/${file} — all required sections present`);
@@ -569,29 +734,39 @@ async function validateCommandConventions() {
     // Check for at least one fenced shell/CLI example
     const codeBlocks = [...content.matchAll(/```[a-z]*\n([\s\S]*?)```/g)];
     const hasCliExample = codeBlocks.some((m) =>
-      /\b(xbp|bun|npx|npm|pnpm|gh|docker|wrangler|xylex)\b/.test(m[1]),
+      /\b(xbp|bun|npx|npm|pnpm|gh|docker|wrangler|xylex)\b/.test(m[1])
     );
 
-    if (!hasCliExample) {
-      fail("CMD_NO_CLI_EXAMPLE", `commands/${file} — no backtick-fenced CLI example found`, {
-        file: `commands/${file}`,
-        hint: "Add at least one fenced code block containing a CLI command (e.g., ```bash\\nxbp deploy\\n```)",
-      });
-    } else {
+    if (hasCliExample) {
       pass(`commands/${file} — contains CLI example(s)`);
+    } else {
+      fail(
+        "CMD_NO_CLI_EXAMPLE",
+        `commands/${file} — no backtick-fenced CLI example found`,
+        {
+          file: `commands/${file}`,
+          hint: "Add at least one fenced code block containing a CLI command (e.g., ```bash\\nxbp deploy\\n```)",
+        }
+      );
     }
 
     // Check that destructive commands include confirmation/safety language
     const hasDestructiveOps = DESTRUCTIVE_PATTERNS.some((p) => p.test(content));
     if (hasDestructiveOps) {
       const hasSafetyLanguage = SAFETY_PATTERNS.some((p) => p.test(content));
-      if (!hasSafetyLanguage) {
-        fail("CMD_UNSAFE_DESTRUCTIVE", `commands/${file} — contains destructive operations without confirmation/safety language`, {
-          file: `commands/${file}`,
-          hint: "Add confirmation prompts and safety warnings (⚠️, explicit confirmation) for destructive operations like --prod deploys and env rm",
-        });
+      if (hasSafetyLanguage) {
+        pass(
+          `commands/${file} — destructive operations include safety language`
+        );
       } else {
-        pass(`commands/${file} — destructive operations include safety language`);
+        fail(
+          "CMD_UNSAFE_DESTRUCTIVE",
+          `commands/${file} — contains destructive operations without confirmation/safety language`,
+          {
+            file: `commands/${file}`,
+            hint: "Add confirmation prompts and safety warnings (⚠️, explicit confirmation) for destructive operations like --prod deploys and env rm",
+          }
+        );
       }
     }
   }
@@ -603,16 +778,16 @@ async function validateCommandConventions() {
 
 const CLI_BANNED_PATTERNS: { pattern: RegExp; hint: string }[] = [
   {
-    pattern: /vercel\s+logs\s+.*--build/,
     hint: "Build logs are not available via 'vercel logs'. Use 'vercel inspect <deployment> --logs' instead.",
+    pattern: /vercel\s+logs\s+.*--build/,
   },
   {
-    pattern: /vercel\s+logs\s+drain/,
     hint: "Log drains are configured via the Vercel Dashboard or REST API, not 'vercel logs drain'.",
+    pattern: /vercel\s+logs\s+drain/,
   },
   {
-    pattern: /vercel\s+integration\s+(dev|deploy|publish|status)/,
     hint: "This 'vercel integration' subcommand does not exist. Valid subcommands include: add, open, list, remove, discover, guide, balance. Check 'vercel integration --help'.",
+    pattern: /vercel\s+integration\s+(dev|deploy|publish|status)/,
   },
 ];
 
@@ -623,13 +798,17 @@ async function validateCliBannedPatterns() {
   const mdFiles: { relPath: string; absPath: string }[] = [];
 
   for (const dir of dirs) {
-    if (!(await exists(dir))) continue;
+    if (!(await exists(dir))) {
+      continue;
+    }
     const entries = await readdir(dir, { recursive: true });
     for (const entry of entries) {
-      if (!entry.endsWith(".md") || entry.startsWith("_")) continue;
+      if (!entry.endsWith(".md") || entry.startsWith("_")) {
+        continue;
+      }
       const absPath = join(dir, entry);
       const relPath = absPath.slice(ROOT.length + 1);
-      mdFiles.push({ relPath, absPath });
+      mdFiles.push({ absPath, relPath });
     }
   }
 
@@ -651,11 +830,15 @@ async function validateCliBannedPatterns() {
           if (pattern.test(lines[i])) {
             violations++;
             const line = fenceStartLine + 1 + i; // +1 for the opening ``` line
-            fail("CLI_BANNED_PATTERN", `${relPath}:${line} — banned CLI pattern: ${lines[i].trim()}`, {
-              file: relPath,
-              line,
-              hint,
-            });
+            fail(
+              "CLI_BANNED_PATTERN",
+              `${relPath}:${line} — banned CLI pattern: ${lines[i].trim()}`,
+              {
+                file: relPath,
+                hint,
+                line,
+              }
+            );
           }
         }
       }
@@ -677,10 +860,14 @@ async function validatePreToolUseHook() {
   // 8a. Check whether the optional PreToolUse injection hook is registered.
   const hooksPath = join(ROOT, "hooks", "hooks.json");
   if (!(await exists(hooksPath))) {
-    fail("HOOKS_MISSING", "hooks/hooks.json not found (cannot validate hook-driven injection wiring)", {
-      file: "hooks/hooks.json",
-      hint: "Create hooks/hooks.json with your hook definitions",
-    });
+    fail(
+      "HOOKS_MISSING",
+      "hooks/hooks.json not found (cannot validate hook-driven injection wiring)",
+      {
+        file: "hooks/hooks.json",
+        hint: "Create hooks/hooks.json with your hook definitions",
+      }
+    );
     return;
   }
 
@@ -695,17 +882,19 @@ async function validatePreToolUseHook() {
   const preToolUse = hooks?.hooks?.PreToolUse;
   const hasPreToolUse = Array.isArray(preToolUse) && preToolUse.length > 0;
 
-  if (!hasPreToolUse) {
-    pass("No PreToolUse hook registered by default; hook wiring check skipped");
-  } else {
+  if (hasPreToolUse) {
     // Check matcher covers Read|Edit|Write|Bash
     const matcher = preToolUse[0]?.matcher || "";
     for (const tool of ["Read", "Edit", "Write", "Bash"]) {
       if (!matcher.includes(tool)) {
-        fail("PRETOOLUSE_MATCHER_INCOMPLETE", `PreToolUse matcher missing "${tool}" — current: "${matcher}"`, {
-          file: "hooks/hooks.json",
-          hint: `Add "${tool}" to the PreToolUse matcher pattern`,
-        });
+        fail(
+          "PRETOOLUSE_MATCHER_INCOMPLETE",
+          `PreToolUse matcher missing "${tool}" — current: "${matcher}"`,
+          {
+            file: "hooks/hooks.json",
+            hint: `Add "${tool}" to the PreToolUse matcher pattern`,
+          }
+        );
       }
     }
     if (["Read", "Edit", "Write", "Bash"].every((t) => matcher.includes(t))) {
@@ -715,22 +904,32 @@ async function validatePreToolUseHook() {
     // 8b. Check referenced hook script exists
     const hookCmd = preToolUse[0]?.hooks?.[0]?.command || "";
     const scriptMatch = hookCmd.match(/pretooluse-skill-inject\.mjs/);
-    if (!scriptMatch) {
-      fail("PRETOOLUSE_SCRIPT_REF", "PreToolUse hook command does not reference pretooluse-skill-inject.mjs", {
-        file: "hooks/hooks.json",
-        hint: "Set the hook command to reference pretooluse-skill-inject.mjs",
-      });
-    } else {
+    if (scriptMatch) {
       const scriptPath = join(ROOT, "hooks", "pretooluse-skill-inject.mjs");
       if (await exists(scriptPath)) {
         pass("pretooluse-skill-inject.mjs exists");
       } else {
-        fail("PRETOOLUSE_SCRIPT_MISSING", "hooks/pretooluse-skill-inject.mjs not found", {
-          file: "hooks/pretooluse-skill-inject.mjs",
-          hint: "Create the PreToolUse hook script at hooks/pretooluse-skill-inject.mjs",
-        });
+        fail(
+          "PRETOOLUSE_SCRIPT_MISSING",
+          "hooks/pretooluse-skill-inject.mjs not found",
+          {
+            file: "hooks/pretooluse-skill-inject.mjs",
+            hint: "Create the PreToolUse hook script at hooks/pretooluse-skill-inject.mjs",
+          }
+        );
       }
+    } else {
+      fail(
+        "PRETOOLUSE_SCRIPT_REF",
+        "PreToolUse hook command does not reference pretooluse-skill-inject.mjs",
+        {
+          file: "hooks/hooks.json",
+          hint: "Set the hook command to reference pretooluse-skill-inject.mjs",
+        }
+      );
     }
+  } else {
+    pass("No PreToolUse hook registered by default; hook wiring check skipped");
   }
 
   // 8b. Validate skill frontmatter triggers
@@ -750,7 +949,9 @@ async function validatePreToolUseHook() {
 
   for (const dir of dirs.sort()) {
     const skillPath = join(skillsDir, dir, "SKILL.md");
-    if (!(await exists(skillPath))) continue;
+    if (!(await exists(skillPath))) {
+      continue;
+    }
     skillCount++;
 
     const content = await readFile(skillPath, "utf-8");
@@ -760,21 +961,30 @@ async function validatePreToolUseHook() {
     } catch {
       continue; // YAML errors already reported in section [2]
     }
-    if (!fm) continue; // frontmatter presence already checked in section [2]
+    if (!fm) {
+      continue; // frontmatter presence already checked in section [2]
+    }
 
     const meta = fm.metadata ?? {};
     // Check canonical names only — deprecated filePattern/bashPattern are
     // normalized by buildSkillMap's compat shim and warned about in section [2].
-    const hasPathPatterns = Array.isArray(meta.pathPatterns) && meta.pathPatterns.length > 0;
-    const hasBashPatterns = Array.isArray(meta.bashPatterns) && meta.bashPatterns.length > 0;
-    const hasImportPatterns = Array.isArray(meta.importPatterns) && meta.importPatterns.length > 0;
+    const hasPathPatterns =
+      Array.isArray(meta.pathPatterns) && meta.pathPatterns.length > 0;
+    const hasBashPatterns =
+      Array.isArray(meta.bashPatterns) && meta.bashPatterns.length > 0;
+    const hasImportPatterns =
+      Array.isArray(meta.importPatterns) && meta.importPatterns.length > 0;
 
-    if (!hasPathPatterns && !hasBashPatterns && !hasImportPatterns) {
+    if (!(hasPathPatterns || hasBashPatterns || hasImportPatterns)) {
       noTriggers.push(dir);
-      fail("SKILL_NO_TRIGGERS", `skills/${dir}/SKILL.md has no pathPatterns, bashPatterns, or importPatterns in frontmatter metadata`, {
-        file: `skills/${dir}/SKILL.md`,
-        hint: `Add metadata.pathPatterns, metadata.bashPatterns, or metadata.importPatterns to the YAML frontmatter`,
-      });
+      fail(
+        "SKILL_NO_TRIGGERS",
+        `skills/${dir}/SKILL.md has no pathPatterns, bashPatterns, or importPatterns in frontmatter metadata`,
+        {
+          file: `skills/${dir}/SKILL.md`,
+          hint: "Add metadata.pathPatterns, metadata.bashPatterns, or metadata.importPatterns to the YAML frontmatter",
+        }
+      );
     }
   }
 
@@ -822,7 +1032,9 @@ async function validatePatternCompilation() {
   section("[9] Pattern compilation (pathPatterns + bashPatterns)");
 
   const skillsDir = join(ROOT, "skills");
-  if (!(await exists(skillsDir))) return; // already reported elsewhere
+  if (!(await exists(skillsDir))) {
+    return; // already reported elsewhere
+  }
 
   const dirs = await readdir(skillsDir);
   let compiled = 0;
@@ -831,7 +1043,9 @@ async function validatePatternCompilation() {
 
   for (const dir of dirs.sort()) {
     const skillPath = join(skillsDir, dir, "SKILL.md");
-    if (!(await exists(skillPath))) continue;
+    if (!(await exists(skillPath))) {
+      continue;
+    }
 
     const content = await readFile(skillPath, "utf-8");
     let fm: Record<string, any> | null;
@@ -840,29 +1054,41 @@ async function validatePatternCompilation() {
     } catch {
       continue; // YAML errors already reported in section [2]
     }
-    if (!fm) continue;
+    if (!fm) {
+      continue;
+    }
 
     const meta = fm.metadata ?? {};
 
     // Compile pathPatterns via globToRegex (canonical name only —
     // deprecated filePattern is normalized by buildSkillMap's compat shim)
-    const pathPatternsRaw: unknown[] = Array.isArray(meta.pathPatterns) ? meta.pathPatterns : [];
+    const pathPatternsRaw: unknown[] = Array.isArray(meta.pathPatterns)
+      ? meta.pathPatterns
+      : [];
     for (let idx = 0; idx < pathPatternsRaw.length; idx++) {
       const pat = pathPatternsRaw[idx];
       if (typeof pat !== "string") {
         failures++;
-        fail("PATTERN_PATH_COMPILE", `skills/${dir}/SKILL.md — pathPatterns[${idx}] is not a string (${typeof pat})`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Each pathPatterns entry must be a string glob pattern",
-        });
+        fail(
+          "PATTERN_PATH_COMPILE",
+          `skills/${dir}/SKILL.md — pathPatterns[${idx}] is not a string (${typeof pat})`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Each pathPatterns entry must be a string glob pattern",
+          }
+        );
         continue;
       }
       if (pat === "") {
         failures++;
-        fail("PATTERN_PATH_COMPILE", `skills/${dir}/SKILL.md — pathPatterns[${idx}] is empty`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Remove empty entries from metadata.pathPatterns",
-        });
+        fail(
+          "PATTERN_PATH_COMPILE",
+          `skills/${dir}/SKILL.md — pathPatterns[${idx}] is empty`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Remove empty entries from metadata.pathPatterns",
+          }
+        );
         continue;
       }
       try {
@@ -873,39 +1099,57 @@ async function validatePatternCompilation() {
         const redosRisk = detectReDoS(compiledRegex.source);
         if (redosRisk) {
           redosWarnings++;
-          fail("PATTERN_PATH_REDOS", `skills/${dir}/SKILL.md — pathPatterns "${pat}" compiles to regex with catastrophic backtracking risk: ${redosRisk}`, {
-            file: `skills/${dir}/SKILL.md`,
-            hint: "Rewrite the glob pattern to avoid nested quantifiers in the compiled regex.",
-          });
+          fail(
+            "PATTERN_PATH_REDOS",
+            `skills/${dir}/SKILL.md — pathPatterns "${pat}" compiles to regex with catastrophic backtracking risk: ${redosRisk}`,
+            {
+              file: `skills/${dir}/SKILL.md`,
+              hint: "Rewrite the glob pattern to avoid nested quantifiers in the compiled regex.",
+            }
+          );
         }
       } catch (err: any) {
         failures++;
-        fail("PATTERN_PATH_COMPILE", `skills/${dir}/SKILL.md — pathPatterns "${pat}" failed to compile: ${err.message}`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Fix the glob pattern syntax in metadata.pathPatterns",
-        });
+        fail(
+          "PATTERN_PATH_COMPILE",
+          `skills/${dir}/SKILL.md — pathPatterns "${pat}" failed to compile: ${err.message}`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Fix the glob pattern syntax in metadata.pathPatterns",
+          }
+        );
       }
     }
 
     // Compile bashPatterns as RegExp (canonical name only —
     // deprecated bashPattern is normalized by buildSkillMap's compat shim)
-    const bashPatternsRaw: unknown[] = Array.isArray(meta.bashPatterns) ? meta.bashPatterns : [];
+    const bashPatternsRaw: unknown[] = Array.isArray(meta.bashPatterns)
+      ? meta.bashPatterns
+      : [];
     for (let idx = 0; idx < bashPatternsRaw.length; idx++) {
       const pat = bashPatternsRaw[idx];
       if (typeof pat !== "string") {
         failures++;
-        fail("PATTERN_BASH_COMPILE", `skills/${dir}/SKILL.md — bashPatterns[${idx}] is not a string (${typeof pat})`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Each bashPatterns entry must be a string regex pattern",
-        });
+        fail(
+          "PATTERN_BASH_COMPILE",
+          `skills/${dir}/SKILL.md — bashPatterns[${idx}] is not a string (${typeof pat})`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Each bashPatterns entry must be a string regex pattern",
+          }
+        );
         continue;
       }
       if (pat === "") {
         failures++;
-        fail("PATTERN_BASH_COMPILE", `skills/${dir}/SKILL.md — bashPatterns[${idx}] is empty`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Remove empty entries from metadata.bashPatterns",
-        });
+        fail(
+          "PATTERN_BASH_COMPILE",
+          `skills/${dir}/SKILL.md — bashPatterns[${idx}] is empty`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Remove empty entries from metadata.bashPatterns",
+          }
+        );
         continue;
       }
       try {
@@ -913,10 +1157,14 @@ async function validatePatternCompilation() {
         compiled++;
       } catch (err: any) {
         failures++;
-        fail("PATTERN_BASH_COMPILE", `skills/${dir}/SKILL.md — bashPatterns "${pat}" failed to compile: ${err.message}`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Fix the regex syntax in metadata.bashPatterns",
-        });
+        fail(
+          "PATTERN_BASH_COMPILE",
+          `skills/${dir}/SKILL.md — bashPatterns "${pat}" failed to compile: ${err.message}`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Fix the regex syntax in metadata.bashPatterns",
+          }
+        );
         continue;
       }
 
@@ -924,31 +1172,45 @@ async function validatePatternCompilation() {
       const redosRisk = detectReDoS(pat);
       if (redosRisk) {
         redosWarnings++;
-        fail("PATTERN_BASH_REDOS", `skills/${dir}/SKILL.md — bashPatterns "${pat}" has catastrophic backtracking risk: ${redosRisk}`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Rewrite the regex to avoid nested quantifiers. Use atomic groups or possessive quantifiers, or simplify the pattern.",
-        });
+        fail(
+          "PATTERN_BASH_REDOS",
+          `skills/${dir}/SKILL.md — bashPatterns "${pat}" has catastrophic backtracking risk: ${redosRisk}`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Rewrite the regex to avoid nested quantifiers. Use atomic groups or possessive quantifiers, or simplify the pattern.",
+          }
+        );
       }
     }
 
     // Compile importPatterns via importPatternToRegex
-    const importPatternsRaw: unknown[] = Array.isArray(meta.importPatterns) ? meta.importPatterns : [];
+    const importPatternsRaw: unknown[] = Array.isArray(meta.importPatterns)
+      ? meta.importPatterns
+      : [];
     for (let idx = 0; idx < importPatternsRaw.length; idx++) {
       const pat = importPatternsRaw[idx];
       if (typeof pat !== "string") {
         failures++;
-        fail("PATTERN_IMPORT_COMPILE", `skills/${dir}/SKILL.md — importPatterns[${idx}] is not a string (${typeof pat})`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Each importPatterns entry must be a string package name",
-        });
+        fail(
+          "PATTERN_IMPORT_COMPILE",
+          `skills/${dir}/SKILL.md — importPatterns[${idx}] is not a string (${typeof pat})`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Each importPatterns entry must be a string package name",
+          }
+        );
         continue;
       }
       if (pat === "") {
         failures++;
-        fail("PATTERN_IMPORT_COMPILE", `skills/${dir}/SKILL.md — importPatterns[${idx}] is empty`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Remove empty entries from metadata.importPatterns",
-        });
+        fail(
+          "PATTERN_IMPORT_COMPILE",
+          `skills/${dir}/SKILL.md — importPatterns[${idx}] is empty`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Remove empty entries from metadata.importPatterns",
+          }
+        );
         continue;
       }
       try {
@@ -956,18 +1218,26 @@ async function validatePatternCompilation() {
         compiled++;
       } catch (err: any) {
         failures++;
-        fail("PATTERN_IMPORT_COMPILE", `skills/${dir}/SKILL.md — importPatterns "${pat}" failed to compile: ${err.message}`, {
-          file: `skills/${dir}/SKILL.md`,
-          hint: "Fix the import pattern in metadata.importPatterns",
-        });
+        fail(
+          "PATTERN_IMPORT_COMPILE",
+          `skills/${dir}/SKILL.md — importPatterns "${pat}" failed to compile: ${err.message}`,
+          {
+            file: `skills/${dir}/SKILL.md`,
+            hint: "Fix the import pattern in metadata.importPatterns",
+          }
+        );
       }
     }
   }
 
   if (failures === 0 && redosWarnings === 0 && compiled > 0) {
-    pass(`All ${compiled} patterns compiled successfully (no ReDoS risks detected)`);
+    pass(
+      `All ${compiled} patterns compiled successfully (no ReDoS risks detected)`
+    );
   } else if (failures === 0 && redosWarnings > 0 && compiled > 0) {
-    pass(`All ${compiled} patterns compiled, but ${redosWarnings} ReDoS warning(s)`);
+    pass(
+      `All ${compiled} patterns compiled, but ${redosWarnings} ReDoS warning(s)`
+    );
   }
 }
 
@@ -991,10 +1261,12 @@ async function validateCatalogStaleness() {
 
   // Extract skill slugs from the catalog Skill Index table only
   // The table starts after "## Skill Index" and ends before the next "##" heading
-  const indexMatch = catalog.match(/## Skill Index\n[\s\S]*?\n\|[-|\s]+\|\n([\s\S]*?)(?:\n##|\n$)/);
+  const indexMatch = catalog.match(
+    /## Skill Index\n[\s\S]*?\n\|[-|\s]+\|\n([\s\S]*?)(?:\n##|\n$)/
+  );
   const indexSection = indexMatch ? indexMatch[1] : "";
   const catalogSlugs = new Set(
-    [...indexSection.matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]),
+    [...indexSection.matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1])
   );
 
   // Get current skills from the skills/ directory
@@ -1008,17 +1280,25 @@ async function validateCatalogStaleness() {
   const stale = [...catalogSlugs].filter((s) => !currentSlugs.has(s));
 
   if (missing.length > 0) {
-    fail("CATALOG_STALE", `Skill catalog is missing ${missing.length} skill(s): ${missing.join(", ")}`, {
-      file: "generated/skill-catalog.md",
-      hint: "Run: bun run scripts/generate-catalog.ts to regenerate",
-    });
+    fail(
+      "CATALOG_STALE",
+      `Skill catalog is missing ${missing.length} skill(s): ${missing.join(", ")}`,
+      {
+        file: "generated/skill-catalog.md",
+        hint: "Run: bun run scripts/generate-catalog.ts to regenerate",
+      }
+    );
   }
 
   if (stale.length > 0) {
-    fail("CATALOG_STALE", `Skill catalog has ${stale.length} stale skill(s) no longer in skills/: ${stale.join(", ")}`, {
-      file: "generated/skill-catalog.md",
-      hint: "Run: bun run scripts/generate-catalog.ts to regenerate",
-    });
+    fail(
+      "CATALOG_STALE",
+      `Skill catalog has ${stale.length} stale skill(s) no longer in skills/: ${stale.join(", ")}`,
+      {
+        file: "generated/skill-catalog.md",
+        hint: "Run: bun run scripts/generate-catalog.ts to regenerate",
+      }
+    );
   }
 
   if (missing.length === 0 && stale.length === 0) {
@@ -1045,7 +1325,15 @@ async function validateProfilerSkillSlugs() {
   const profilerSrc = await readFile(profilerPath, "utf-8");
 
   // Bootstrap hint slugs that are NOT actual skill slugs (used for setup signals only)
-  const BOOTSTRAP_HINT_ONLY = new Set(["greenfield", "env-example", "readme", "drizzle-config", "postgres", "prisma-schema", "auth-secret"]);
+  const BOOTSTRAP_HINT_ONLY = new Set([
+    "greenfield",
+    "env-example",
+    "readme",
+    "drizzle-config",
+    "postgres",
+    "prisma-schema",
+    "auth-secret",
+  ]);
 
   // Extract all skill slug strings referenced in FILE_MARKERS and PACKAGE_MARKERS
   // Match patterns like: skills: ["nextjs", "turbopack"] and ["ai-sdk"]
@@ -1057,7 +1345,9 @@ async function validateProfilerSkillSlugs() {
     }
   }
   // Also match individual string entries in arrays
-  for (const m of profilerSrc.matchAll(/\["([a-z][a-z0-9-]*)(?:",\s*"([a-z][a-z0-9-]*))*"\]/g)) {
+  for (const m of profilerSrc.matchAll(
+    /\["([a-z][a-z0-9-]*)(?:",\s*"([a-z][a-z0-9-]*))*"\]/g
+  )) {
     // Parse the full match more carefully
     const inner = m[0].slice(1, -1); // strip [ ]
     for (const s of inner.matchAll(/"([a-z][a-z0-9-]*)"/g)) {
@@ -1083,17 +1373,23 @@ async function validateProfilerSkillSlugs() {
   const invalid: string[] = [];
 
   // Remove bootstrap-only hints before validation
-  for (const hint of BOOTSTRAP_HINT_ONLY) slugRefs.delete(hint);
+  for (const hint of BOOTSTRAP_HINT_ONLY) {
+    slugRefs.delete(hint);
+  }
 
   for (const slug of [...slugRefs].sort()) {
     if (validSlugs.has(slug)) {
       pass(`profiler slug "${slug}" → skills/${slug}/SKILL.md`);
     } else {
       invalid.push(slug);
-      fail("PROFILER_SLUG_INVALID", `Profiler references skill "${slug}" but skills/${slug}/SKILL.md does not exist`, {
-        file: "hooks/session-start-profiler.mjs",
-        hint: `Create skills/${slug}/SKILL.md or remove "${slug}" from the profiler`,
-      });
+      fail(
+        "PROFILER_SLUG_INVALID",
+        `Profiler references skill "${slug}" but skills/${slug}/SKILL.md does not exist`,
+        {
+          file: "hooks/session-start-profiler.mjs",
+          hint: `Create skills/${slug}/SKILL.md or remove "${slug}" from the profiler`,
+        }
+      );
     }
   }
 
@@ -1108,9 +1404,9 @@ async function validateProfilerSkillSlugs() {
 
 interface PatternFixture {
   description: string;
-  type: "path" | "bash";
-  input: string;
   expectedSkills: string[];
+  input: string;
+  type: "path" | "bash";
 }
 
 async function validatePatternFixtures() {
@@ -1129,13 +1425,20 @@ async function validatePatternFixtures() {
   try {
     fixturesData = JSON.parse(await readFile(fixturesPath, "utf-8"));
   } catch (err: any) {
-    fail("FIXTURE_PARSE", `Failed to parse pattern-fixtures.json: ${err.message}`, {
-      file: "tests/fixtures/pattern-fixtures.json",
-    });
+    fail(
+      "FIXTURE_PARSE",
+      `Failed to parse pattern-fixtures.json: ${err.message}`,
+      {
+        file: "tests/fixtures/pattern-fixtures.json",
+      }
+    );
     return;
   }
 
-  if (!Array.isArray(fixturesData.fixtures) || fixturesData.fixtures.length === 0) {
+  if (
+    !Array.isArray(fixturesData.fixtures) ||
+    fixturesData.fixtures.length === 0
+  ) {
     fail("FIXTURE_EMPTY", "pattern-fixtures.json has no fixtures", {
       file: "tests/fixtures/pattern-fixtures.json",
       hint: "Add fixture entries with type, input, and expectedSkills",
@@ -1156,10 +1459,14 @@ async function validatePatternFixtures() {
     for (const entry of compiled) {
       if (fixture.type === "path") {
         const r = matchPathWithReason(fixture.input, entry.compiledPaths);
-        if (r) matched.push(entry.skill);
+        if (r) {
+          matched.push(entry.skill);
+        }
       } else if (fixture.type === "bash") {
         const r = matchBashWithReason(fixture.input, entry.compiledBash);
-        if (r) matched.push(entry.skill);
+        if (r) {
+          matched.push(entry.skill);
+        }
       }
     }
 
@@ -1171,12 +1478,20 @@ async function validatePatternFixtures() {
     if (missing.length > 0 || extra.length > 0) {
       failed++;
       const parts: string[] = [];
-      if (missing.length > 0) parts.push(`missing: ${missing.join(", ")}`);
-      if (extra.length > 0) parts.push(`extra: ${extra.join(", ")}`);
-      fail("FIXTURE_MISMATCH", `Fixture "${fixture.description}" (${fixture.type}: ${fixture.input}) — ${parts.join("; ")}`, {
-        file: "tests/fixtures/pattern-fixtures.json",
-        hint: "Update the fixture's expectedSkills or fix the skill's patterns",
-      });
+      if (missing.length > 0) {
+        parts.push(`missing: ${missing.join(", ")}`);
+      }
+      if (extra.length > 0) {
+        parts.push(`extra: ${extra.join(", ")}`);
+      }
+      fail(
+        "FIXTURE_MISMATCH",
+        `Fixture "${fixture.description}" (${fixture.type}: ${fixture.input}) — ${parts.join("; ")}`,
+        {
+          file: "tests/fixtures/pattern-fixtures.json",
+          hint: "Update the fixture's expectedSkills or fix the skill's patterns",
+        }
+      );
     } else {
       passed++;
     }
@@ -1192,19 +1507,19 @@ async function validatePatternFixtures() {
 // ---------------------------------------------------------------------------
 
 const CHECK_LABELS: Record<string, string> = {
-  graphSkillRefs: "Ecosystem graph → skill cross-references",
-  orphanSkills: "Orphan skill detection",
-  skillFrontmatter: "SKILL.md YAML frontmatter",
-  pluginJson: "plugin.json validity",
-  hooksJson: "hooks.json validity",
-  coverageBaseline: "llms.txt coverage baseline",
-  commandConventions: "Command conventions",
-  cliBannedPatterns: "CLI banned-pattern scan",
-  preToolUseHook: "PreToolUse hook and skill coverage",
-  patternCompilation: "Pattern compilation",
   catalogStaleness: "Skill catalog staleness",
-  profilerSkillSlugs: "Profiler skill slug cross-references",
+  cliBannedPatterns: "CLI banned-pattern scan",
+  commandConventions: "Command conventions",
+  coverageBaseline: "llms.txt coverage baseline",
+  graphSkillRefs: "Ecosystem graph → skill cross-references",
+  hooksJson: "hooks.json validity",
+  orphanSkills: "Orphan skill detection",
+  patternCompilation: "Pattern compilation",
   patternFixtures: "Pattern fixture dry-run",
+  pluginJson: "plugin.json validity",
+  preToolUseHook: "PreToolUse hook and skill coverage",
+  profilerSkillSlugs: "Profiler skill slug cross-references",
+  skillFrontmatter: "SKILL.md YAML frontmatter",
 };
 
 async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -1213,13 +1528,23 @@ async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
   const start = performance.now();
   const result = await fn();
   const durationMs = Math.round(performance.now() - start);
-  metrics.push({ name, durationMs });
+  metrics.push({ durationMs, name });
 
   const checkIssues = issues.slice(issuesBefore);
   const errorCount = checkIssues.filter((i) => i.severity === "error").length;
-  const warningCount = checkIssues.filter((i) => i.severity === "warning").length;
-  const status: CheckResult["status"] = errorCount > 0 ? "fail" : warningCount > 0 ? "warn" : "pass";
-  checkResults.push({ name, label: CHECK_LABELS[name] ?? name, status, durationMs, errorCount, warningCount });
+  const warningCount = checkIssues.filter(
+    (i) => i.severity === "warning"
+  ).length;
+  const status: CheckResult["status"] =
+    errorCount > 0 ? "fail" : warningCount > 0 ? "warn" : "pass";
+  checkResults.push({
+    durationMs,
+    errorCount,
+    label: CHECK_LABELS[name] ?? name,
+    name,
+    status,
+    warningCount,
+  });
 
   return result;
 }
@@ -1229,7 +1554,9 @@ const checkResults: CheckResult[] = [];
 
 async function main() {
   if (FORMAT === "pretty") {
-    console.log("XYLEX Group Plugin — Structural Validation\n" + "=".repeat(40));
+    console.log(
+      "XYLEX Group Plugin — Structural Validation\n" + "=".repeat(40)
+    );
   }
 
   await timed("graphSkillRefs", () => validateGraphSkillRefs());
@@ -1251,7 +1578,9 @@ async function main() {
 
   // Generate skill-manifest.json when validation passes (no errors)
   if (errorCount === 0) {
-    const { manifest, errors: manifestErrors } = buildManifest(join(ROOT, "skills"));
+    const { manifest, errors: manifestErrors } = buildManifest(
+      join(ROOT, "skills")
+    );
     if (manifestErrors.length === 0) {
       const count = writeManifestFile(manifest);
       if (FORMAT === "pretty") {
@@ -1262,19 +1591,21 @@ async function main() {
 
   if (FORMAT === "json") {
     const report: ValidationReport = {
-      version: 1,
-      timestamp: new Date().toISOString(),
-      summary: { errors: errorCount, warnings: warnCount, checks },
       checkResults,
-      metrics,
       issues,
+      metrics,
       orphanSkills,
+      summary: { checks, errors: errorCount, warnings: warnCount },
+      timestamp: new Date().toISOString(),
+      version: 1,
     };
     console.log(JSON.stringify(report, null, 2));
   } else {
     console.log("\n" + "=".repeat(40));
     if (errorCount > 0) {
-      console.error(`\nFAILED — ${errorCount} error(s)${warnCount > 0 ? `, ${warnCount} warning(s)` : ""}\n`);
+      console.error(
+        `\nFAILED — ${errorCount} error(s)${warnCount > 0 ? `, ${warnCount} warning(s)` : ""}\n`
+      );
     } else if (warnCount > 0) {
       console.log(`\nPASSED with ${warnCount} warning(s)\n`);
     } else {

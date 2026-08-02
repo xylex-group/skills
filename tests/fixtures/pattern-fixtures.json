@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "description": "SKILL.md under skills/ activates create-xylex-skill",
+      "type": "path",
+      "input": "skills/create-xylex-skill/SKILL.md",
+      "expectedSkills": ["create-xylex-skill"]
+    },
+    {
+      "description": "overlay.yaml under skills/ activates create-xylex-skill",
+      "type": "path",
+      "input": "skills/example/overlay.yaml",
+      "expectedSkills": ["create-xylex-skill"]
+    },
+    {
+      "description": "bun run validate activates create-xylex-skill",
+      "type": "bash",
+      "input": "bun run validate",
+      "expectedSkills": ["create-xylex-skill"]
+    },
+    {
+      "description": "npx skills add activates create-xylex-skill",
+      "type": "bash",
+      "input": "npx skills add xylex-group/skills",
+      "expectedSkills": ["create-xylex-skill"]
+    }
+  ]
+}

@@ -14,30 +14,31 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatOutput, type HookPlatform } from "./compat.mts";
 import {
-  formatOutput,
-  type HookPlatform,
-} from "./compat.mjs";
-import {
-  removeAllSessionDedupArtifacts,
   type RemoveArtifactsResult,
-} from "./hook-env.mjs";
-import { createLogger } from "./logger.mjs";
+  removeAllSessionDedupArtifacts,
+} from "./hook-env.mts";
+import { createLogger } from "./logger.mts";
 
 interface SessionStartSeenSkillsInput {
-  session_id?: string;
   conversation_id?: string;
   cursor_version?: string;
   hook_event_name?: string;
+  session_id?: string;
   [key: string]: unknown;
 }
 
 /** Events where previously-injected skills are no longer in the context window. */
 const CONTEXT_CLEARING_EVENTS = new Set(["clear", "compact"]);
 
-export function parseSessionStartSeenSkillsInput(raw: string): SessionStartSeenSkillsInput | null {
+export function parseSessionStartSeenSkillsInput(
+  raw: string
+): SessionStartSeenSkillsInput | null {
   try {
-    if (!raw.trim()) return null;
+    if (!raw.trim()) {
+      return null;
+    }
     return JSON.parse(raw) as SessionStartSeenSkillsInput;
   } catch {
     return null;
@@ -46,7 +47,7 @@ export function parseSessionStartSeenSkillsInput(raw: string): SessionStartSeenS
 
 export function detectSessionStartSeenSkillsPlatform(
   input: SessionStartSeenSkillsInput | null,
-  _env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env
 ): HookPlatform {
   if (input && ("conversation_id" in input || "cursor_version" in input)) {
     return "cursor";
@@ -56,11 +57,13 @@ export function detectSessionStartSeenSkillsPlatform(
 }
 
 export function formatSessionStartSeenSkillsCursorOutput(): string {
-  return JSON.stringify(formatOutput("cursor", {
-    env: {
-      XYLEX_PLUGIN_SEEN_SKILLS: "",
-    },
-  }));
+  return JSON.stringify(
+    formatOutput("cursor", {
+      env: {
+        XYLEX_PLUGIN_SEEN_SKILLS: "",
+      },
+    })
+  );
 }
 
 /**
@@ -69,7 +72,9 @@ export function formatSessionStartSeenSkillsCursorOutput(): string {
  * any agent-scoped variants (e.g. subagent claim dirs) using a prefix-glob
  * approach, mirroring session-end-cleanup.
  */
-export function resetDedupStateForSession(sessionId: string): RemoveArtifactsResult {
+export function resetDedupStateForSession(
+  sessionId: string
+): RemoveArtifactsResult {
   return removeAllSessionDedupArtifacts(sessionId);
 }
 
@@ -99,10 +104,10 @@ function main(): void {
 
   log.debug("session-start-seen-skills:decision", {
     event: hookEvent || "unknown",
-    sessionId: sessionId || "none",
-    resetTriggered,
-    removedFiles,
     removedDirs,
+    removedFiles,
+    resetTriggered,
+    sessionId: sessionId || "none",
   });
 }
 

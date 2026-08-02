@@ -5,128 +5,128 @@
 
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { safeReadFile } from "./hook-env.mjs";
+import { safeReadFile } from "./hook-env.mts";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface FrontmatterResult {
-  yaml: string;
   body: string;
+  yaml: string;
 }
 
 export interface ValidationRule {
-  pattern: string;
   message: string;
+  pattern: string;
   severity: "error" | "recommended" | "warn";
   /** If set, skip this rule when the file content matches this regex. */
   skipIfFileContains?: string;
+  /** Upgrade instruction mode. Defaults to "soft" when upgradeToSkill is set. */
+  upgradeMode?: "hard" | "soft";
   /** If set, direct the agent to load a more specific skill for this violation. */
   upgradeToSkill?: string;
   /** Optional rationale for why the skill upgrade is needed. */
   upgradeWhy?: string;
-  /** Upgrade instruction mode. Defaults to "soft" when upgradeToSkill is set. */
-  upgradeMode?: "hard" | "soft";
 }
 
 export interface ChainToRule {
-  /** Regex pattern to match against file contents after a PostToolUse write/edit. */
-  pattern: string;
-  /** The skill slug to inject when the pattern matches. */
-  targetSkill: string;
   /** Optional human-readable message explaining why the chain is triggered. */
   message?: string;
-  /** True when this rule was auto-synthesized from a validate upgradeToSkill rule at build time. */
-  synthesized?: boolean;
+  /** Regex pattern to match against file contents after a PostToolUse write/edit. */
+  pattern: string;
   /** Optional regex — if file content matches, skip this chain rule. */
   skipIfFileContains?: string;
+  /** True when this rule was auto-synthesized from a validate upgradeToSkill rule at build time. */
+  synthesized?: boolean;
+  /** The skill slug to inject when the pattern matches. */
+  targetSkill: string;
 }
 
 export interface RetrievalMetadata {
   aliases?: string[];
-  intents?: string[];
   entities?: string[];
   examples?: string[];
+  intents?: string[];
 }
 
 export interface SkillFrontmatter {
-  name: string;
-  description: string;
-  summary: string;
-  metadata: Record<string, unknown>;
-  validate: ValidationRule[];
   chainTo: ChainToRule[];
+  description: string;
+  metadata: Record<string, unknown>;
+  name: string;
   retrieval?: RetrievalMetadata;
+  summary: string;
+  validate: ValidationRule[];
 }
 
 export interface ScannedSkill {
-  dir: string;
-  name: string;
-  description: string;
-  summary: string;
-  metadata: Record<string, unknown>;
-  validate: ValidationRule[];
   chainTo: ChainToRule[];
+  description: string;
+  dir: string;
+  metadata: Record<string, unknown>;
+  name: string;
   retrieval?: RetrievalMetadata;
+  summary: string;
+  validate: ValidationRule[];
 }
 
 export interface Diagnostic {
-  file: string;
   error: string;
+  file: string;
   message: string;
 }
 
 export interface ScanResult {
-  skills: ScannedSkill[];
   diagnostics: Diagnostic[];
+  skills: ScannedSkill[];
 }
 
 export interface PromptSignals {
-  phrases: string[];
   allOf: string[][];
   anyOf: string[];
-  noneOf: string[];
   minScore: number;
+  noneOf: string[];
+  phrases: string[];
 }
 
 export interface SkillConfig {
-  priority: number;
-  summary: string;
-  docs: string[];
-  sitemap?: string;
-  pathPatterns: string[];
   bashPatterns: string[];
-  importPatterns: string[];
-  validate: ValidationRule[];
   chainTo?: ChainToRule[];
+  docs: string[];
+  importPatterns: string[];
+  pathPatterns: string[];
+  priority: number;
   promptSignals?: PromptSignals;
   retrieval?: RetrievalMetadata;
+  sitemap?: string;
+  summary: string;
+  validate: ValidationRule[];
 }
 
 export interface WarningDetail {
   code: string;
-  skill: string;
   field: string;
-  valueType: string;
   hint: string;
   message: string;
+  skill: string;
+  valueType: string;
 }
 
 export interface ErrorDetail {
   code: string;
-  skill: string;
   field: string;
-  valueType: string;
   hint: string;
   message: string;
+  skill: string;
+  valueType: string;
 }
 
 export interface SkillMapResult {
-  skills: Record<string, SkillConfig>;
   diagnostics: Diagnostic[];
-  warnings: string[];
+  skills: Record<string, SkillConfig>;
   warningDetails: WarningDetail[];
+  warnings: string[];
 }
 
 export type ValidationResult =
@@ -153,8 +153,8 @@ interface YamlObject {
 }
 
 interface BlockResult {
-  value: YamlValue;
   nextIndex: number;
+  value: YamlValue;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,16 +168,14 @@ interface BlockResult {
 export function extractFrontmatter(markdown: string): FrontmatterResult {
   // Strip BOM (U+FEFF) if present
   let src = markdown;
-  if (src.charCodeAt(0) === 0xfeff) {
+  if (src.charCodeAt(0) === 0xfe_ff) {
     src = src.slice(1);
   }
-  const match = src.match(
-    /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/,
-  );
+  const match = src.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) {
-    return { yaml: "", body: src };
+    return { body: src, yaml: "" };
   }
-  return { yaml: match[1], body: match[2] };
+  return { body: match[2], yaml: match[1] };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +195,9 @@ function isIgnorableLine(line: string): boolean {
 
 function nextSignificantLine(lines: string[], startIndex: number): number {
   for (let i = startIndex; i < lines.length; i += 1) {
-    if (!isIgnorableLine(lines[i])) return i;
+    if (!isIgnorableLine(lines[i])) {
+      return i;
+    }
   }
   return -1;
 }
@@ -220,15 +220,13 @@ function countIndent(line: string): number {
 
 function parseYamlScalar(raw: string): YamlScalar {
   const value = raw.trim();
-  if (value === "") return "";
+  if (value === "") {
+    return "";
+  }
 
   const first = value[0];
   const last = value[value.length - 1];
-  if (
-    (first === "'" || first === '"') &&
-    last === first &&
-    value.length >= 2
-  ) {
+  if ((first === "'" || first === '"') && last === first && value.length >= 2) {
     return value.slice(1, -1);
   }
   if (first === "'" || first === '"') {
@@ -244,12 +242,14 @@ function parseYamlScalar(raw: string): YamlScalar {
 
 function parseInlineArray(raw: string): YamlValue[] {
   const value = raw.trim();
-  if (!value.startsWith("[") || !value.endsWith("]")) {
+  if (!(value.startsWith("[") && value.endsWith("]"))) {
     throw invalidYaml("inline array must start with '[' and end with ']'");
   }
 
   const inner = value.slice(1, -1);
-  if (inner.trim() === "") return [];
+  if (inner.trim() === "") {
+    return [];
+  }
 
   const items: string[] = [];
   let token = "";
@@ -312,29 +312,36 @@ function parseInlineValue(raw: string): YamlValue {
 
 /** Match YAML block scalar indicators: |, >, |-, |+, >-, >+ (optional chomping only). */
 function parseBlockScalarIndicator(
-  raw: string,
+  raw: string
 ): { style: ">" | "|"; chomp: "clip" | "strip" | "keep" } | null {
   const value = raw.trim();
   const match = value.match(/^([|>])([+-])?$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const style = match[1] as ">" | "|";
   const chompChar = match[2];
   const chomp =
     chompChar === "-" ? "strip" : chompChar === "+" ? "keep" : "clip";
-  return { style, chomp };
+  return { chomp, style };
 }
 
 /**
  * Parse a YAML block scalar (literal `|` or folded `>`) starting after the
  * indicator line. Content lines must be indented more than `parentIndent`.
+ *
+ * Chomping:
+ * - clip (default): strip trailing blank lines; `|` keeps one final newline, `>` does not
+ *   (skill descriptions are typically single-line after fold)
+ * - strip (`-`): strip all trailing newlines
+ * - keep (`+`): keep trailing newlines captured from blank lines
  */
 function parseBlockScalar(
   lines: string[],
   startIndex: number,
   parentIndent: number,
   style: ">" | "|",
-  chomp: "clip" | "strip" | "keep",
-  lineNumber: number,
+  chomp: "clip" | "strip" | "keep"
 ): BlockResult {
   let index = startIndex;
   const contentLines: string[] = [];
@@ -343,8 +350,6 @@ function parseBlockScalar(
   while (index < lines.length) {
     const line = lines[index];
     if (line.trim() === "") {
-      // Blank lines are part of the scalar when we already started content,
-      // or skipped when still looking for the first content line.
       if (contentIndent !== null) {
         contentLines.push("");
       }
@@ -364,7 +369,7 @@ function parseBlockScalar(
     if (lineIndent < contentIndent) {
       throw invalidYaml(
         `unexpected indentation in block scalar, expected at least ${contentIndent} spaces but found ${lineIndent}`,
-        index + 1,
+        index + 1
       );
     }
 
@@ -372,12 +377,7 @@ function parseBlockScalar(
     index += 1;
   }
 
-  if (contentIndent === null && contentLines.length === 0) {
-    // Empty block scalar
-    return { value: "", nextIndex: index };
-  }
-
-  // Drop leading blank lines that were only placeholders before first content
+  // Drop leading blanks collected before first real content (shouldn't happen)
   while (contentLines.length > 0 && contentLines[0] === "") {
     contentLines.shift();
   }
@@ -386,7 +386,7 @@ function parseBlockScalar(
   if (style === "|") {
     text = contentLines.join("\n");
   } else {
-    // Folded `>`: single newlines become spaces; blank lines keep paragraph breaks.
+    // Folded `>`: single newlines → spaces; blank lines → paragraph breaks.
     const paragraphs: string[] = [];
     let current: string[] = [];
     for (const line of contentLines) {
@@ -394,7 +394,7 @@ function parseBlockScalar(
         if (current.length > 0) {
           paragraphs.push(current.join(" "));
           current = [];
-        } else {
+        } else if (paragraphs.length > 0) {
           paragraphs.push("");
         }
         continue;
@@ -409,66 +409,41 @@ function parseBlockScalar(
 
   if (chomp === "strip") {
     text = text.replace(/\n+$/, "");
-  } else if (chomp === "clip") {
-    text = text.replace(/\n+$/, "") + (text.length > 0 ? "\n" : "");
-    // Agent Skills descriptions are usually single-line; strip trailing newline for usability
-    // when the scalar was a short description block (no internal newlines after fold).
-    if (style === ">" && !text.includes("\n", 0) === false) {
-      // keep as-is when multi-paragraph
-    }
-    // Prefer no trailing newline for folded single-paragraph descriptions used in frontmatter.
-    if (style === ">" && text.endsWith("\n") && text.indexOf("\n") === text.length - 1) {
-      text = text.slice(0, -1);
-    } else if (style === "|" && text.endsWith("\n") && chomp === "clip") {
-      // literal clip keeps one trailing newline per YAML — leave text as join result + optional
-      text = contentLines.join("\n");
-      if (!text.endsWith("\n") && contentLines.length > 0) {
-        text = text + "\n";
-      }
-      text = text.replace(/\n+$/, "\n");
+  } else if (chomp === "keep") {
+    // keep trailing newlines already present in contentLines for literal;
+    // for folded, trailing blanks already folded into trailing \n segments
+    if (style === "|" && contentLines.length > 0 && !text.endsWith("\n")) {
+      // no-op: join doesn't add final newline unless last line was ""
     }
   } else {
-    // keep: preserve all trailing newlines as captured
-    if (style === "|") {
-      text = contentLines.join("\n");
-      // if original ended with blanks, contentLines already has them
-    }
-  }
-
-  // For clip on folded multi-line with internal newlines, strip all trailing NLs then add one
-  // Simplified final normalization for skill frontmatter:
-  if (chomp === "clip") {
-    if (style === ">") {
-      text = text.replace(/\n+$/, "");
-    } else {
-      text = text.replace(/\n+$/, "") + "\n";
-    }
-  } else if (chomp === "strip") {
+    // clip
     text = text.replace(/\n+$/, "");
+    if (style === "|") {
+      text = text.length > 0 ? `${text}\n` : "";
+    }
   }
 
-  void lineNumber; // reserved for future precise error context
-  return { value: text, nextIndex: index };
+  return { nextIndex: index, value: text };
 }
 
 function parseYamlBlock(
   lines: string[],
   startIndex: number,
-  indent: number,
+  indent: number
 ): BlockResult {
   let index = nextSignificantLine(lines, startIndex);
   if (index === -1) {
-    return { value: "", nextIndex: lines.length };
+    return { nextIndex: lines.length, value: "" };
   }
 
   const firstIndent = countIndent(lines[index]);
   if (firstIndent < indent) {
-    return { value: "", nextIndex: index };
+    return { nextIndex: index, value: "" };
   }
   if (firstIndent !== indent) {
     throw invalidYaml(
       `unexpected indentation, expected ${indent} spaces but found ${firstIndent}`,
-      index + 1,
+      index + 1
     );
   }
 
@@ -483,11 +458,13 @@ function parseYamlBlock(
       }
 
       const lineIndent = countIndent(lines[index]);
-      if (lineIndent < indent) break;
+      if (lineIndent < indent) {
+        break;
+      }
       if (lineIndent !== indent) {
         throw invalidYaml(
           `unexpected indentation inside array, expected ${indent} spaces but found ${lineIndent}`,
-          index + 1,
+          index + 1
         );
       }
 
@@ -522,7 +499,7 @@ function parseYamlBlock(
       index = child.nextIndex;
     }
 
-    return { value: arr, nextIndex: index };
+    return { nextIndex: index, value: arr };
   }
 
   const obj: YamlObject = {};
@@ -533,11 +510,13 @@ function parseYamlBlock(
     }
 
     const lineIndent = countIndent(lines[index]);
-    if (lineIndent < indent) break;
+    if (lineIndent < indent) {
+      break;
+    }
     if (lineIndent !== indent) {
       throw invalidYaml(
         `unexpected indentation inside object, expected ${indent} spaces but found ${lineIndent}`,
-        index + 1,
+        index + 1
       );
     }
 
@@ -545,7 +524,7 @@ function parseYamlBlock(
     if (content.startsWith("-")) {
       throw invalidYaml(
         "found list item where key-value pair was expected",
-        index + 1,
+        index + 1
       );
     }
 
@@ -561,7 +540,7 @@ function parseYamlBlock(
     if (key in obj) {
       throw invalidYaml(
         `duplicate key "${key}" (first defined earlier in this block)`,
-        index + 1,
+        index + 1
       );
     }
 
@@ -575,8 +554,7 @@ function parseYamlBlock(
           index + 1,
           indent,
           blockIndicator.style,
-          blockIndicator.chomp,
-          index + 1,
+          blockIndicator.chomp
         );
         obj[key] = scalar.value;
         index = scalar.nextIndex;
@@ -606,20 +584,22 @@ function parseYamlBlock(
     index = child.nextIndex;
   }
 
-  return { value: obj, nextIndex: index };
+  return { nextIndex: index, value: obj };
 }
 
 function parseSimpleYaml(yamlStr: string): YamlObject {
   const normalized = yamlStr.replace(/\r\n?/g, "\n");
   const lines = normalized.split("\n");
   const start = nextSignificantLine(lines, 0);
-  if (start === -1) return {};
+  if (start === -1) {
+    return {};
+  }
 
   const firstIndent = countIndent(lines[start]);
   if (firstIndent !== 0) {
     throw invalidYaml(
       `top-level entries must start at column 1 (found ${firstIndent} leading spaces)`,
-      start + 1,
+      start + 1
     );
   }
 
@@ -652,21 +632,38 @@ function parseSimpleYaml(yamlStr: string): YamlObject {
  * Malformed entries are silently skipped.
  */
 function parseValidateRules(raw: unknown): ValidationRule[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   const rules: ValidationRule[] = [];
   for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
     const obj = item as Record<string, unknown>;
-    if (typeof obj.pattern !== "string" || obj.pattern === "") continue;
-    if (typeof obj.message !== "string" || obj.message === "") continue;
+    if (typeof obj.pattern !== "string" || obj.pattern === "") {
+      continue;
+    }
+    if (typeof obj.message !== "string" || obj.message === "") {
+      continue;
+    }
     const severity = obj.severity;
-    if (severity !== "error" && severity !== "recommended" && severity !== "warn") continue;
+    if (
+      severity !== "error" &&
+      severity !== "recommended" &&
+      severity !== "warn"
+    ) {
+      continue;
+    }
     const rule: ValidationRule = {
-      pattern: obj.pattern,
       message: obj.message,
+      pattern: obj.pattern,
       severity,
     };
-    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
+    if (
+      typeof obj.skipIfFileContains === "string" &&
+      obj.skipIfFileContains !== ""
+    ) {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     if (typeof obj.upgradeToSkill === "string" && obj.upgradeToSkill !== "") {
@@ -690,13 +687,21 @@ function parseValidateRules(raw: unknown): ValidationRule[] {
  * Malformed entries are silently skipped.
  */
 function parseChainToRules(raw: unknown): ChainToRule[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   const rules: ChainToRule[] = [];
   for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
     const obj = item as Record<string, unknown>;
-    if (typeof obj.pattern !== "string" || obj.pattern === "") continue;
-    if (typeof obj.targetSkill !== "string" || obj.targetSkill === "") continue;
+    if (typeof obj.pattern !== "string" || obj.pattern === "") {
+      continue;
+    }
+    if (typeof obj.targetSkill !== "string" || obj.targetSkill === "") {
+      continue;
+    }
     const rule: ChainToRule = {
       pattern: obj.pattern,
       targetSkill: obj.targetSkill,
@@ -704,7 +709,10 @@ function parseChainToRules(raw: unknown): ChainToRule[] {
     if (typeof obj.message === "string" && obj.message !== "") {
       rule.message = obj.message;
     }
-    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
+    if (
+      typeof obj.skipIfFileContains === "string" &&
+      obj.skipIfFileContains !== ""
+    ) {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     rules.push(rule);
@@ -713,40 +721,53 @@ function parseChainToRules(raw: unknown): ChainToRule[] {
 }
 
 export function parseSkillFrontmatter(yamlStr: string): SkillFrontmatter {
-  if (!yamlStr || !yamlStr.trim()) {
-    return { name: "", description: "", summary: "", metadata: {}, validate: [], chainTo: [] };
+  if (!(yamlStr && yamlStr.trim())) {
+    return {
+      chainTo: [],
+      description: "",
+      metadata: {},
+      name: "",
+      summary: "",
+      validate: [],
+    };
   }
   const doc = parseSimpleYaml(yamlStr);
   return {
-    name: typeof doc.name === "string" ? doc.name : "",
+    chainTo: parseChainToRules(doc.chainTo),
     description: typeof doc.description === "string" ? doc.description : "",
-    summary: typeof doc.summary === "string" ? doc.summary : "",
     metadata:
       doc.metadata != null &&
       typeof doc.metadata === "object" &&
       !Array.isArray(doc.metadata)
         ? (doc.metadata as Record<string, unknown>)
         : {},
+    name: typeof doc.name === "string" ? doc.name : "",
+    summary: typeof doc.summary === "string" ? doc.summary : "",
     validate: parseValidateRules(doc.validate),
-    chainTo: parseChainToRules(doc.chainTo),
     ...(doc.retrieval != null &&
-      typeof doc.retrieval === "object" &&
-      !Array.isArray(doc.retrieval)
-      ? { retrieval: parseRetrievalBlock(doc.retrieval as Record<string, unknown>) }
+    typeof doc.retrieval === "object" &&
+    !Array.isArray(doc.retrieval)
+      ? {
+          retrieval: parseRetrievalBlock(
+            doc.retrieval as Record<string, unknown>
+          ),
+        }
       : {}),
   };
 }
 
 function parseRetrievalBlock(raw: Record<string, unknown>): RetrievalMetadata {
   const toStringArray = (v: unknown): string[] => {
-    if (!Array.isArray(v)) return [];
+    if (!Array.isArray(v)) {
+      return [];
+    }
     return v.filter((s): s is string => typeof s === "string" && s !== "");
   };
   return {
     aliases: toStringArray(raw.aliases),
-    intents: toStringArray(raw.intents),
     entities: toStringArray(raw.entities),
     examples: toStringArray(raw.examples),
+    intents: toStringArray(raw.intents),
   };
 }
 
@@ -772,20 +793,24 @@ export function scanSkillsDir(rootDir: string): ScanResult {
     // platform and break the build:manifest:check drift gate in CI.
     entries = (readdirSync(rootDir) as string[]).sort();
   } catch {
-    return { skills, diagnostics };
+    return { diagnostics, skills };
   }
 
   for (const entry of entries) {
     const skillDir = join(rootDir, entry);
     try {
-      if (!statSync(skillDir).isDirectory()) continue;
+      if (!statSync(skillDir).isDirectory()) {
+        continue;
+      }
     } catch {
       continue;
     }
 
     const skillFile = join(skillDir, "SKILL.md");
     const content = safeReadFile(skillFile);
-    if (content === null) continue; // no SKILL.md in this directory
+    if (content === null) {
+      continue; // no SKILL.md in this directory
+    }
 
     let parsed: SkillFrontmatter;
     try {
@@ -794,26 +819,26 @@ export function scanSkillsDir(rootDir: string): ScanResult {
     } catch (err: unknown) {
       const error = err as Error;
       diagnostics.push({
-        file: skillFile,
         error: error.constructor?.name ?? "Error",
+        file: skillFile,
         message: error.message,
       });
       continue;
     }
 
     skills.push({
-      dir: entry,
-      name: parsed.name || entry,
-      description: parsed.description,
-      summary: parsed.summary,
-      metadata: parsed.metadata,
-      validate: parsed.validate,
       chainTo: parsed.chainTo,
+      description: parsed.description,
+      dir: entry,
+      metadata: parsed.metadata,
+      name: parsed.name || entry,
+      summary: parsed.summary,
+      validate: parsed.validate,
       ...(parsed.retrieval ? { retrieval: parsed.retrieval } : {}),
     });
   }
 
-  return { skills, diagnostics };
+  return { diagnostics, skills };
 }
 
 // ---------------------------------------------------------------------------
@@ -821,12 +846,12 @@ export function scanSkillsDir(rootDir: string): ScanResult {
 // ---------------------------------------------------------------------------
 
 interface NormalizePatternFieldOpts {
-  raw: unknown;
-  skill: string;
+  addWarning: (msg: string, detail: Omit<WarningDetail, "message">) => void;
+  coerceStrings: boolean;
   field: string;
   fieldTypeHint: string; // e.g. "glob strings", "regex strings"
-  coerceStrings: boolean;
-  addWarning: (msg: string, detail: Omit<WarningDetail, "message">) => void;
+  raw: unknown;
+  skill: string;
 }
 
 /**
@@ -841,43 +866,53 @@ interface NormalizePatternFieldOpts {
  * PromptSignals object. Returns undefined if the value is missing/invalid.
  */
 interface ParsePromptSignalsOpts {
-  skill: string;
   addWarning?: (msg: string, detail: Omit<WarningDetail, "message">) => void;
+  skill: string;
 }
 
 function parsePromptSignals(
   raw: unknown,
-  opts?: ParsePromptSignalsOpts,
+  opts?: ParsePromptSignalsOpts
 ): PromptSignals | undefined {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    return undefined;
+    return;
   }
   const obj = raw as Record<string, unknown>;
   const skill = opts?.skill ?? "";
   const warn = opts?.addWarning;
 
   const toStringArray = (v: unknown): string[] => {
-    if (!Array.isArray(v)) return [];
+    if (!Array.isArray(v)) {
+      return [];
+    }
     return v.filter((x): x is string => typeof x === "string" && x !== "");
   };
 
   // Count empty strings before filtering (for warning)
   const countEmptyStrings = (v: unknown): number => {
-    if (!Array.isArray(v)) return 0;
+    if (!Array.isArray(v)) {
+      return 0;
+    }
     return v.filter((x) => typeof x === "string" && x === "").length;
   };
 
   const toStringArrayArray = (v: unknown): string[][] => {
-    if (!Array.isArray(v)) return [];
+    if (!Array.isArray(v)) {
+      return [];
+    }
     return v
       .filter((g): g is unknown[] => Array.isArray(g))
-      .map((g) => g.filter((x): x is string => typeof x === "string" && x !== ""))
+      .map((g) =>
+        g.filter((x): x is string => typeof x === "string" && x !== "")
+      )
       .filter((g) => g.length > 0);
   };
 
   // Count non-array elements in allOf (for warning)
   const countNonArrayAllOf = (v: unknown): number => {
-    if (!Array.isArray(v)) return 0;
+    if (!Array.isArray(v)) {
+      return 0;
+    }
     return v.filter((g) => !Array.isArray(g)).length;
   };
 
@@ -894,16 +929,13 @@ function parsePromptSignals(
   if (warn) {
     // PROMPT_SIGNALS_EMPTY_PHRASES: phrases is an array but all entries are empty or filtered out
     if (Array.isArray(obj.phrases) && phrases.length === 0) {
-      warn(
-        `skill "${skill}": promptSignals.phrases is empty after filtering`,
-        {
-          code: "PROMPT_SIGNALS_EMPTY_PHRASES",
-          skill,
-          field: "promptSignals.phrases",
-          valueType: "array",
-          hint: "Add at least one non-empty phrase string",
-        },
-      );
+      warn(`skill "${skill}": promptSignals.phrases is empty after filtering`, {
+        code: "PROMPT_SIGNALS_EMPTY_PHRASES",
+        field: "promptSignals.phrases",
+        hint: "Add at least one non-empty phrase string",
+        skill,
+        valueType: "array",
+      });
     }
 
     // Warn about empty strings in phrases
@@ -913,11 +945,11 @@ function parsePromptSignals(
         `skill "${skill}": promptSignals.phrases contains ${emptyCount} empty string(s)`,
         {
           code: "PROMPT_SIGNALS_EMPTY_PHRASES",
-          skill,
           field: "promptSignals.phrases",
-          valueType: "array",
           hint: "Remove empty strings from phrases",
-        },
+          skill,
+          valueType: "array",
+        }
       );
     }
 
@@ -928,11 +960,11 @@ function parsePromptSignals(
         `skill "${skill}": promptSignals.allOf contains ${nonArrayCount} non-array element(s)`,
         {
           code: "PROMPT_SIGNALS_INVALID_ALLOF_GROUP",
-          skill,
           field: "promptSignals.allOf",
-          valueType: "array",
           hint: "Each allOf entry must be an array of strings (e.g. [term1, term2])",
-        },
+          skill,
+          valueType: "array",
+        }
       );
     }
 
@@ -946,21 +978,26 @@ function parsePromptSignals(
         `skill "${skill}": promptSignals.minScore is ${obj.minScore}, below minimum of 1`,
         {
           code: "PROMPT_SIGNALS_LOW_MINSCORE",
-          skill,
           field: "promptSignals.minScore",
-          valueType: "number",
           hint: "Set minScore to at least 1",
-        },
+          skill,
+          valueType: "number",
+        }
       );
     }
   }
 
   // Only return if there's at least one signal defined
-  if (phrases.length === 0 && allOf.length === 0 && anyOf.length === 0 && noneOf.length === 0) {
-    return undefined;
+  if (
+    phrases.length === 0 &&
+    allOf.length === 0 &&
+    anyOf.length === 0 &&
+    noneOf.length === 0
+  ) {
+    return;
   }
 
-  return { phrases, allOf, anyOf, noneOf, minScore };
+  return { allOf, anyOf, minScore, noneOf, phrases };
 }
 
 function normalizePatternField(opts: NormalizePatternFieldOpts): string[] {
@@ -968,31 +1005,28 @@ function normalizePatternField(opts: NormalizePatternFieldOpts): string[] {
 
   let arr: unknown[];
   if (coerceStrings && typeof raw === "string") {
-    addWarning(
-      `skill "${skill}": ${field} is a string, coercing to array`,
-      {
-        code: "COERCE_STRING_TO_ARRAY",
-        skill,
-        field,
-        valueType: "string",
-        hint: `Change ${field} to a YAML list`,
-      },
-    );
+    addWarning(`skill "${skill}": ${field} is a string, coercing to array`, {
+      code: "COERCE_STRING_TO_ARRAY",
+      field,
+      hint: `Change ${field} to a YAML list`,
+      skill,
+      valueType: "string",
+    });
     arr = [raw];
-  } else if (!Array.isArray(raw)) {
+  } else if (Array.isArray(raw)) {
+    arr = raw as unknown[];
+  } else {
     addWarning(
       `skill "${skill}": ${field} is not an array (${typeof raw}), defaulting to []`,
       {
         code: "INVALID_TYPE",
-        skill,
         field,
-        valueType: typeof raw,
         hint: `${field} must be an array of ${fieldTypeHint}`,
-      },
+        skill,
+        valueType: typeof raw,
+      }
     );
     arr = [];
-  } else {
-    arr = raw as unknown[];
   }
 
   return arr.filter((p: unknown, i: number): p is string => {
@@ -1001,25 +1035,22 @@ function normalizePatternField(opts: NormalizePatternFieldOpts): string[] {
         `skill "${skill}": ${field}[${i}] is not a string (${typeof p}), removing`,
         {
           code: "ENTRY_NOT_STRING",
-          skill,
           field: `${field}[${i}]`,
-          valueType: typeof p,
           hint: `Each ${field} entry must be a string`,
-        },
+          skill,
+          valueType: typeof p,
+        }
       );
       return false;
     }
     if (p === "") {
-      addWarning(
-        `skill "${skill}": ${field}[${i}] is empty, removing`,
-        {
-          code: "ENTRY_EMPTY",
-          skill,
-          field: `${field}[${i}]`,
-          valueType: "string",
-          hint: `Remove empty entries from ${field}`,
-        },
-      );
+      addWarning(`skill "${skill}": ${field}[${i}] is empty, removing`, {
+        code: "ENTRY_EMPTY",
+        field: `${field}[${i}]`,
+        hint: `Remove empty entries from ${field}`,
+        skill,
+        valueType: "string",
+      });
       return false;
     }
     return true;
@@ -1057,7 +1088,7 @@ export function buildSkillMap(rootDir: string): SkillMapResult {
    */
   function addWarning(
     msg: string,
-    detail: Omit<WarningDetail, "message">,
+    detail: Omit<WarningDetail, "message">
   ): void {
     warnings.push(msg);
     warningDetails.push({ ...detail, message: msg });
@@ -1070,87 +1101,87 @@ export function buildSkillMap(rootDir: string): SkillMapResult {
     let rawPathPatterns: unknown;
     if (meta.pathPatterns !== undefined) {
       rawPathPatterns = meta.pathPatterns;
-    } else if (meta.filePattern !== undefined) {
+    } else if (meta.filePattern === undefined) {
+      rawPathPatterns = [];
+    } else {
       rawPathPatterns = meta.filePattern;
       addWarning(
         `skill "${skill.dir}": metadata.filePattern is deprecated, rename to pathPatterns`,
         {
           code: "DEPRECATED_FIELD",
-          skill: skill.dir,
           field: "filePattern",
-          valueType: typeof meta.filePattern,
           hint: "Rename metadata.filePattern to metadata.pathPatterns",
-        },
+          skill: skill.dir,
+          valueType: typeof meta.filePattern,
+        }
       );
-    } else {
-      rawPathPatterns = [];
     }
 
     const filteredPathPatterns = normalizePatternField({
-      raw: rawPathPatterns,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
-      coerceStrings: true,
-      addWarning,
+      raw: rawPathPatterns,
+      skill: skill.dir,
     });
 
     // Read bashPatterns (canonical) with fallback to deprecated bashPattern
     let rawBashPatterns: unknown;
     if (meta.bashPatterns !== undefined) {
       rawBashPatterns = meta.bashPatterns;
-    } else if (meta.bashPattern !== undefined) {
+    } else if (meta.bashPattern === undefined) {
+      rawBashPatterns = [];
+    } else {
       rawBashPatterns = meta.bashPattern;
       addWarning(
         `skill "${skill.dir}": metadata.bashPattern is deprecated, rename to bashPatterns`,
         {
           code: "DEPRECATED_FIELD",
-          skill: skill.dir,
           field: "bashPattern",
-          valueType: typeof meta.bashPattern,
           hint: "Rename metadata.bashPattern to metadata.bashPatterns",
-        },
+          skill: skill.dir,
+          valueType: typeof meta.bashPattern,
+        }
       );
-    } else {
-      rawBashPatterns = [];
     }
 
     const filteredBashPatterns = normalizePatternField({
-      raw: rawBashPatterns,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
-      coerceStrings: true,
-      addWarning,
+      raw: rawBashPatterns,
+      skill: skill.dir,
     });
 
     // Read importPatterns (optional -- regex patterns matched against file content imports)
     const rawImportPatterns: unknown =
-      meta.importPatterns !== undefined ? meta.importPatterns : [];
+      meta.importPatterns === undefined ? [] : meta.importPatterns;
     const filteredImportPatterns = normalizePatternField({
-      raw: rawImportPatterns,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "importPatterns",
       fieldTypeHint: "package name strings",
-      coerceStrings: true,
-      addWarning,
+      raw: rawImportPatterns,
+      skill: skill.dir,
     });
 
     // Parse optional promptSignals from metadata (with warnings)
     const promptSignals = parsePromptSignals(meta.promptSignals, {
-      skill: skill.dir,
       addWarning,
+      skill: skill.dir,
     });
 
     // Parse docs (optional array of URL strings)
-    const rawDocs: unknown = meta.docs !== undefined ? meta.docs : [];
+    const rawDocs: unknown = meta.docs === undefined ? [] : meta.docs;
     const filteredDocs = normalizePatternField({
-      raw: rawDocs,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "docs",
       fieldTypeHint: "URL strings",
-      coerceStrings: true,
-      addWarning,
+      raw: rawDocs,
+      skill: skill.dir,
     });
 
     // Parse sitemap (optional single URL string)
@@ -1163,12 +1194,12 @@ export function buildSkillMap(rootDir: string): SkillMapResult {
     // Key by directory name -- the canonical identity of a skill.
     // Frontmatter `name` may differ; directory name is authoritative.
     const entry: SkillConfig = {
+      bashPatterns: filteredBashPatterns,
+      docs: filteredDocs,
+      importPatterns: filteredImportPatterns,
+      pathPatterns: filteredPathPatterns,
       priority: (meta.priority as number) ?? 5,
       summary: skill.summary || "",
-      docs: filteredDocs,
-      pathPatterns: filteredPathPatterns,
-      bashPatterns: filteredBashPatterns,
-      importPatterns: filteredImportPatterns,
       validate: skill.validate,
     };
     if (sitemap) {
@@ -1187,10 +1218,10 @@ export function buildSkillMap(rootDir: string): SkillMapResult {
   }
 
   return {
-    skills,
     diagnostics,
-    warnings,
+    skills,
     warningDetails,
+    warnings,
   };
 }
 
@@ -1232,7 +1263,7 @@ export function validateSkillMap(raw: unknown): ValidationResult {
 
   function addWarning(
     msg: string,
-    detail: Omit<WarningDetail, "message">,
+    detail: Omit<WarningDetail, "message">
   ): void {
     warnings.push(msg);
     warningDetails.push({ ...detail, message: msg });
@@ -1240,35 +1271,35 @@ export function validateSkillMap(raw: unknown): ValidationResult {
 
   if (raw == null || typeof raw !== "object") {
     return {
-      ok: false,
-      errors: ["skill-map must be a non-null object"],
       errorDetails: [
         {
           code: "INVALID_ROOT",
-          skill: "",
           field: "",
-          valueType: typeof raw,
-          message: "skill-map must be a non-null object",
           hint: "Pass a valid skill-map object",
+          message: "skill-map must be a non-null object",
+          skill: "",
+          valueType: typeof raw,
         },
       ],
+      errors: ["skill-map must be a non-null object"],
+      ok: false,
     };
   }
 
   if (!("skills" in raw)) {
     return {
-      ok: false,
-      errors: ["skill-map is missing required 'skills' key"],
       errorDetails: [
         {
           code: "MISSING_SKILLS_KEY",
-          skill: "",
           field: "skills",
-          valueType: "undefined",
-          message: "skill-map is missing required 'skills' key",
           hint: "Add a 'skills' key to the skill-map object",
+          message: "skill-map is missing required 'skills' key",
+          skill: "",
+          valueType: "undefined",
         },
       ],
+      errors: ["skill-map is missing required 'skills' key"],
+      ok: false,
     };
   }
 
@@ -1276,33 +1307,33 @@ export function validateSkillMap(raw: unknown): ValidationResult {
   const skills = rawObj.skills;
   if (skills == null || typeof skills !== "object" || Array.isArray(skills)) {
     return {
-      ok: false,
-      errors: ["'skills' must be a non-null object (not an array)"],
       errorDetails: [
         {
           code: "SKILLS_NOT_OBJECT",
-          skill: "",
           field: "skills",
-          valueType: Array.isArray(skills) ? "array" : typeof skills,
-          message: "'skills' must be a non-null object (not an array)",
           hint: "'skills' should be a plain object keyed by skill directory name",
+          message: "'skills' must be a non-null object (not an array)",
+          skill: "",
+          valueType: Array.isArray(skills) ? "array" : typeof skills,
         },
       ],
+      errors: ["'skills' must be a non-null object (not an array)"],
+      ok: false,
     };
   }
 
   const normalizedSkills: Record<string, SkillConfig> = {};
 
   for (const [skill, config] of Object.entries(
-    skills as Record<string, unknown>,
+    skills as Record<string, unknown>
   )) {
     if (config == null || typeof config !== "object" || Array.isArray(config)) {
       addError(`skill "${skill}": config must be a non-null object`, {
         code: "CONFIG_NOT_OBJECT",
-        skill,
         field: "",
-        valueType: Array.isArray(config) ? "array" : typeof config,
         hint: "Each skill config must be a plain object",
+        skill,
+        valueType: Array.isArray(config) ? "array" : typeof config,
       });
       continue;
     }
@@ -1314,10 +1345,10 @@ export function validateSkillMap(raw: unknown): ValidationResult {
       if (!KNOWN_KEYS.has(key)) {
         addWarning(`skill "${skill}": unknown key "${key}"`, {
           code: "UNKNOWN_KEY",
-          skill,
           field: key,
-          valueType: typeof cfg[key],
           hint: `Remove or rename unknown key "${key}"`,
+          skill,
+          valueType: typeof cfg[key],
         });
       }
     }
@@ -1331,11 +1362,11 @@ export function validateSkillMap(raw: unknown): ValidationResult {
           `skill "${skill}": priority is not a valid number, defaulting to 5`,
           {
             code: "INVALID_PRIORITY",
-            skill,
             field: "priority",
-            valueType: typeof p,
             hint: "Set priority to a numeric value (e.g., 5)",
-          },
+            skill,
+            valueType: typeof p,
+          }
         );
       } else {
         priority = p;
@@ -1345,30 +1376,30 @@ export function validateSkillMap(raw: unknown): ValidationResult {
     // Normalize pattern fields — use the raw value if present, otherwise
     // default to [] so the helper correctly produces an empty array.
     const pathPatterns = normalizePatternField({
-      raw: "pathPatterns" in cfg ? cfg.pathPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
-      coerceStrings: false,
-      addWarning,
+      raw: "pathPatterns" in cfg ? cfg.pathPatterns : [],
+      skill,
     });
 
     const bashPatterns = normalizePatternField({
-      raw: "bashPatterns" in cfg ? cfg.bashPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
-      coerceStrings: false,
-      addWarning,
+      raw: "bashPatterns" in cfg ? cfg.bashPatterns : [],
+      skill,
     });
 
     const importPatterns = normalizePatternField({
-      raw: "importPatterns" in cfg ? cfg.importPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "importPatterns",
       fieldTypeHint: "package name strings",
-      coerceStrings: false,
-      addWarning,
+      raw: "importPatterns" in cfg ? cfg.importPatterns : [],
+      skill,
     });
 
     // Normalize summary (optional string, default "")
@@ -1376,12 +1407,12 @@ export function validateSkillMap(raw: unknown): ValidationResult {
 
     // Normalize docs (optional array of URL strings, default [])
     const docs = normalizePatternField({
-      raw: "docs" in cfg ? cfg.docs : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "docs",
       fieldTypeHint: "URL strings",
-      coerceStrings: false,
-      addWarning,
+      raw: "docs" in cfg ? cfg.docs : [],
+      skill,
     });
 
     // Normalize validate (optional array of ValidationRule, default [])
@@ -1389,8 +1420,8 @@ export function validateSkillMap(raw: unknown): ValidationResult {
 
     // Normalize promptSignals (optional, preserved if valid, with warnings)
     const promptSignals = parsePromptSignals(cfg.promptSignals, {
-      skill,
       addWarning,
+      skill,
     });
 
     // Normalize sitemap (optional string URL)
@@ -1403,12 +1434,12 @@ export function validateSkillMap(raw: unknown): ValidationResult {
     const chainTo = parseChainToRules(cfg.chainTo);
 
     const normalizedEntry: SkillConfig = {
+      bashPatterns,
+      docs,
+      importPatterns,
+      pathPatterns,
       priority,
       summary,
-      docs,
-      pathPatterns,
-      bashPatterns,
-      importPatterns,
       validate,
     };
     if (sitemap) {
@@ -1420,7 +1451,11 @@ export function validateSkillMap(raw: unknown): ValidationResult {
     if (promptSignals) {
       normalizedEntry.promptSignals = promptSignals;
     }
-    if (cfg.retrieval != null && typeof cfg.retrieval === "object" && !Array.isArray(cfg.retrieval)) {
+    if (
+      cfg.retrieval != null &&
+      typeof cfg.retrieval === "object" &&
+      !Array.isArray(cfg.retrieval)
+    ) {
       normalizedEntry.retrieval = cfg.retrieval as RetrievalMetadata;
     }
     normalizedSkills[skill] = normalizedEntry;
@@ -1429,18 +1464,20 @@ export function validateSkillMap(raw: unknown): ValidationResult {
   // Cross-reference: validate chainTo targetSkill references exist
   const allSlugs = new Set(Object.keys(normalizedSkills));
   for (const [skill, config] of Object.entries(normalizedSkills)) {
-    if (!config.chainTo) continue;
+    if (!config.chainTo) {
+      continue;
+    }
     for (const rule of config.chainTo) {
       if (!allSlugs.has(rule.targetSkill)) {
         addError(
           `skill "${skill}": chainTo references non-existent skill "${rule.targetSkill}"`,
           {
             code: "CHAIN_TO_MISSING_TARGET",
-            skill,
             field: "chainTo.targetSkill",
-            valueType: "string",
             hint: `Ensure "${rule.targetSkill}" exists as a skill directory`,
-          },
+            skill,
+            valueType: "string",
+          }
         );
       }
     }
@@ -1448,9 +1485,11 @@ export function validateSkillMap(raw: unknown): ValidationResult {
 
   // Cross-reference: warn when upgradeToSkill exists without a matching chainTo
   for (const [skill, config] of Object.entries(normalizedSkills)) {
-    if (!config.validate?.length) continue;
+    if (!config.validate?.length) {
+      continue;
+    }
     const chainTargets = new Set(
-      (config.chainTo ?? []).map((c: ChainToRule) => c.targetSkill),
+      (config.chainTo ?? []).map((c: ChainToRule) => c.targetSkill)
     );
     for (const rule of config.validate) {
       if (
@@ -1462,24 +1501,24 @@ export function validateSkillMap(raw: unknown): ValidationResult {
           `skill "${skill}": validate rule with upgradeToSkill "${rule.upgradeToSkill}" (severity: ${rule.severity}) has no matching chainTo entry`,
           {
             code: "UPGRADE_WITHOUT_CHAIN",
-            skill,
             field: "validate.upgradeToSkill",
-            valueType: "string",
             hint: `Add a chainTo entry targeting "${rule.upgradeToSkill}" or let build-manifest synthesize one`,
-          },
+            skill,
+            valueType: "string",
+          }
         );
       }
     }
   }
 
   if (errors.length > 0) {
-    return { ok: false, errors, errorDetails };
+    return { errorDetails, errors, ok: false };
   }
 
   return {
-    ok: true,
     normalizedSkillMap: { skills: normalizedSkills },
-    warnings,
+    ok: true,
     warningDetails,
+    warnings,
   };
 }

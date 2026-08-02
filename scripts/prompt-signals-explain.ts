@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Dry-run CLI for prompt-signal analysis.
  *
@@ -8,10 +9,10 @@
  *   bun run scripts/prompt-signals-explain.ts --prompt '...' --json --seen-skills nextjs,ai-sdk
  */
 
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { analyzePrompt } from "../hooks/src/prompt-analysis.mjs";
-import type { PromptAnalysisReport, PerSkillResult } from "../hooks/src/prompt-analysis.mjs";
+import { resolve } from "node:path";
+import type { PromptAnalysisReport } from "../hooks/src/prompt-analysis.mts";
+import { analyzePrompt } from "../hooks/src/prompt-analysis.mts";
 import { loadValidatedSkillMap } from "../src/shared/skill-map-loader.ts";
 
 // ---------------------------------------------------------------------------
@@ -41,10 +42,10 @@ for (let i = 0; i < args.length; i++) {
     seenSkills = args[i] ?? "";
   } else if (arg === "--budget-bytes") {
     i++;
-    budgetBytes = parseInt(args[i], 10);
+    budgetBytes = Number.parseInt(args[i], 10);
   } else if (arg === "--max-skills") {
     i++;
-    maxSkills = parseInt(args[i], 10);
+    maxSkills = Number.parseInt(args[i], 10);
   }
 }
 
@@ -87,7 +88,9 @@ if (!prompt) {
 }
 
 if (!prompt) {
-  console.error("Error: no prompt provided. Use --prompt <text> or pipe via stdin.");
+  console.error(
+    "Error: no prompt provided. Use --prompt <text> or pipe via stdin."
+  );
   process.exit(1);
 }
 
@@ -126,7 +129,7 @@ const report: PromptAnalysisReport = analyzePrompt(
   skills,
   seenSkills,
   budgetBytes,
-  maxSkills,
+  maxSkills
 );
 
 // ---------------------------------------------------------------------------
@@ -141,7 +144,9 @@ if (jsonOutput) {
 // Human-readable table
 console.log(`Prompt: "${report.normalizedPrompt}"`);
 console.log(`Budget: ${report.budgetBytes} bytes | Max skills: ${maxSkills}`);
-console.log(`Dedup: strategy=${report.dedupState.strategy}, seen=[${report.dedupState.seenSkills.join(",")}]`);
+console.log(
+  `Dedup: strategy=${report.dedupState.strategy}, seen=[${report.dedupState.seenSkills.join(",")}]`
+);
 console.log();
 
 const entries = Object.entries(report.perSkillResults);
@@ -163,11 +168,14 @@ console.log(header);
 console.log("-".repeat(header.length + 20));
 
 for (const [skill, r] of entries) {
-  const scoreStr = r.score === -Infinity ? "  -Inf" : String(r.score).padStart(7);
+  const scoreStr =
+    r.score === Number.NEGATIVE_INFINITY
+      ? "  -Inf"
+      : String(r.score).padStart(7);
   const matchStr = r.matched ? "   yes" : "    no";
   const supprStr = r.suppressed ? "   yes" : "    no";
   console.log(
-    `${skill.padEnd(skillColWidth)}${scoreStr}${matchStr}${supprStr}  ${r.reason}`,
+    `${skill.padEnd(skillColWidth)}${scoreStr}${matchStr}${supprStr}  ${r.reason}`
   );
 }
 
@@ -183,7 +191,9 @@ if (report.droppedByBudget.length > 0) {
   console.log(`Dropped (budget): ${report.droppedByBudget.join(", ")}`);
 }
 if (report.dedupState.filteredByDedup.length > 0) {
-  console.log(`Filtered (dedup): ${report.dedupState.filteredByDedup.join(", ")}`);
+  console.log(
+    `Filtered (dedup): ${report.dedupState.filteredByDedup.join(", ")}`
+  );
 }
 
 console.log(`\nTiming: ${report.timingMs}ms`);

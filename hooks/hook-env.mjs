@@ -5,23 +5,28 @@ import {
   closeSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   rmSync,
-  writeFileSync
+  writeFileSync,
 } from "fs";
 import { homedir, tmpdir } from "os";
 import { dirname, join, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { createLogger, logCaughtError } from "./logger.mjs";
+
 var log = createLogger();
 function pluginRoot(metaUrl) {
   const base = metaUrl ?? import.meta.url;
   return resolve(dirname(fileURLToPath(base)), "..");
 }
 function resolveAuditLogPath(hookInputCwd) {
-  const cwdFromHookInput = typeof hookInputCwd === "string" && hookInputCwd.trim() !== "" ? hookInputCwd : null;
-  const projectRoot = process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
+  const cwdFromHookInput =
+    typeof hookInputCwd === "string" && hookInputCwd.trim() !== ""
+      ? hookInputCwd
+      : null;
+  const projectRoot =
+    process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
   const configuredPath = process.env.XYLEX_PLUGIN_AUDIT_LOG_FILE;
   if (configuredPath === "off") {
     return null;
@@ -30,22 +35,46 @@ function resolveAuditLogPath(hookInputCwd) {
     return resolve(projectRoot, configuredPath);
   }
   const projectSlug = projectRoot.replaceAll("/", "-");
-  return join(homedir(), ".claude", "projects", projectSlug, "xylex-group-plugin", "skill-injections.jsonl");
+  return join(
+    homedir(),
+    ".claude",
+    "projects",
+    projectSlug,
+    "xylex-group-plugin",
+    "skill-injections.jsonl"
+  );
 }
 function appendAuditLog(record, hookInputCwd) {
   const auditLogPath = resolveAuditLogPath(hookInputCwd);
-  if (auditLogPath === null) return;
+  if (auditLogPath === null) {
+    return;
+  }
   try {
     mkdirSync(dirname(auditLogPath), { recursive: true });
-    const payload = { timestamp: (/* @__PURE__ */ new Date()).toISOString(), ...record };
-    appendFileSync(auditLogPath, `${JSON.stringify(payload)}
-`, "utf-8");
+    const payload = {
+      timestamp: /* @__PURE__ */ new Date().toISOString(),
+      ...record,
+    };
+    appendFileSync(
+      auditLogPath,
+      `${JSON.stringify(payload)}
+`,
+      "utf-8"
+    );
   } catch (error) {
-    logCaughtError(log, "hook-env:append-audit-log-failed", error, { auditLogPath });
+    logCaughtError(log, "hook-env:append-audit-log-failed", error, {
+      auditLogPath,
+    });
   }
 }
 function getDedupScopeId(payload) {
-  if (payload && typeof payload === "object" && "agent_id" in payload && typeof payload.agent_id === "string" && payload.agent_id.length > 0) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "agent_id" in payload &&
+    typeof payload.agent_id === "string" &&
+    payload.agent_id.length > 0
+  ) {
     return payload.agent_id;
   }
   return "main";
@@ -66,10 +95,17 @@ function dedupScopeIdSegment(scopeId) {
 function resolveDedupTempPath(sessionId, basename, scopeId) {
   const tempRoot = resolve(tmpdir());
   const scopeSegment = scopeId ? `-${dedupScopeIdSegment(scopeId)}` : "";
-  const candidate = resolve(join(tempRoot, `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}${scopeSegment}-${basename}`));
+  const candidate = resolve(
+    join(
+      tempRoot,
+      `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}${scopeSegment}-${basename}`
+    )
+  );
   const tempPrefix = tempRoot.endsWith(sep) ? tempRoot : `${tempRoot}${sep}`;
   if (!candidate.startsWith(tempPrefix)) {
-    throw new Error(`dedup temp path escaped tmpdir: tempRoot=${tempRoot} candidate=${candidate}`);
+    throw new Error(
+      `dedup temp path escaped tmpdir: tempRoot=${tempRoot} candidate=${candidate}`
+    );
   }
   return candidate;
 }
@@ -83,7 +119,11 @@ function readSessionFile(sessionId, kind, scopeId) {
   try {
     return readFileSync(dedupFilePath(sessionId, kind, scopeId), "utf-8");
   } catch (error) {
-    logCaughtError(log, "hook-env:read-session-file-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:read-session-file-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
     return "";
   }
 }
@@ -91,7 +131,11 @@ function writeSessionFile(sessionId, kind, value, scopeId) {
   try {
     writeFileSync(dedupFilePath(sessionId, kind, scopeId), value, "utf-8");
   } catch (error) {
-    logCaughtError(log, "hook-env:write-session-file-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:write-session-file-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
   }
 }
 function tryClaimSessionKey(sessionId, kind, key, scopeId) {
@@ -103,7 +147,12 @@ function tryClaimSessionKey(sessionId, kind, key, scopeId) {
     closeSync(fd);
     return true;
   } catch (error) {
-    if (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST") {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "EEXIST"
+    ) {
       return false;
     }
     return false;
@@ -111,9 +160,16 @@ function tryClaimSessionKey(sessionId, kind, key, scopeId) {
 }
 function listSessionKeys(sessionId, kind, scopeId) {
   try {
-    return readdirSync(dedupClaimDirPath(sessionId, kind, scopeId)).map((entry) => decodeURIComponent(entry)).filter((entry) => entry !== "").sort();
+    return readdirSync(dedupClaimDirPath(sessionId, kind, scopeId))
+      .map((entry) => decodeURIComponent(entry))
+      .filter((entry) => entry !== "")
+      .sort();
   } catch (error) {
-    logCaughtError(log, "hook-env:list-session-keys-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:list-session-keys-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
     return [];
   }
 }
@@ -124,32 +180,39 @@ function syncSessionFileFromClaims(sessionId, kind, scopeId) {
 }
 function removeSessionClaimDir(sessionId, kind, scopeId) {
   try {
-    rmSync(dedupClaimDirPath(sessionId, kind, scopeId), { recursive: true, force: true });
+    rmSync(dedupClaimDirPath(sessionId, kind, scopeId), {
+      force: true,
+      recursive: true,
+    });
   } catch (error) {
-    logCaughtError(log, "hook-env:remove-session-claim-dir-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:remove-session-claim-dir-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
   }
 }
 var CLEARABLE_SESSION_KINDS = /* @__PURE__ */ new Set([
   "seen-skills",
-  "seen-context-chunks"
+  "seen-context-chunks",
 ]);
 function removeAllSessionDedupArtifacts(sessionId) {
-  const result = { removedFiles: 0, removedDirs: 0 };
+  const result = { removedDirs: 0, removedFiles: 0 };
   const tempRoot = resolve(tmpdir());
   const prefix = `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}-`;
   let entries;
   try {
-    entries = readdirSync(tempRoot).filter(
-      (name) => {
-        if (!name.startsWith(prefix)) return false;
-        for (const kind of CLEARABLE_SESSION_KINDS) {
-          if (name.endsWith(`-${kind}.d`) || name.endsWith(`-${kind}.txt`)) {
-            return true;
-          }
-        }
+    entries = readdirSync(tempRoot).filter((name) => {
+      if (!name.startsWith(prefix)) {
         return false;
       }
-    );
+      for (const kind of CLEARABLE_SESSION_KINDS) {
+        if (name.endsWith(`-${kind}.d`) || name.endsWith(`-${kind}.txt`)) {
+          return true;
+        }
+      }
+      return false;
+    });
   } catch {
     return result;
   }
@@ -157,17 +220,27 @@ function removeAllSessionDedupArtifacts(sessionId) {
     const fullPath = join(tempRoot, entry);
     if (entry.endsWith(".d")) {
       try {
-        rmSync(fullPath, { recursive: true, force: true });
+        rmSync(fullPath, { force: true, recursive: true });
         result.removedDirs++;
       } catch (error) {
-        logCaughtError(log, "hook-env:remove-all-session-dedup-artifacts-dir", error, { fullPath });
+        logCaughtError(
+          log,
+          "hook-env:remove-all-session-dedup-artifacts-dir",
+          error,
+          { fullPath }
+        );
       }
     } else {
       try {
         rmSync(fullPath);
         result.removedFiles++;
       } catch (error) {
-        logCaughtError(log, "hook-env:remove-all-session-dedup-artifacts-file", error, { fullPath });
+        logCaughtError(
+          log,
+          "hook-env:remove-all-session-dedup-artifacts-file",
+          error,
+          { fullPath }
+        );
       }
     }
   }
@@ -183,7 +256,9 @@ function safeReadFile(path) {
 }
 function safeReadJson(path) {
   const content = safeReadFile(path);
-  if (content === null) return null;
+  if (content === null) {
+    return null;
+  }
   try {
     return JSON.parse(content);
   } catch (error) {
@@ -191,6 +266,7 @@ function safeReadJson(path) {
     return null;
   }
 }
+
 export {
   appendAuditLog,
   dedupClaimDirPath,
@@ -205,5 +281,5 @@ export {
   safeReadJson,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-  writeSessionFile
+  writeSessionFile,
 };

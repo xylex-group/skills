@@ -10,7 +10,7 @@
  *   bun run scripts/generate-doc-inventories.ts --check   # Verify docs match (CI gate)
  */
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -18,9 +18,9 @@ const ROOT = resolve(import.meta.dirname, "..");
 // ─── Inventory generation ────────────────────────────────────────────────────
 
 export interface SkillEntry {
-  slug: string;
-  priority: number;
   description: string;
+  priority: number;
+  slug: string;
   triggerTypes: string[];
 }
 
@@ -32,7 +32,8 @@ export interface HookEntry {
 }
 
 export interface DocInventory {
-  generatedAt: string;
+  /** Canonical skill slugs from skills/ directories */
+  canonicalSlugs: string[];
   counts: {
     skills: number;
     hooks: number;
@@ -43,15 +44,14 @@ export interface DocInventory {
     scripts: number;
     envVars: number;
   };
-  skills: SkillEntry[];
+  envVars: string[];
+  generatedAt: string;
   hooks: HookEntry[];
-  testFiles: string[];
-  templates: string[];
   libraryModules: string[];
   scripts: Record<string, string>;
-  envVars: string[];
-  /** Canonical skill slugs from skills/ directories */
-  canonicalSlugs: string[];
+  skills: SkillEntry[];
+  templates: string[];
+  testFiles: string[];
 }
 
 export function generateInventory(): DocInventory {
@@ -75,11 +75,18 @@ export function generateInventory(): DocInventory {
   const skills: SkillEntry[] = canonicalSlugs.map((slug) => {
     const m = manifest[slug] || {};
     const triggers: string[] = [];
-    if ((m.pathPatterns || []).length > 0) triggers.push("path");
-    if ((m.bashPatterns || []).length > 0) triggers.push("bash");
-    if ((m.importPatterns || []).length > 0) triggers.push("import");
-    if (m.promptSignals?.phrases?.length || m.promptSignals?.allOf?.length)
+    if ((m.pathPatterns || []).length > 0) {
+      triggers.push("path");
+    }
+    if ((m.bashPatterns || []).length > 0) {
+      triggers.push("bash");
+    }
+    if ((m.importPatterns || []).length > 0) {
+      triggers.push("import");
+    }
+    if (m.promptSignals?.phrases?.length || m.promptSignals?.allOf?.length) {
       triggers.push("prompt");
+    }
 
     // Read description from SKILL.md frontmatter if manifest doesn't have it
     let description = m.description || "";
@@ -90,16 +97,18 @@ export function generateInventory(): DocInventory {
           "utf-8"
         );
         const descMatch = skillMd.match(/^description:\s*["']?(.+?)["']?\s*$/m);
-        if (descMatch) description = descMatch[1];
+        if (descMatch) {
+          description = descMatch[1];
+        }
       } catch {
         /* ignore */
       }
     }
 
     return {
-      slug,
-      priority: m.priority ?? 5,
       description,
+      priority: m.priority ?? 5,
+      slug,
       triggerTypes: triggers,
     };
   });
@@ -185,25 +194,25 @@ export function generateInventory(): DocInventory {
   const envVars = [...envVarSet].sort();
 
   return {
-    generatedAt: new Date().toISOString(),
+    canonicalSlugs,
     counts: {
-      skills: canonicalSlugs.length,
-      hooks: hooks.length,
+      envVars: envVars.length,
       hookEvents: hookEvents.size,
-      testFiles: testFiles.length,
-      templates: templates.length,
+      hooks: hooks.length,
       libraryModules: libraryModules.length,
       scripts: Object.keys(scripts).length,
-      envVars: envVars.length,
+      skills: canonicalSlugs.length,
+      templates: templates.length,
+      testFiles: testFiles.length,
     },
-    skills,
+    envVars,
+    generatedAt: new Date().toISOString(),
     hooks,
-    testFiles,
-    templates,
     libraryModules,
     scripts,
-    envVars,
-    canonicalSlugs,
+    skills,
+    templates,
+    testFiles,
   };
 }
 
@@ -215,13 +224,17 @@ function checkDocs(inventory: DocInventory): string[] {
 
   // Helper: find all skill count mentions in a file
   function checkSkillCounts(filePath: string, label: string) {
-    if (!existsSync(filePath)) return;
+    if (!existsSync(filePath)) {
+      return;
+    }
     const content = readFileSync(filePath, "utf-8");
     const regex = /\b(\d+)\s+skills?\b/gi;
     let m: RegExpExecArray | null;
     while ((m = regex.exec(content)) !== null) {
-      const count = parseInt(m[1], 10);
-      if (count < 10) continue; // skip budget limits like "max 5 skills"
+      const count = Number.parseInt(m[1], 10);
+      if (count < 10) {
+        continue; // skip budget limits like "max 5 skills"
+      }
       if (count !== counts.skills) {
         const lineNum = content.slice(0, m.index).split("\n").length;
         errors.push(
@@ -233,12 +246,14 @@ function checkDocs(inventory: DocInventory): string[] {
 
   // Helper: find all test file count mentions in a file
   function checkTestCounts(filePath: string, label: string) {
-    if (!existsSync(filePath)) return;
+    if (!existsSync(filePath)) {
+      return;
+    }
     const content = readFileSync(filePath, "utf-8");
     const regex = /\b(\d+)\s+test\s+files?\b/gi;
     let m: RegExpExecArray | null;
     while ((m = regex.exec(content)) !== null) {
-      const count = parseInt(m[1], 10);
+      const count = Number.parseInt(m[1], 10);
       if (count !== counts.testFiles) {
         const lineNum = content.slice(0, m.index).split("\n").length;
         errors.push(
@@ -250,7 +265,9 @@ function checkDocs(inventory: DocInventory): string[] {
 
   // Helper: check for non-canonical skill slugs
   function checkSlugDrift(filePath: string, label: string) {
-    if (!existsSync(filePath)) return;
+    if (!existsSync(filePath)) {
+      return;
+    }
     const content = readFileSync(filePath, "utf-8");
     // Known false-positive aliases (used in retrieval metadata examples, not as canonical names)
     const allowList = new Set([
@@ -296,10 +313,19 @@ function checkDocs(inventory: DocInventory): string[] {
 
   const docsToCheck = [
     [join(ROOT, "docs/README.md"), "docs/README.md"],
-    [join(ROOT, "docs/01-architecture-overview.md"), "docs/01-architecture-overview.md"],
-    [join(ROOT, "docs/02-injection-pipeline.md"), "docs/02-injection-pipeline.md"],
+    [
+      join(ROOT, "docs/01-architecture-overview.md"),
+      "docs/01-architecture-overview.md",
+    ],
+    [
+      join(ROOT, "docs/02-injection-pipeline.md"),
+      "docs/02-injection-pipeline.md",
+    ],
     [join(ROOT, "docs/03-skill-authoring.md"), "docs/03-skill-authoring.md"],
-    [join(ROOT, "docs/04-operations-debugging.md"), "docs/04-operations-debugging.md"],
+    [
+      join(ROOT, "docs/04-operations-debugging.md"),
+      "docs/04-operations-debugging.md",
+    ],
     [join(ROOT, "docs/05-reference.md"), "docs/05-reference.md"],
   ] as const;
 

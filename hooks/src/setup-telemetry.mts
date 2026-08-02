@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import { getTelemetryOverride } from "./telemetry.mjs";
+import { getTelemetryOverride } from "./telemetry.mts";
 
 function main(): void {
   const telemetryOverride = getTelemetryOverride();
 
   if (telemetryOverride === "off") {
-    process.stdout.write("Telemetry is fully disabled via XYLEX_PLUGIN_TELEMETRY=off.\n");
+    process.stdout.write(
+      "Telemetry is fully disabled via XYLEX_PLUGIN_TELEMETRY=off.\n"
+    );
     process.exit(0);
   }
 
@@ -15,7 +17,7 @@ function main(): void {
       "The default telemetry profile is a once-per-day DAU phone-home that sends only dau:active_today.",
       "To disable all telemetry, set XYLEX_PLUGIN_TELEMETRY=off.",
       "",
-    ].join("\n"),
+    ].join("\n")
   );
   process.exit(0);
 }

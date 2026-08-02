@@ -17,8 +17,8 @@
  * so phrase/term authors don't need to account for both forms.
  */
 
-import { searchSkills } from "./lexical-index.mjs";
-import type { PromptSignals } from "./skill-map-frontmatter.mjs";
+import { searchSkills } from "./lexical-index.mts";
+import type { PromptSignals } from "./skill-map-frontmatter.mts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,16 +26,16 @@ import type { PromptSignals } from "./skill-map-frontmatter.mjs";
 
 export interface PromptMatchResult {
   matched: boolean;
-  score: number;
   reason: string;
+  score: number;
 }
 
 export interface CompiledPromptSignals {
-  phrases: string[];
   allOf: string[][];
   anyOf: string[];
-  noneOf: string[];
   minScore: number;
+  noneOf: string[];
+  phrases: string[];
 }
 
 type LexicalHit = { skill: string; score: number };
@@ -53,27 +53,27 @@ export function lexicalFallbackMeetsFloor(score: number): boolean {
 // ---------------------------------------------------------------------------
 
 const CONTRACTIONS: Record<string, string> = {
-  "it's": "it is",
-  "what's": "what is",
-  "where's": "where is",
-  "that's": "that is",
-  "there's": "there is",
-  "who's": "who is",
-  "how's": "how is",
-  "isn't": "is not",
   "aren't": "are not",
-  "wasn't": "was not",
-  "weren't": "were not",
-  "doesn't": "does not",
-  "don't": "do not",
-  "didn't": "did not",
-  "won't": "will not",
   "can't": "cannot",
   "couldn't": "could not",
-  "wouldn't": "would not",
-  "shouldn't": "should not",
+  "didn't": "did not",
+  "doesn't": "does not",
+  "don't": "do not",
   "hasn't": "has not",
   "haven't": "have not",
+  "how's": "how is",
+  "isn't": "is not",
+  "it's": "it is",
+  "shouldn't": "should not",
+  "that's": "that is",
+  "there's": "there is",
+  "wasn't": "was not",
+  "weren't": "were not",
+  "what's": "what is",
+  "where's": "where is",
+  "who's": "who is",
+  "won't": "will not",
+  "wouldn't": "would not",
 };
 
 const CONTRACTION_ENTRIES = Object.entries(CONTRACTIONS);
@@ -105,7 +105,9 @@ function expandContractions(text: string): string {
  * - trim
  */
 export function normalizePromptText(text: string): string {
-  if (typeof text !== "string") return "";
+  if (typeof text !== "string") {
+    return "";
+  }
   let t = text.toLowerCase();
   t = expandContractions(t);
   return t.replace(/\s+/g, " ").trim();
@@ -121,18 +123,18 @@ export function normalizePromptText(text: string): string {
  * an extension point for future pre-compilation (e.g., regex caching).
  */
 export function compilePromptSignals(
-  signals: PromptSignals,
+  signals: PromptSignals
 ): CompiledPromptSignals {
   const norm = (s: string) => expandContractions(s.toLowerCase());
   return {
-    phrases: (signals.phrases || []).map(norm),
     allOf: (signals.allOf || []).map((group) => group.map(norm)),
     anyOf: (signals.anyOf || []).map(norm),
-    noneOf: (signals.noneOf || []).map(norm),
     minScore:
       typeof signals.minScore === "number" && !Number.isNaN(signals.minScore)
         ? signals.minScore
         : 6,
+    noneOf: (signals.noneOf || []).map(norm),
+    phrases: (signals.phrases || []).map(norm),
   };
 }
 
@@ -150,10 +152,10 @@ export function compilePromptSignals(
  */
 export function matchPromptWithReason(
   normalizedPrompt: string,
-  compiled: CompiledPromptSignals,
+  compiled: CompiledPromptSignals
 ): PromptMatchResult {
   if (!normalizedPrompt) {
-    return { matched: false, score: 0, reason: "empty prompt" };
+    return { matched: false, reason: "empty prompt", score: 0 };
   }
 
   // --- noneOf: hard suppress (word-boundary aware) ---
@@ -163,8 +165,8 @@ export function matchPromptWithReason(
     if (re.test(normalizedPrompt)) {
       return {
         matched: false,
-        score: -Infinity,
         reason: `suppressed by noneOf "${term}"`,
+        score: Number.NEGATIVE_INFINITY,
       };
     }
   }
@@ -209,15 +211,15 @@ export function matchPromptWithReason(
     const detail = reasons.length > 0 ? ` (${reasons.join("; ")})` : "";
     return {
       matched: false,
-      score,
       reason: `below threshold: score ${score} < ${compiled.minScore}${detail}`,
+      score,
     };
   }
 
   return {
     matched: true,
-    score,
     reason: reasons.join("; "),
+    score,
   };
 }
 
@@ -227,9 +229,11 @@ export function matchPromptWithReason(
 
 function findMatchedPhrases(
   normalizedPrompt: string,
-  compiled: CompiledPromptSignals | undefined,
+  compiled: CompiledPromptSignals | undefined
 ): string[] {
-  if (!compiled) return [];
+  if (!compiled) {
+    return [];
+  }
   return compiled.phrases.filter((phrase) => normalizedPrompt.includes(phrase));
 }
 
@@ -242,10 +246,14 @@ function findMatchedPhrases(
  */
 export function adaptiveBoostTier(
   exactScore: number,
-  minScore: number,
+  minScore: number
 ): { multiplier: number; tier: BoostTier } {
-  if (exactScore <= 0) return { multiplier: 1.5, tier: "high" };
-  if (exactScore < minScore / 2) return { multiplier: 1.35, tier: "mid" };
+  if (exactScore <= 0) {
+    return { multiplier: 1.5, tier: "high" };
+  }
+  if (exactScore < minScore / 2) {
+    return { multiplier: 1.35, tier: "mid" };
+  }
   return { multiplier: 1.1, tier: "low" };
 }
 
@@ -253,7 +261,7 @@ export function scorePromptWithLexical(
   prompt: string,
   skillSlug: string,
   compiled: CompiledPromptSignals | undefined,
-  lexicalHits?: LexicalHit[],
+  lexicalHits?: LexicalHit[]
 ): {
   score: number;
   matchedPhrases: string[];
@@ -265,40 +273,40 @@ export function scorePromptWithLexical(
   const matchedPhrases = findMatchedPhrases(normalizedPrompt, compiled);
   const exactResult = compiled
     ? matchPromptWithReason(normalizedPrompt, compiled)
-    : { score: 0, matched: false };
+    : { matched: false, score: 0 };
   const exactScore = exactResult.score;
 
   if (compiled && exactScore >= compiled.minScore) {
     return {
-      score: exactScore,
-      matchedPhrases,
-      lexicalScore: 0,
-      source: "exact",
       boostTier: null,
+      lexicalScore: 0,
+      matchedPhrases,
+      score: exactScore,
+      source: "exact",
     };
   }
 
   // noneOf suppression: if exact score is -Infinity, never boost via lexical
-  if (exactScore === -Infinity) {
+  if (exactScore === Number.NEGATIVE_INFINITY) {
     return {
-      score: -Infinity,
-      matchedPhrases: [],
-      lexicalScore: 0,
-      source: "exact",
       boostTier: null,
+      lexicalScore: 0,
+      matchedPhrases: [],
+      score: Number.NEGATIVE_INFINITY,
+      source: "exact",
     };
   }
 
   const lexicalHit = (lexicalHits ?? searchSkills(prompt)).find(
-    (hit) => hit.skill === skillSlug,
+    (hit) => hit.skill === skillSlug
   );
   if (!lexicalHit) {
     return {
-      score: exactScore,
-      matchedPhrases,
-      lexicalScore: 0,
-      source: "exact",
       boostTier: null,
+      lexicalScore: 0,
+      matchedPhrases,
+      score: exactScore,
+      source: "exact",
     };
   }
 
@@ -306,16 +314,16 @@ export function scorePromptWithLexical(
   const { multiplier, tier } = adaptiveBoostTier(exactScore, minScore);
   const lexicalBoost = lexicalHit.score * multiplier;
   return {
-    score: Math.max(exactScore, lexicalBoost),
-    matchedPhrases,
+    boostTier: tier,
     lexicalScore: lexicalHit.score,
+    matchedPhrases,
+    score: Math.max(exactScore, lexicalBoost),
     source:
       lexicalBoost > exactScore
         ? "lexical"
         : matchedPhrases.length > 0 || exactScore > 0
           ? "combined"
           : "lexical",
-    boostTier: tier,
   };
 }
 
@@ -331,8 +339,8 @@ export type TroubleshootingIntent =
 
 export interface TroubleshootingIntentResult {
   intent: TroubleshootingIntent;
-  skills: string[];
   reason: string;
+  skills: string[];
 }
 
 const FLOW_VERIFICATION_RE =
@@ -359,18 +367,18 @@ const TEST_FRAMEWORK_RE =
  * Test framework mentions suppress verification-family skills.
  */
 export function classifyTroubleshootingIntent(
-  normalizedPrompt: string,
+  normalizedPrompt: string
 ): TroubleshootingIntentResult {
   if (!normalizedPrompt) {
-    return { intent: null, skills: [], reason: "empty prompt" };
+    return { intent: null, reason: "empty prompt", skills: [] };
   }
 
   // Test framework mentions suppress all verification-family skills
   if (TEST_FRAMEWORK_RE.test(normalizedPrompt)) {
     return {
       intent: null,
-      skills: [],
       reason: "suppressed by test framework mention",
+      skills: [],
     };
   }
 
@@ -378,8 +386,8 @@ export function classifyTroubleshootingIntent(
   if (BROWSER_ONLY_RE.test(normalizedPrompt)) {
     return {
       intent: "browser-only",
-      skills: ["verification"],
       reason: "browser-only pattern matched",
+      skills: ["verification"],
     };
   }
 
@@ -387,8 +395,8 @@ export function classifyTroubleshootingIntent(
   if (FLOW_VERIFICATION_RE.test(normalizedPrompt)) {
     return {
       intent: "flow-verification",
-      skills: ["verification"],
       reason: "flow-verification pattern matched",
+      skills: ["verification"],
     };
   }
 
@@ -396,10 +404,10 @@ export function classifyTroubleshootingIntent(
   if (STUCK_INVESTIGATION_RE.test(normalizedPrompt)) {
     return {
       intent: "stuck-investigation",
-      skills: ["verification"],
       reason: "stuck-investigation pattern matched",
+      skills: ["verification"],
     };
   }
 
-  return { intent: null, skills: [], reason: "no troubleshooting intent" };
+  return { intent: null, reason: "no troubleshooting intent", skills: [] };
 }

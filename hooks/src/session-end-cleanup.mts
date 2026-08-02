@@ -38,31 +38,43 @@ function removeFileIfPresent(path: string): void {
 
 function removeDirIfPresent(path: string): void {
   try {
-    rmSync(path, { recursive: true, force: true });
+    rmSync(path, { force: true, recursive: true });
   } catch {
     // Silently ignore cleanup failures
   }
 }
 
-export function parseSessionEndHookInput(raw: string): SessionEndHookInput | null {
+export function parseSessionEndHookInput(
+  raw: string
+): SessionEndHookInput | null {
   try {
-    if (!raw.trim()) return null;
+    if (!raw.trim()) {
+      return null;
+    }
     return JSON.parse(raw) as SessionEndHookInput;
   } catch {
     return null;
   }
 }
 
-export function normalizeSessionEndSessionId(input: SessionEndHookInput | null): string | null {
-  if (!input) return null;
+export function normalizeSessionEndSessionId(
+  input: SessionEndHookInput | null
+): string | null {
+  if (!input) {
+    return null;
+  }
 
   const sessionId = input.session_id ?? input.conversation_id ?? "";
 
-  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : null;
+  return typeof sessionId === "string" && sessionId.length > 0
+    ? sessionId
+    : null;
 }
 
 function parseSessionIdFromStdin(): string | null {
-  return normalizeSessionEndSessionId(parseSessionEndHookInput(readFileSync(0, "utf8")));
+  return normalizeSessionEndSessionId(
+    parseSessionEndHookInput(readFileSync(0, "utf8"))
+  );
 }
 
 function main(): void {

@@ -8,7 +8,7 @@
  * Exit code 0 = all checks pass, non-zero = issues found.
  */
 
-import { existsSync, readFileSync, statSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadValidatedSkillMap } from "../shared/skill-map-loader.ts";
 
@@ -19,10 +19,10 @@ const PATTERN_COUNT_WARN_THRESHOLD = 200;
 const SKILL_COUNT_WARN_THRESHOLD = 50;
 
 export interface DoctorIssue {
-  severity: "error" | "warning";
   check: string;
-  message: string;
   hint?: string;
+  message: string;
+  severity: "error" | "warning";
 }
 
 export interface DoctorResult {
@@ -47,41 +47,47 @@ export function doctor(projectRoot: string): DoctorResult {
       hooksConfig = JSON.parse(readFileSync(hooksJsonPath, "utf-8"));
     } catch (err: any) {
       issues.push({
-        severity: "error",
         check: "hooks",
         message: `Failed to parse hooks.json: ${err.message}`,
+        severity: "error",
       });
     }
   }
 
   const registeredHooks = hooksConfig.hooks ?? {};
   const hasAutomaticSkillInjectionHooks =
-    (registeredHooks.PreToolUse ?? []).some((entry: any) =>
-      Array.isArray(entry?.hooks)
-      && entry.hooks.some(
-        (hook: any) =>
-          typeof hook?.command === "string"
-          && hook.command.includes("pretooluse-skill-inject.mjs"),
-      ),
-    )
-    || (registeredHooks.UserPromptSubmit ?? []).some((entry: any) =>
-      Array.isArray(entry?.hooks)
-      && entry.hooks.some(
-        (hook: any) =>
-          typeof hook?.command === "string"
-          && hook.command.includes("user-prompt-submit-skill-inject.mjs"),
-      ),
+    (registeredHooks.PreToolUse ?? []).some(
+      (entry: any) =>
+        Array.isArray(entry?.hooks) &&
+        entry.hooks.some(
+          (hook: any) =>
+            typeof hook?.command === "string" &&
+            hook.command.includes("pretooluse-skill-inject.mjs")
+        )
+    ) ||
+    (registeredHooks.UserPromptSubmit ?? []).some(
+      (entry: any) =>
+        Array.isArray(entry?.hooks) &&
+        entry.hooks.some(
+          (hook: any) =>
+            typeof hook?.command === "string" &&
+            hook.command.includes("user-prompt-submit-skill-inject.mjs")
+        )
     );
 
   // --- Live scan ---
-  const { validation, skills: loadedSkills, buildDiagnostics } = loadValidatedSkillMap(skillsDir);
+  const {
+    validation,
+    skills: loadedSkills,
+    buildDiagnostics,
+  } = loadValidatedSkillMap(skillsDir);
 
   if (!validation.ok) {
     for (const e of validation.errors) {
       issues.push({
-        severity: "error",
         check: "skill-validation",
         message: e,
+        severity: "error",
       });
     }
   }
@@ -89,9 +95,9 @@ export function doctor(projectRoot: string): DoctorResult {
   if (validation.warnings?.length) {
     for (const w of validation.warnings) {
       issues.push({
-        severity: "warning",
         check: "skill-validation",
         message: w,
+        severity: "warning",
       });
     }
   }
@@ -99,9 +105,9 @@ export function doctor(projectRoot: string): DoctorResult {
   if (buildDiagnostics.length > 0) {
     for (const d of buildDiagnostics) {
       issues.push({
-        severity: "warning",
         check: "skill-build",
         message: d,
+        severity: "warning",
       });
     }
   }
@@ -116,22 +122,15 @@ export function doctor(projectRoot: string): DoctorResult {
   // --- Manifest parity ---
   let manifestSkillCount: number | null = null;
 
-  if (!existsSync(manifestPath)) {
-    issues.push({
-      severity: "warning",
-      check: "manifest-exists",
-      message: "No generated/skill-manifest.json found",
-      hint: "Run `bun run build:manifest` to generate it",
-    });
-  } else {
+  if (existsSync(manifestPath)) {
     let manifest: { skills: Record<string, any> };
     try {
       manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
     } catch (err: any) {
       issues.push({
-        severity: "error",
         check: "manifest-parse",
         message: `Failed to parse manifest: ${err.message}`,
+        severity: "error",
       });
       manifest = { skills: {} };
     }
@@ -146,25 +145,23 @@ export function doctor(projectRoot: string): DoctorResult {
     const missingFromManifest = [...liveNames].filter(
       (s) => !manifestNames.has(s)
     );
-    const extraInManifest = [...manifestNames].filter(
-      (s) => !liveNames.has(s)
-    );
+    const extraInManifest = [...manifestNames].filter((s) => !liveNames.has(s));
 
     if (missingFromManifest.length > 0) {
       issues.push({
-        severity: "error",
         check: "manifest-parity",
-        message: `Skills in live scan but missing from manifest: ${missingFromManifest.join(", ")}`,
         hint: "Run `bun run build:manifest` to regenerate",
+        message: `Skills in live scan but missing from manifest: ${missingFromManifest.join(", ")}`,
+        severity: "error",
       });
     }
 
     if (extraInManifest.length > 0) {
       issues.push({
-        severity: "error",
         check: "manifest-parity",
-        message: `Skills in manifest but missing from live scan: ${extraInManifest.join(", ")}`,
         hint: "A skill directory may have been deleted without rebuilding the manifest",
+        message: `Skills in manifest but missing from live scan: ${extraInManifest.join(", ")}`,
+        severity: "error",
       });
     }
 
@@ -176,10 +173,10 @@ export function doctor(projectRoot: string): DoctorResult {
 
         if (live.priority !== mf.priority) {
           issues.push({
-            severity: "error",
             check: "manifest-parity",
-            message: `Skill "${name}" priority differs: live=${live.priority}, manifest=${mf.priority}`,
             hint: "Run `bun run build:manifest` to regenerate",
+            message: `Skill "${name}" priority differs: live=${live.priority}, manifest=${mf.priority}`,
+            severity: "error",
           });
         }
 
@@ -187,10 +184,10 @@ export function doctor(projectRoot: string): DoctorResult {
         const mfPaths = (mf.pathPatterns ?? []).sort().join(",");
         if (livePaths !== mfPaths) {
           issues.push({
-            severity: "error",
             check: "manifest-parity",
-            message: `Skill "${name}" pathPatterns differ between live scan and manifest`,
             hint: "Run `bun run build:manifest` to regenerate",
+            message: `Skill "${name}" pathPatterns differ between live scan and manifest`,
+            severity: "error",
           });
         }
 
@@ -198,14 +195,21 @@ export function doctor(projectRoot: string): DoctorResult {
         const mfBash = (mf.bashPatterns ?? []).sort().join(",");
         if (liveBash !== mfBash) {
           issues.push({
-            severity: "error",
             check: "manifest-parity",
-            message: `Skill "${name}" bashPatterns differ between live scan and manifest`,
             hint: "Run `bun run build:manifest` to regenerate",
+            message: `Skill "${name}" bashPatterns differ between live scan and manifest`,
+            severity: "error",
           });
         }
       }
     }
+  } else {
+    issues.push({
+      check: "manifest-exists",
+      hint: "Run `bun run build:manifest` to generate it",
+      message: "No generated/skill-manifest.json found",
+      severity: "warning",
+    });
   }
 
   // --- Hook timeout risk ---
@@ -215,65 +219,71 @@ export function doctor(projectRoot: string): DoctorResult {
       (skill.pathPatterns?.length ?? 0) + (skill.bashPatterns?.length ?? 0);
   }
 
-  if (hasAutomaticSkillInjectionHooks && liveSkillCount > SKILL_COUNT_WARN_THRESHOLD) {
+  if (
+    hasAutomaticSkillInjectionHooks &&
+    liveSkillCount > SKILL_COUNT_WARN_THRESHOLD
+  ) {
     issues.push({
-      severity: "warning",
       check: "hook-timeout",
-      message: `${liveSkillCount} skills registered — may approach the 5-second hook timeout budget`,
       hint: "Consider consolidating low-priority skills or raising pattern specificity",
+      message: `${liveSkillCount} skills registered — may approach the 5-second hook timeout budget`,
+      severity: "warning",
     });
   }
 
-  if (hasAutomaticSkillInjectionHooks && totalPatterns > PATTERN_COUNT_WARN_THRESHOLD) {
+  if (
+    hasAutomaticSkillInjectionHooks &&
+    totalPatterns > PATTERN_COUNT_WARN_THRESHOLD
+  ) {
     issues.push({
-      severity: "warning",
       check: "hook-timeout",
-      message: `${totalPatterns} total patterns — regex compilation overhead may threaten hook timeout`,
       hint: "Use the manifest (build:manifest) to avoid live-scan overhead at runtime",
+      message: `${totalPatterns} total patterns — regex compilation overhead may threaten hook timeout`,
+      severity: "warning",
     });
   }
 
   // --- Dedup env var ---
-  const dedupOff =
-    process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
+  const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const seenSkillsEnv = process.env.XYLEX_PLUGIN_SEEN_SKILLS;
   let dedupStrategy: string;
 
   if (dedupOff) {
     dedupStrategy = "disabled";
     issues.push({
-      severity: "warning",
       check: "dedup",
-      message:
-        "Deduplication is disabled (XYLEX_PLUGIN_HOOK_DEDUP=off)",
       hint: "Skills may be injected multiple times per session",
+      message: "Deduplication is disabled (XYLEX_PLUGIN_HOOK_DEDUP=off)",
+      severity: "warning",
     });
-  } else if (seenSkillsEnv !== undefined) {
+  } else if (seenSkillsEnv === undefined) {
+    dedupStrategy = "memory-only";
+    issues.push({
+      check: "dedup",
+      hint: "Ensure session-start-seen-skills.mjs runs on SessionStart to set the env var",
+      message:
+        "XYLEX_PLUGIN_SEEN_SKILLS is not set — dedup limited to single invocation",
+      severity: "warning",
+    });
+  } else {
     dedupStrategy = "env-var";
     // Validate format: should be empty or comma-delimited slugs
     if (seenSkillsEnv !== "" && !/^[\w-]+(,[\w-]+)*$/.test(seenSkillsEnv)) {
       issues.push({
-        severity: "error",
         check: "dedup",
-        message: `XYLEX_PLUGIN_SEEN_SKILLS has unexpected format: "${seenSkillsEnv}"`,
         hint: "Expected empty string or comma-delimited skill slugs (e.g., 'nextjs,ai-sdk')",
+        message: `XYLEX_PLUGIN_SEEN_SKILLS has unexpected format: "${seenSkillsEnv}"`,
+        severity: "error",
       });
     }
-  } else {
-    dedupStrategy = "memory-only";
-    issues.push({
-      severity: "warning",
-      check: "dedup",
-      message:
-        "XYLEX_PLUGIN_SEEN_SKILLS is not set — dedup limited to single invocation",
-      hint: "Ensure session-start-seen-skills.mjs runs on SessionStart to set the env var",
-    });
   }
 
   // --- Stale generated files (template newer than output) ---
   const tmplDirs = [join(projectRoot, "agents"), join(projectRoot, "commands")];
   for (const dir of tmplDirs) {
-    if (!existsSync(dir)) continue;
+    if (!existsSync(dir)) {
+      continue;
+    }
     let files: string[];
     try {
       files = readdirSync(dir);
@@ -281,16 +291,18 @@ export function doctor(projectRoot: string): DoctorResult {
       continue;
     }
     for (const f of files) {
-      if (!f.endsWith(".md.tmpl")) continue;
+      if (!f.endsWith(".md.tmpl")) {
+        continue;
+      }
       const tmplPath = join(dir, f);
       const outPath = join(dir, f.replace(/\.md\.tmpl$/, ".md"));
 
       if (!existsSync(outPath)) {
         issues.push({
-          severity: "error",
           check: "template-staleness",
-          message: `Template ${f} has no generated output: ${f.replace(/\.tmpl$/, "")}`,
           hint: "Run `bun run build:from-skills` to generate it",
+          message: `Template ${f} has no generated output: ${f.replace(/\.tmpl$/, "")}`,
+          severity: "error",
         });
         continue;
       }
@@ -299,10 +311,10 @@ export function doctor(projectRoot: string): DoctorResult {
       const outMtime = statSync(outPath).mtimeMs;
       if (tmplMtime > outMtime) {
         issues.push({
-          severity: "error",
           check: "template-staleness",
-          message: `${f} is newer than its output ${f.replace(/\.tmpl$/, "")}`,
           hint: "Run `bun run build:from-skills` to regenerate",
+          message: `${f} is newer than its output ${f.replace(/\.tmpl$/, "")}`,
+          severity: "error",
         });
       }
     }
@@ -317,7 +329,9 @@ export function doctor(projectRoot: string): DoctorResult {
         const skillFile = join(skillsRoot, skillDir, "SKILL.md");
         if (existsSync(skillFile)) {
           const mtime = statSync(skillFile).mtimeMs;
-          if (mtime > newestSkillMtime) newestSkillMtime = mtime;
+          if (mtime > newestSkillMtime) {
+            newestSkillMtime = mtime;
+          }
         }
       }
     } catch {
@@ -326,7 +340,9 @@ export function doctor(projectRoot: string): DoctorResult {
 
     if (newestSkillMtime > 0) {
       for (const dir of tmplDirs) {
-        if (!existsSync(dir)) continue;
+        if (!existsSync(dir)) {
+          continue;
+        }
         let files: string[];
         try {
           files = readdirSync(dir);
@@ -334,16 +350,20 @@ export function doctor(projectRoot: string): DoctorResult {
           continue;
         }
         for (const f of files) {
-          if (!f.endsWith(".md.tmpl")) continue;
+          if (!f.endsWith(".md.tmpl")) {
+            continue;
+          }
           const outPath = join(dir, f.replace(/\.md\.tmpl$/, ".md"));
-          if (!existsSync(outPath)) continue;
+          if (!existsSync(outPath)) {
+            continue;
+          }
           const outMtime = statSync(outPath).mtimeMs;
           if (newestSkillMtime > outMtime) {
             issues.push({
-              severity: "warning",
               check: "template-staleness",
-              message: `A SKILL.md was modified after ${f.replace(/\.tmpl$/, "")} was last generated`,
               hint: "Run `bun run build:from-skills` to regenerate (skill content may have changed)",
+              message: `A SKILL.md was modified after ${f.replace(/\.tmpl$/, "")} was last generated`,
+              severity: "warning",
             });
             break; // One warning per dir is enough
           }
@@ -354,20 +374,20 @@ export function doctor(projectRoot: string): DoctorResult {
 
   if (!existsSync(hooksJsonPath)) {
     issues.push({
-      severity: "error",
       check: "hooks",
-      message: "hooks/hooks.json not found",
       hint: "Ensure hooks/hooks.json exists",
+      message: "hooks/hooks.json not found",
+      severity: "error",
     });
   }
 
   return {
     issues,
     summary: {
-      manifestSkillCount,
-      liveSkillCount,
-      totalPatterns,
       dedupStrategy,
+      liveSkillCount,
+      manifestSkillCount,
+      totalPatterns,
     },
   };
 }
@@ -398,7 +418,9 @@ export function formatDoctorResult(result: DoctorResult): string {
       lines.push(`Errors (${errors.length}):`);
       for (const e of errors) {
         lines.push(`  [${e.check}] ${e.message}`);
-        if (e.hint) lines.push(`    -> ${e.hint}`);
+        if (e.hint) {
+          lines.push(`    -> ${e.hint}`);
+        }
       }
       lines.push("");
     }
@@ -407,7 +429,9 @@ export function formatDoctorResult(result: DoctorResult): string {
       lines.push(`Warnings (${warnings.length}):`);
       for (const w of warnings) {
         lines.push(`  [${w.check}] ${w.message}`);
-        if (w.hint) lines.push(`    -> ${w.hint}`);
+        if (w.hint) {
+          lines.push(`    -> ${w.hint}`);
+        }
       }
       lines.push("");
     }
@@ -415,9 +439,7 @@ export function formatDoctorResult(result: DoctorResult): string {
 
   const errorCount = errors.length;
   const warnCount = warnings.length;
-  lines.push(
-    `Result: ${errorCount} error(s), ${warnCount} warning(s)`
-  );
+  lines.push(`Result: ${errorCount} error(s), ${warnCount} warning(s)`);
 
   return lines.join("\n");
 }

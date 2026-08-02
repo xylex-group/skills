@@ -5,45 +5,50 @@
  */
 
 import { createHash } from "node:crypto";
-import { appendFileSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { basename } from "node:path";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ValidationRule {
-  pattern: string;
   message: string;
+  pattern: string;
   severity: "error" | "recommended" | "warn";
 }
 
 export interface RetrievalMetadata {
   aliases?: string[];
-  intents?: string[];
   entities?: string[];
   examples?: string[];
+  intents?: string[];
 }
 
 export interface ChainToRule {
-  pattern: string;
-  targetSkill: string;
   message?: string;
+  pattern: string;
   skipIfFileContains?: string;
+  targetSkill: string;
 }
 
 export interface SkillEntry {
-  priority: number;
-  summary?: string;
-  docs?: string[];
-  pathPatterns: string[];
   bashPatterns: string[];
-  importPatterns: string[];
-  validate?: ValidationRule[];
   chainTo?: ChainToRule[];
+  docs?: string[];
+  importPatterns: string[];
+  pathPatterns: string[];
+  priority: number;
   retrieval?: RetrievalMetadata;
+  summary?: string;
+  validate?: ValidationRule[];
 }
 
 /**
@@ -51,9 +56,9 @@ export interface SkillEntry {
  * Written by build-manifest.ts, read by the PreToolUse hook.
  */
 export interface ManifestSkill extends SkillEntry {
-  pathRegexSources: string[];
   bashRegexSources: string[];
   importRegexSources: Array<{ source: string; flags: string }>;
+  pathRegexSources: string[];
 }
 
 export interface CompiledPattern {
@@ -62,23 +67,23 @@ export interface CompiledPattern {
 }
 
 export interface CompiledSkillEntry {
-  skill: string;
-  priority: number;
-  compiledPaths: CompiledPattern[];
   compiledBash: CompiledPattern[];
   compiledImports: CompiledPattern[];
+  compiledPaths: CompiledPattern[];
   effectivePriority?: number;
+  priority: number;
+  skill: string;
 }
 
 export interface MatchReason {
-  pattern: string;
   matchType: string;
+  pattern: string;
 }
 
 export interface CompileCallbacks {
-  onPathGlobError?: (skill: string, pattern: string, err: unknown) => void;
   onBashRegexError?: (skill: string, pattern: string, err: unknown) => void;
   onImportPatternError?: (skill: string, pattern: string, err: unknown) => void;
+  onPathGlobError?: (skill: string, pattern: string, err: unknown) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,7 +102,10 @@ interface BraceExpansion {
   endIndex: number;
 }
 
-function parseBraceExpansion(pattern: string, startIndex: number): BraceExpansion | null {
+function parseBraceExpansion(
+  pattern: string,
+  startIndex: number
+): BraceExpansion | null {
   let depth = 0;
   let current = "";
   let sawTopLevelComma = false;
@@ -244,18 +252,18 @@ export interface SeenSkillPriorityEntry {
 }
 
 export interface MergeSeenSkillStatesWithCompactionResetOptions {
-  sessionId?: string | null;
   includeEnv?: boolean;
+  sessionId?: string | null;
   skillMap?: Record<string, SeenSkillPriorityEntry>;
 }
 
 export interface MergeSeenSkillStatesWithCompactionResetResult {
+  clearedSkills: string[];
+  compactionResetApplied: boolean;
+  seenClaims: string;
   seenEnv: string;
   seenFile: string;
-  seenClaims: string;
   seenState: string;
-  compactionResetApplied: boolean;
-  clearedSkills: string[];
 }
 
 const SAFE_SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -268,7 +276,10 @@ function dedupSessionIdSegment(sessionId: string): string {
   return createHash("sha256").update(sessionId).digest("hex");
 }
 
-function listSessionSeenSkillArtifactPaths(sessionId: string): { files: string[]; claimDirs: string[] } {
+function listSessionSeenSkillArtifactPaths(sessionId: string): {
+  files: string[];
+  claimDirs: string[];
+} {
   const tempRoot = resolve(tmpdir());
   const prefix = `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}-`;
   const files: string[] = [];
@@ -276,7 +287,9 @@ function listSessionSeenSkillArtifactPaths(sessionId: string): { files: string[]
 
   try {
     for (const entry of readdirSync(tempRoot)) {
-      if (!entry.startsWith(prefix)) continue;
+      if (!entry.startsWith(prefix)) {
+        continue;
+      }
       const fullPath = join(tempRoot, entry);
 
       if (entry.endsWith("-seen-skills.txt")) {
@@ -289,10 +302,10 @@ function listSessionSeenSkillArtifactPaths(sessionId: string): { files: string[]
       }
     }
   } catch {
-    return { files: [], claimDirs: [] };
+    return { claimDirs: [], files: [] };
   }
 
-  return { files, claimDirs };
+  return { claimDirs, files };
 }
 
 function collectSessionSeenSkillValues(sessionId: string): string[] {
@@ -322,8 +335,13 @@ function collectSessionSeenSkillValues(sessionId: string): string[] {
   return values;
 }
 
-function filterSeenSkillState(value: string, blockedSkills: Set<string>): string {
-  if (blockedSkills.size === 0) return value;
+function filterSeenSkillState(
+  value: string,
+  blockedSkills: Set<string>
+): string {
+  if (blockedSkills.size === 0) {
+    return value;
+  }
 
   const filtered = new Set<string>();
   for (const skill of parseSeenSkills(value)) {
@@ -337,7 +355,7 @@ function filterSeenSkillState(value: string, blockedSkills: Set<string>): string
 function isHighPrioritySkill(
   skill: string,
   skillMap?: Record<string, SeenSkillPriorityEntry>,
-  minPriority: number = COMPACTION_REINJECT_MIN_PRIORITY,
+  minPriority: number = COMPACTION_REINJECT_MIN_PRIORITY
 ): boolean {
   const priority = skillMap?.[skill]?.priority;
   return typeof priority === "number" && priority >= minPriority;
@@ -352,7 +370,9 @@ function persistCompactionResetEnv(nextSeenEnv: string): void {
   process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED = "";
 
   const envFile = process.env.CLAUDE_ENV_FILE;
-  if (!envFile) return;
+  if (!envFile) {
+    return;
+  }
 
   try {
     appendFileSync(
@@ -361,22 +381,31 @@ function persistCompactionResetEnv(nextSeenEnv: string): void {
         `export XYLEX_PLUGIN_SEEN_SKILLS="${escapeShellEnvValue(nextSeenEnv)}"`,
         'export XYLEX_PLUGIN_CONTEXT_COMPACTED=""',
       ].join("\n") + "\n",
-      "utf-8",
+      "utf-8"
     );
   } catch {
     // Hooks can continue even when env persistence fails.
   }
 }
 
-function pruneSessionSeenSkillArtifacts(sessionId: string, clearedSkills: Set<string>): void {
-  if (clearedSkills.size === 0) return;
+function pruneSessionSeenSkillArtifacts(
+  sessionId: string,
+  clearedSkills: Set<string>
+): void {
+  if (clearedSkills.size === 0) {
+    return;
+  }
 
   const { files, claimDirs } = listSessionSeenSkillArtifactPaths(sessionId);
 
   for (const filePath of files) {
     try {
       const rawValue = readFileSync(filePath, "utf-8");
-      writeFileSync(filePath, filterSeenSkillState(rawValue, clearedSkills), "utf-8");
+      writeFileSync(
+        filePath,
+        filterSeenSkillState(rawValue, clearedSkills),
+        "utf-8"
+      );
     } catch {
       // Ignore stale or concurrently-removed artifacts.
     }
@@ -397,10 +426,11 @@ export function mergeSeenSkillStatesWithCompactionReset(
   envValue: string,
   fileValue: string,
   claimValue: string,
-  options?: MergeSeenSkillStatesWithCompactionResetOptions,
+  options?: MergeSeenSkillStatesWithCompactionResetOptions
 ): MergeSeenSkillStatesWithCompactionResetResult {
   const includeEnv = options?.includeEnv ?? true;
-  const compactionTriggered = process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
+  const compactionTriggered =
+    process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
 
   let seenEnv = envValue;
   let seenFile = fileValue;
@@ -409,7 +439,10 @@ export function mergeSeenSkillStatesWithCompactionReset(
 
   if (compactionTriggered) {
     const compactionState = options?.sessionId
-      ? mergeSeenSkillStates(envValue, ...collectSessionSeenSkillValues(options.sessionId))
+      ? mergeSeenSkillStates(
+          envValue,
+          ...collectSessionSeenSkillValues(options.sessionId)
+        )
       : mergeSeenSkillStates(envValue, fileValue, claimValue);
     const skillsToClear = new Set<string>();
 
@@ -439,12 +472,12 @@ export function mergeSeenSkillStatesWithCompactionReset(
     : mergeSeenSkillStates(seenFile, seenClaims);
 
   return {
+    clearedSkills,
+    compactionResetApplied: compactionTriggered,
+    seenClaims,
     seenEnv,
     seenFile,
-    seenClaims,
     seenState,
-    compactionResetApplied: compactionTriggered,
-    clearedSkills,
   };
 }
 
@@ -462,7 +495,7 @@ export function mergeScopedSeenSkillStates(
   scopeId: string,
   envValue: string,
   fileValue: string,
-  claimValue: string,
+  claimValue: string
 ): string {
   if (scopeId === "main") {
     return mergeSeenSkillStates(envValue, fileValue, claimValue);
@@ -474,8 +507,13 @@ export function mergeScopedSeenSkillStates(
 /**
  * Return updated comma-delimited string with a new skill appended.
  */
-export function appendSeenSkill(envValue: string | undefined, skill: string): string {
-  if (typeof skill !== "string" || skill.trim() === "") return envValue || "";
+export function appendSeenSkill(
+  envValue: string | undefined,
+  skill: string
+): string {
+  if (typeof skill !== "string" || skill.trim() === "") {
+    return envValue || "";
+  }
   const current = typeof envValue === "string" ? envValue.trim() : "";
   return current === "" ? skill : `${current},${skill}`;
 }
@@ -489,34 +527,46 @@ export function appendSeenSkill(envValue: string | undefined, skill: string): st
  */
 export function compileSkillPatterns(
   skillMap: Record<string, SkillEntry>,
-  callbacks?: CompileCallbacks,
+  callbacks?: CompileCallbacks
 ): CompiledSkillEntry[] {
   const cb = callbacks || {};
   return Object.entries(skillMap).map(([skill, config]) => {
     const compiledPaths: CompiledPattern[] = [];
     for (const p of config.pathPatterns || []) {
-      try { compiledPaths.push({ pattern: p, regex: globToRegex(p) }); } catch (err) {
-        if (cb.onPathGlobError) cb.onPathGlobError(skill, p, err);
+      try {
+        compiledPaths.push({ pattern: p, regex: globToRegex(p) });
+      } catch (err) {
+        if (cb.onPathGlobError) {
+          cb.onPathGlobError(skill, p, err);
+        }
       }
     }
     const compiledBash: CompiledPattern[] = [];
     for (const p of config.bashPatterns || []) {
-      try { compiledBash.push({ pattern: p, regex: new RegExp(p) }); } catch (err) {
-        if (cb.onBashRegexError) cb.onBashRegexError(skill, p, err);
+      try {
+        compiledBash.push({ pattern: p, regex: new RegExp(p) });
+      } catch (err) {
+        if (cb.onBashRegexError) {
+          cb.onBashRegexError(skill, p, err);
+        }
       }
     }
     const compiledImports: CompiledPattern[] = [];
     for (const p of config.importPatterns || []) {
-      try { compiledImports.push({ pattern: p, regex: importPatternToRegex(p) }); } catch (err) {
-        if (cb.onImportPatternError) cb.onImportPatternError(skill, p, err);
+      try {
+        compiledImports.push({ pattern: p, regex: importPatternToRegex(p) });
+      } catch (err) {
+        if (cb.onImportPatternError) {
+          cb.onImportPatternError(skill, p, err);
+        }
       }
     }
     return {
-      skill,
-      priority: typeof config.priority === "number" ? config.priority : 0,
-      compiledPaths,
       compiledBash,
       compiledImports,
+      compiledPaths,
+      priority: typeof config.priority === "number" ? config.priority : 0,
+      skill,
     };
   });
 }
@@ -527,13 +577,20 @@ export function compileSkillPatterns(
  */
 export function importPatternToRegex(pattern: string): RegExp {
   if (typeof pattern !== "string") {
-    throw new TypeError(`importPatternToRegex: expected string, got ${typeof pattern}`);
+    throw new TypeError(
+      `importPatternToRegex: expected string, got ${typeof pattern}`
+    );
   }
   if (pattern === "") {
     throw new Error("importPatternToRegex: pattern must not be empty");
   }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^'\"]*");
-  return new RegExp(`(?:from\\s+|require\\s*\\(\\s*|import\\s*\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`, "m");
+  const escaped = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, "[^'\"]*");
+  return new RegExp(
+    `(?:from\\s+|require\\s*\\(\\s*|import\\s*\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`,
+    "m"
+  );
 }
 
 /**
@@ -541,12 +598,14 @@ export function importPatternToRegex(pattern: string): RegExp {
  */
 export function matchImportWithReason(
   content: string,
-  compiled: CompiledPattern[],
+  compiled: CompiledPattern[]
 ): MatchReason | null {
-  if (!content || compiled.length === 0) return null;
+  if (!content || compiled.length === 0) {
+    return null;
+  }
   for (const { pattern, regex } of compiled) {
     if (regex.test(content)) {
-      return { pattern, matchType: "import" };
+      return { matchType: "import", pattern };
     }
   }
   return null;
@@ -557,22 +616,30 @@ export function matchImportWithReason(
  */
 export function matchPathWithReason(
   filePath: string,
-  compiled: CompiledPattern[],
+  compiled: CompiledPattern[]
 ): MatchReason | null {
-  if (!filePath || compiled.length === 0) return null;
+  if (!filePath || compiled.length === 0) {
+    return null;
+  }
 
   const normalized = filePath.replace(/\\/g, "/");
 
   for (const { pattern, regex } of compiled) {
-    if (regex.test(normalized)) return { pattern, matchType: "full" };
+    if (regex.test(normalized)) {
+      return { matchType: "full", pattern };
+    }
 
     const base = basename(normalized);
-    if (regex.test(base)) return { pattern, matchType: "basename" };
+    if (regex.test(base)) {
+      return { matchType: "basename", pattern };
+    }
 
     const segments = normalized.split("/");
     for (let i = 1; i < segments.length; i++) {
       const suffix = segments.slice(-i).join("/");
-      if (regex.test(suffix)) return { pattern, matchType: "suffix" };
+      if (regex.test(suffix)) {
+        return { matchType: "suffix", pattern };
+      }
     }
   }
   return null;
@@ -583,11 +650,15 @@ export function matchPathWithReason(
  */
 export function matchBashWithReason(
   command: string,
-  compiled: CompiledPattern[],
+  compiled: CompiledPattern[]
 ): MatchReason | null {
-  if (!command || compiled.length === 0) return null;
+  if (!command || compiled.length === 0) {
+    return null;
+  }
   for (const { pattern, regex } of compiled) {
-    if (regex.test(command)) return { pattern, matchType: "full" };
+    if (regex.test(command)) {
+      return { matchType: "full", pattern };
+    }
   }
   return null;
 }
@@ -603,11 +674,19 @@ export function parseLikelySkills(envValue: string): Set<string> {
  * Sort compiled skill entries by effectivePriority (if set) or priority DESC,
  * then skill name ASC.
  */
-export function rankEntries(entries: CompiledSkillEntry[]): CompiledSkillEntry[] {
+export function rankEntries(
+  entries: CompiledSkillEntry[]
+): CompiledSkillEntry[] {
   return entries.slice().sort((a, b) => {
-    const aPri = typeof a.effectivePriority === "number" ? a.effectivePriority : a.priority;
-    const bPri = typeof b.effectivePriority === "number" ? b.effectivePriority : b.priority;
-    return (bPri - aPri) || a.skill.localeCompare(b.skill);
+    const aPri =
+      typeof a.effectivePriority === "number"
+        ? a.effectivePriority
+        : a.priority;
+    const bPri =
+      typeof b.effectivePriority === "number"
+        ? b.effectivePriority
+        : b.priority;
+    return bPri - aPri || a.skill.localeCompare(b.skill);
   });
 }
 
@@ -627,9 +706,11 @@ const DOCS_WARNING =
  */
 export function buildDocsBlock(
   injectedSkills: string[],
-  skillMap: Record<string, { docs?: string[]; sitemap?: string }> | undefined,
+  skillMap: Record<string, { docs?: string[]; sitemap?: string }> | undefined
 ): string {
-  if (!skillMap) return "";
+  if (!skillMap) {
+    return "";
+  }
 
   const entries: string[] = [];
   for (const skill of injectedSkills) {
@@ -644,7 +725,9 @@ export function buildDocsBlock(
     }
   }
 
-  if (entries.length === 0) return "";
+  if (entries.length === 0) {
+    return "";
+  }
 
   return [
     "---",

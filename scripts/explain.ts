@@ -1,12 +1,17 @@
 #!/usr/bin/env bun
+
 /**
  * Convenience entry point for `bun run scripts/explain.ts <file-or-command>`.
  * Delegates to the CLI explain command.
  */
 
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { explain, formatExplainResult, type ExplainOptions } from "../src/cli/explain.ts";
+import { resolve } from "node:path";
+import {
+  type ExplainOptions,
+  explain,
+  formatExplainResult,
+} from "../src/cli/explain.ts";
 
 const args = process.argv.slice(2);
 
@@ -42,13 +47,16 @@ for (let i = 0; i < args.length; i++) {
     likelySkills = args[i];
   } else if (arg === "--budget") {
     i++;
-    budgetBytes = parseInt(args[i], 10);
+    budgetBytes = Number.parseInt(args[i], 10);
   } else if (arg === "--file" || arg === "--bash") {
     i++;
     target = args[i];
-    if (arg === "--bash") toolName = "Bash";
-    else toolName = "Read";
-  } else if (!toolName && !target && TOOL_NAMES.has(arg)) {
+    if (arg === "--bash") {
+      toolName = "Bash";
+    } else {
+      toolName = "Read";
+    }
+  } else if (!(toolName || target) && TOOL_NAMES.has(arg)) {
     // Support `Read vercel.json` / `Bash 'npx turbo build'` syntax
     toolName = arg;
   } else if (!target) {
@@ -70,9 +78,15 @@ if (!existsSync(skillsDir)) {
 
 try {
   const options: ExplainOptions = {};
-  if (likelySkills) options.likelySkills = likelySkills;
-  if (budgetBytes && Number.isFinite(budgetBytes) && budgetBytes > 0) options.budgetBytes = budgetBytes;
-  if (toolName) options.toolName = toolName;
+  if (likelySkills) {
+    options.likelySkills = likelySkills;
+  }
+  if (budgetBytes && Number.isFinite(budgetBytes) && budgetBytes > 0) {
+    options.budgetBytes = budgetBytes;
+  }
+  if (toolName) {
+    options.toolName = toolName;
+  }
 
   const result = explain(target, projectRoot, options);
 

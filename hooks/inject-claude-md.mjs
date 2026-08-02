@@ -6,7 +6,11 @@ import { join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { formatOutput } from "./compat.mjs";
 import { pluginRoot, safeReadFile } from "./hook-env.mjs";
-import { hasSessionStartActivationMarkers, isGreenfieldDirectory } from "./session-start-activation.mjs";
+import {
+  hasSessionStartActivationMarkers,
+  isGreenfieldDirectory,
+} from "./session-start-activation.mjs";
+
 var GREENFIELD_CONTEXT = `<!-- xylex-group-plugin:greenfield-execution -->
 ## Greenfield execution mode
 
@@ -18,7 +22,9 @@ Use non-interactive scaffolding commands (--yes) where available.
 Only ask follow-up questions when blocked by missing credentials or irreversible decisions.`;
 function parseInjectClaudeMdInput(raw) {
   try {
-    if (!raw.trim()) return null;
+    if (!raw.trim()) {
+      return null;
+    }
     return JSON.parse(raw);
   } catch {
     return null;
@@ -30,7 +36,12 @@ function detectInjectClaudeMdPlatform(input, _env = process.env) {
   }
   return "claude-code";
 }
-function buildInjectClaudeMdParts(content, env = process.env, knowledgeUpdate = null, greenfield = env.XYLEX_PLUGIN_GREENFIELD === "true") {
+function buildInjectClaudeMdParts(
+  content,
+  env = process.env,
+  knowledgeUpdate = null,
+  greenfield = env.XYLEX_PLUGIN_GREENFIELD === "true"
+) {
   const parts = [];
   if (content !== null) {
     parts.push(content);
@@ -45,7 +56,9 @@ function buildInjectClaudeMdParts(content, env = process.env, knowledgeUpdate = 
 }
 function formatInjectClaudeMdOutput(platform, content) {
   if (platform === "cursor") {
-    return JSON.stringify(formatOutput(platform, { additionalContext: content }));
+    return JSON.stringify(
+      formatOutput(platform, { additionalContext: content })
+    );
   }
   return content;
 }
@@ -62,16 +75,25 @@ function main() {
   const projectRoot = resolveInjectClaudeMdProjectRoot();
   const isGreenfield = isGreenfieldDirectory(projectRoot);
   const greenfieldOverride = process.env.XYLEX_PLUGIN_GREENFIELD === "true";
-  const shouldActivate = isGreenfield || greenfieldOverride || !existsSync(projectRoot) || hasSessionStartActivationMarkers(projectRoot);
+  const shouldActivate =
+    isGreenfield ||
+    greenfieldOverride ||
+    !existsSync(projectRoot) ||
+    hasSessionStartActivationMarkers(projectRoot);
   if (!shouldActivate) {
     if (platform === "cursor") {
       process.stdout.write(JSON.stringify(formatOutput(platform, {})));
     }
     return;
   }
-  const thinSessionContext = safeReadFile(join(pluginRoot(), "vercel-session.md"));
-  const knowledgeUpdateRaw = safeReadFile(join(pluginRoot(), "skills", "knowledge-update", "SKILL.md"));
-  const knowledgeUpdate = knowledgeUpdateRaw !== null ? stripFrontmatter(knowledgeUpdateRaw) : null;
+  const thinSessionContext =
+    safeReadFile(join(pluginRoot(), "xylex-session.md")) ??
+    safeReadFile(join(pluginRoot(), "vercel-session.md"));
+  const knowledgeUpdateRaw = safeReadFile(
+    join(pluginRoot(), "skills", "knowledge-update", "SKILL.md")
+  );
+  const knowledgeUpdate =
+    knowledgeUpdateRaw === null ? null : stripFrontmatter(knowledgeUpdateRaw);
   const parts = buildInjectClaudeMdParts(
     thinSessionContext,
     process.env,
@@ -81,16 +103,21 @@ function main() {
   if (parts.length === 0) {
     return;
   }
-  process.stdout.write(formatInjectClaudeMdOutput(platform, parts.join("\n\n")));
+  process.stdout.write(
+    formatInjectClaudeMdOutput(platform, parts.join("\n\n"))
+  );
 }
 var INJECT_CLAUDE_MD_ENTRYPOINT = fileURLToPath(import.meta.url);
-var isInjectClaudeMdEntrypoint = process.argv[1] ? resolve(process.argv[1]) === INJECT_CLAUDE_MD_ENTRYPOINT : false;
+var isInjectClaudeMdEntrypoint = process.argv[1]
+  ? resolve(process.argv[1]) === INJECT_CLAUDE_MD_ENTRYPOINT
+  : false;
 if (isInjectClaudeMdEntrypoint) {
   main();
 }
+
 export {
   buildInjectClaudeMdParts,
   detectInjectClaudeMdPlatform,
   formatInjectClaudeMdOutput,
-  parseInjectClaudeMdInput
+  parseInjectClaudeMdInput,
 };

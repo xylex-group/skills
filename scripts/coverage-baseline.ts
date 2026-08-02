@@ -116,20 +116,20 @@ const SKIP_SECTION_ENTRIES = new Set([
  * If any alias is found in the graph (case-insensitive), the product counts as covered.
  */
 const ALIASES: Record<string, string[]> = {
-  Functions: ["Serverless Functions", "Edge Functions", "Vercel Functions"],
-  MCP: ["MCP Server", "MCP Integration", "MCP Client"],
-  Comments: ["Preview Comments"],
-  Toolbar: ["Vercel Toolbar"],
-  "Image Optimization": ["next/image", "Image Optimization"],
-  "Cron Jobs": ["Cron Jobs", "Cron"],
-  "Speed Insights": ["Speed Insights"],
-  "Web Analytics": ["Web Analytics", "Vercel Analytics"],
-  Drains: ["Vercel Drains"],
   Alerts: ["Monitoring"],
   Blob: ["Vercel Blob"],
+  "Bot Management": ["Bot Filter"],
+  Comments: ["Preview Comments"],
+  "Cron Jobs": ["Cron Jobs", "Cron"],
+  Drains: ["Vercel Drains"],
   "Edge Config": ["Vercel Edge Config", "Edge Config"],
   Firewall: ["Vercel Firewall"],
-  "Bot Management": ["Bot Filter"],
+  Functions: ["Serverless Functions", "Edge Functions", "Vercel Functions"],
+  "Image Optimization": ["next/image", "Image Optimization"],
+  MCP: ["MCP Server", "MCP Integration", "MCP Client"],
+  "Speed Insights": ["Speed Insights"],
+  Toolbar: ["Vercel Toolbar"],
+  "Web Analytics": ["Web Analytics", "Vercel Analytics"],
 };
 
 // ---------------------------------------------------------------------------
@@ -137,8 +137,8 @@ const ALIASES: Record<string, string[]> = {
 // ---------------------------------------------------------------------------
 
 interface Product {
-  section: string;
   name: string;
+  section: string;
   url: string;
 }
 
@@ -161,7 +161,9 @@ function parseLlmsTxt(text: string): Product[] {
       continue;
     }
 
-    if (!inVercelDocs) continue;
+    if (!inVercelDocs) {
+      continue;
+    }
 
     // Track ## section headers
     if (line.startsWith("## ")) {
@@ -173,8 +175,8 @@ function parseLlmsTxt(text: string): Product[] {
     const match = line.match(/^- \[([^\]]+)\]\(([^)]+)\)/);
     if (match && currentSection) {
       products.push({
-        section: currentSection,
         name: match[1],
+        section: currentSection,
         url: match[2],
       });
     }
@@ -192,19 +194,24 @@ function isInGraph(graphLower: string, productName: string): boolean {
   const name = productName.toLowerCase();
 
   // Direct match
-  if (graphLower.includes(name)) return true;
+  if (graphLower.includes(name)) {
+    return true;
+  }
 
   // Check explicit aliases
   const aliases = ALIASES[productName];
   if (aliases) {
     for (const alias of aliases) {
-      if (graphLower.includes(alias.toLowerCase())) return true;
+      if (graphLower.includes(alias.toLowerCase())) {
+        return true;
+      }
     }
   }
 
   // Try adding "Vercel" prefix (e.g., "Blob" → "Vercel Blob")
-  if (!name.startsWith("vercel ") && graphLower.includes(`vercel ${name}`))
+  if (!name.startsWith("vercel ") && graphLower.includes(`vercel ${name}`)) {
     return true;
+  }
 
   return false;
 }
@@ -214,9 +221,9 @@ function isInGraph(graphLower: string, productName: string): boolean {
 // ---------------------------------------------------------------------------
 
 export interface CoverageResult {
-  total: number;
   covered: Product[];
   missing: Product[];
+  total: number;
 }
 
 /** Run the coverage baseline check. Returns results without exiting. */
@@ -224,7 +231,9 @@ export async function checkCoverage(root: string): Promise<CoverageResult> {
   // Fetch llms.txt
   const res = await fetch(LLMS_TXT_URL);
   if (!res.ok) {
-    throw new Error(`Failed to fetch llms.txt: ${res.status} ${res.statusText}`);
+    throw new Error(
+      `Failed to fetch llms.txt: ${res.status} ${res.statusText}`
+    );
   }
   const text = await res.text();
 
@@ -232,9 +241,11 @@ export async function checkCoverage(root: string): Promise<CoverageResult> {
   const all = parseLlmsTxt(text);
   const products = all.filter(
     (p) =>
-      !SKIP_SECTIONS.has(p.section) &&
-      !SKIP_ENTRIES.has(p.name) &&
-      !SKIP_SECTION_ENTRIES.has(`${p.section}:${p.name}`),
+      !(
+        SKIP_SECTIONS.has(p.section) ||
+        SKIP_ENTRIES.has(p.name) ||
+        SKIP_SECTION_ENTRIES.has(`${p.section}:${p.name}`)
+      )
   );
 
   // Load graph
@@ -258,7 +269,9 @@ export async function checkCoverage(root: string): Promise<CoverageResult> {
   }
 
   if (!loaded) {
-    throw lastError instanceof Error ? lastError : new Error("Could not load ecosystem graph");
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Could not load ecosystem graph");
   }
 
   const graphLower = graph.toLowerCase();
@@ -275,12 +288,12 @@ export async function checkCoverage(root: string): Promise<CoverageResult> {
     }
   }
 
-  return { total: products.length, covered, missing };
+  return { covered, missing, total: products.length };
 }
 
 async function main() {
   console.log(
-    "Coverage Baseline — llms.txt vs Ecosystem Graph\n" + "=".repeat(50),
+    "Coverage Baseline — llms.txt vs Ecosystem Graph\n" + "=".repeat(50)
   );
 
   console.log(`\nFetching ${LLMS_TXT_URL} ...`);
@@ -318,9 +331,11 @@ async function main() {
 
     console.log(`\n${"=".repeat(50)}`);
     console.log(
-      `Covered: ${covered.length}/${total} | Missing: ${missing.length}`,
+      `Covered: ${covered.length}/${total} | Missing: ${missing.length}`
     );
-    console.error(`\nFAILED — ${missing.length} product(s) missing from graph\n`);
+    console.error(
+      `\nFAILED — ${missing.length} product(s) missing from graph\n`
+    );
     process.exit(1);
   }
 
@@ -328,4 +343,6 @@ async function main() {
   console.log(`\nPASSED — all ${total} products covered in graph\n`);
 }
 
-if (import.meta.main) main();
+if (import.meta.main) {
+  main();
+}

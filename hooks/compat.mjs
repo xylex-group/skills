@@ -1,5 +1,6 @@
 // hooks/src/compat.mts
 import { appendFileSync } from "fs";
+
 var cursorSessionEnv = /* @__PURE__ */ new Map();
 var currentHookEventName;
 function isRecord(value) {
@@ -12,13 +13,19 @@ function readRecord(value) {
   return isRecord(value) ? value : void 0;
 }
 function readWorkspaceRoot(raw) {
-  if (!Array.isArray(raw.workspace_roots)) return void 0;
+  if (!Array.isArray(raw.workspace_roots)) {
+    return void 0;
+  }
   const firstRoot = raw.workspace_roots[0];
   return typeof firstRoot === "string" ? firstRoot : void 0;
 }
 function normalizeToolOutputValue(value) {
-  if (typeof value === "undefined") return void 0;
-  if (typeof value === "string") return value;
+  if (typeof value === "undefined") {
+    return void 0;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
   try {
     return JSON.stringify(value);
   } catch {
@@ -29,13 +36,19 @@ function escapeShellEnvValue(value) {
   return value.replace(/(["\\$`])/g, "\\$1");
 }
 function drainCursorSessionEnv() {
-  if (cursorSessionEnv.size === 0) return void 0;
+  if (cursorSessionEnv.size === 0) {
+    return void 0;
+  }
   const env = Object.fromEntries(cursorSessionEnv);
   cursorSessionEnv.clear();
   return env;
 }
 function detectPlatform(raw) {
-  if ("conversation_id" in raw || "workspace_roots" in raw || "cursor_version" in raw) {
+  if (
+    "conversation_id" in raw ||
+    "workspace_roots" in raw ||
+    "cursor_version" in raw
+  ) {
     return "cursor";
   }
   return "claude-code";
@@ -43,27 +56,34 @@ function detectPlatform(raw) {
 function normalizeInput(raw) {
   const platform = detectPlatform(raw);
   const sessionId = readString(raw.session_id ?? raw.conversation_id) ?? "";
-  const cwd = readString(raw.cwd) ?? readWorkspaceRoot(raw) ?? process.env.CURSOR_PROJECT_DIR ?? process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const cwd =
+    readString(raw.cwd) ??
+    readWorkspaceRoot(raw) ??
+    process.env.CURSOR_PROJECT_DIR ??
+    process.env.CLAUDE_PROJECT_DIR ??
+    process.cwd();
   const hookEvent = readString(raw.hook_event_name) ?? "";
-  const toolOutput = normalizeToolOutputValue(raw.tool_output ?? raw.tool_response);
+  const toolOutput = normalizeToolOutputValue(
+    raw.tool_output ?? raw.tool_response
+  );
   currentHookEventName = hookEvent || void 0;
   return {
-    platform,
-    sessionId,
     cwd,
     hookEvent,
-    toolName: readString(raw.tool_name),
-    toolInput: readRecord(raw.tool_input),
-    toolOutput,
+    platform,
     prompt: readString(raw.prompt),
-    raw
+    raw,
+    sessionId,
+    toolInput: readRecord(raw.tool_input),
+    toolName: readString(raw.tool_name),
+    toolOutput,
   };
 }
 function formatOutput(platform, internal) {
   if (platform === "cursor") {
     const env = {
-      ...drainCursorSessionEnv() ?? {},
-      ...internal.env ?? {}
+      ...(drainCursorSessionEnv() ?? {}),
+      ...(internal.env ?? {}),
     };
     const output = {};
     if (typeof internal.additionalContext !== "undefined") {
@@ -107,18 +127,28 @@ function setSessionEnv(platform, key, value) {
     return;
   }
   const envFile = getEnvFilePath();
-  if (!envFile) return;
-  appendFileSync(envFile, `export ${key}="${escapeShellEnvValue(value)}"
-`);
+  if (!envFile) {
+    return;
+  }
+  appendFileSync(
+    envFile,
+    `export ${key}="${escapeShellEnvValue(value)}"
+`
+  );
 }
 function getProjectRoot() {
-  return process.env.CLAUDE_PROJECT_ROOT ?? process.env.CURSOR_PROJECT_DIR ?? process.cwd();
+  return (
+    process.env.CLAUDE_PROJECT_ROOT ??
+    process.env.CURSOR_PROJECT_DIR ??
+    process.cwd()
+  );
 }
+
 export {
   detectPlatform,
   formatOutput,
   getEnvFilePath,
   getProjectRoot,
   normalizeInput,
-  setSessionEnv
+  setSessionEnv,
 };

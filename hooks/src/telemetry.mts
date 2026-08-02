@@ -1,52 +1,74 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 declare const __XYLEX_PLUGIN_VERSION__: string;
 
 /** Telemetry is opt-in for XYLEX; no remote endpoint is configured by default. */
 const BRIDGE_ENDPOINT = process.env.XYLEX_PLUGIN_TELEMETRY_URL?.trim() || "";
-const FLUSH_TIMEOUT_MS = 3_000;
-export const PLUGIN_VERSION = typeof __XYLEX_PLUGIN_VERSION__ === "string" ? __XYLEX_PLUGIN_VERSION__ : "0.1.0";
+const FLUSH_TIMEOUT_MS = 3000;
+export const PLUGIN_VERSION =
+  typeof __XYLEX_PLUGIN_VERSION__ === "string"
+    ? __XYLEX_PLUGIN_VERSION__
+    : "0.1.0";
 const ACTIVE_SESSION_TTL_MS = 60 * 60 * 1000;
 
-const DAU_STAMP_PATH = join(homedir(), ".config", "xylex-group-plugin", "dau-stamp");
-const FIRST_USE_STAMP_PATH = join(homedir(), ".config", "xylex-group-plugin", "first-use-stamp");
-const ACTIVE_SESSION_MARKER_PATH = join(homedir(), ".config", "xylex-group-plugin", "active-session.json");
+const DAU_STAMP_PATH = join(
+  homedir(),
+  ".config",
+  "xylex-group-plugin",
+  "dau-stamp"
+);
+const FIRST_USE_STAMP_PATH = join(
+  homedir(),
+  ".config",
+  "xylex-group-plugin",
+  "first-use-stamp"
+);
+const ACTIVE_SESSION_MARKER_PATH = join(
+  homedir(),
+  ".config",
+  "xylex-group-plugin",
+  "active-session.json"
+);
 
 export interface TelemetryEvent {
-  id: string;
   event_time: number;
+  id: string;
   key: string;
   value: string;
 }
 
 export interface ActiveSessionMarker {
-  schema: 1;
   active: true;
-  pluginVersion: string;
-  updatedAt: number;
   expiresAt: number;
+  pluginVersion: string;
+  schema: 1;
+  updatedAt: number;
 }
 
 async function sendTelemetry(events: TelemetryEvent[]): Promise<boolean> {
-  if (events.length === 0) return false;
+  if (events.length === 0) {
+    return false;
+  }
   // No remote endpoint configured → local-only (stamps / markers only).
-  if (!BRIDGE_ENDPOINT) return false;
+  if (!BRIDGE_ENDPOINT) {
+    return false;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FLUSH_TIMEOUT_MS);
   try {
     const response = await fetch(BRIDGE_ENDPOINT, {
-      method: "POST",
+      body: JSON.stringify(events),
       headers: {
         "Content-Type": "application/json",
-        "x-xylex-group-plugin-topic-id": "dau",
         "x-xylex-group-plugin-session-id": randomUUID(),
+        "x-xylex-group-plugin-topic-id": "dau",
         "x-xylex-group-plugin-version": PLUGIN_VERSION,
       },
-      body: JSON.stringify(events),
+      method: "POST",
       signal: controller.signal,
     });
     return response.ok;
@@ -126,9 +148,13 @@ export function removeActiveSessionMarker(): void {
 // Telemetry controls
 // ---------------------------------------------------------------------------
 
-export function getTelemetryOverride(env: NodeJS.ProcessEnv = process.env): "off" | null {
+export function getTelemetryOverride(
+  env: NodeJS.ProcessEnv = process.env
+): "off" | null {
   const value = env.XYLEX_PLUGIN_TELEMETRY?.trim().toLowerCase();
-  if (value === "off") return value;
+  if (value === "off") {
+    return value;
+  }
   return null;
 }
 
@@ -136,8 +162,12 @@ export function getTelemetryOverride(env: NodeJS.ProcessEnv = process.env): "off
  * Plugin telemetry is **off by default** for XYLEX Group.
  * Enable only with XYLEX_PLUGIN_TELEMETRY=on and XYLEX_PLUGIN_TELEMETRY_URL.
  */
-export function isDauTelemetryEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (getTelemetryOverride(env) === "off") return false;
+export function isDauTelemetryEnabled(
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (getTelemetryOverride(env) === "off") {
+    return false;
+  }
   const value = env.XYLEX_PLUGIN_TELEMETRY?.trim().toLowerCase();
   return value === "on" || value === "1" || value === "true";
 }
@@ -150,16 +180,18 @@ export function refreshActiveSessionMarker(now: Date = new Date()): void {
 
   const updatedAt = now.getTime();
   const marker: ActiveSessionMarker = {
-    schema: 1,
     active: true,
-    pluginVersion: PLUGIN_VERSION,
-    updatedAt,
     expiresAt: updatedAt + ACTIVE_SESSION_TTL_MS,
+    pluginVersion: PLUGIN_VERSION,
+    schema: 1,
+    updatedAt,
   };
 
   try {
     mkdirSync(dirname(ACTIVE_SESSION_MARKER_PATH), { recursive: true });
-    writeFileSync(ACTIVE_SESSION_MARKER_PATH, `${JSON.stringify(marker)}\n`, { flag: "w" });
+    writeFileSync(ACTIVE_SESSION_MARKER_PATH, `${JSON.stringify(marker)}\n`, {
+      flag: "w",
+    });
   } catch {
     // Best-effort
   }
@@ -169,16 +201,20 @@ export function refreshActiveSessionMarker(now: Date = new Date()): void {
 // DAU telemetry (default-on, opt-out via XYLEX_PLUGIN_TELEMETRY=off)
 // ---------------------------------------------------------------------------
 
-export async function trackDauActiveToday(now: Date = new Date()): Promise<void> {
-  if (!isDauTelemetryEnabled()) return;
+export async function trackDauActiveToday(
+  now: Date = new Date()
+): Promise<void> {
+  if (!isDauTelemetryEnabled()) {
+    return;
+  }
 
   const eventTime = now.getTime();
   const events: TelemetryEvent[] = [];
 
   if (shouldSendDauPing(now)) {
     events.push({
-      id: randomUUID(),
       event_time: eventTime,
+      id: randomUUID(),
       key: "dau:active_today",
       value: "1",
     });
@@ -186,8 +222,8 @@ export async function trackDauActiveToday(now: Date = new Date()): Promise<void>
 
   if (shouldSendFirstUsePing()) {
     events.push({
-      id: randomUUID(),
       event_time: eventTime,
+      id: randomUUID(),
       key: "plugin:first_use",
       value: "1",
     });
@@ -195,8 +231,8 @@ export async function trackDauActiveToday(now: Date = new Date()): Promise<void>
 
   if (events.length > 0) {
     events.push({
-      id: randomUUID(),
       event_time: eventTime,
+      id: randomUUID(),
       key: "plugin:version",
       value: PLUGIN_VERSION,
     });
@@ -206,8 +242,12 @@ export async function trackDauActiveToday(now: Date = new Date()): Promise<void>
 
   if (sent) {
     for (const event of events) {
-      if (event.key === "dau:active_today") markDauPingSent(now);
-      if (event.key === "plugin:first_use") markFirstUsePingSent();
+      if (event.key === "dau:active_today") {
+        markDauPingSent(now);
+      }
+      if (event.key === "plugin:first_use") {
+        markFirstUsePingSent();
+      }
     }
   }
 }

@@ -1,32 +1,35 @@
 // hooks/src/vercel-config.mts
 import { safeReadFile } from "./hook-env.mjs";
+
 var KEY_SKILL_MAP = {
-  // Routing
-  redirects: ["routing-middleware"],
-  rewrites: ["routing-middleware"],
-  headers: ["routing-middleware"],
-  cleanUrls: ["routing-middleware"],
-  trailingSlash: ["routing-middleware"],
-  // Functions / compute
-  functions: ["vercel-functions"],
-  regions: ["vercel-functions"],
+  buildCommand: ["deployments-cicd"],
   // Build / CI-CD
   builds: ["deployments-cicd"],
-  buildCommand: ["deployments-cicd"],
+  cleanUrls: ["routing-middleware"],
+  devCommand: ["deployments-cicd"],
+  framework: ["deployments-cicd"],
+  // Functions / compute
+  functions: ["vercel-functions"],
+  headers: ["routing-middleware"],
+  ignoreCommand: ["deployments-cicd"],
   installCommand: ["deployments-cicd"],
   outputDirectory: ["deployments-cicd"],
-  framework: ["deployments-cicd"],
-  devCommand: ["deployments-cicd"],
-  ignoreCommand: ["deployments-cicd"]
+  // Routing
+  redirects: ["routing-middleware"],
+  regions: ["vercel-functions"],
+  rewrites: ["routing-middleware"],
+  trailingSlash: ["routing-middleware"],
 };
 var VERCEL_JSON_SKILLS = /* @__PURE__ */ new Set([
   "deployments-cicd",
   "routing-middleware",
-  "vercel-functions"
+  "vercel-functions",
 ]);
 function resolveVercelJsonSkills(filePath) {
   const content = safeReadFile(filePath);
-  if (content === null) return null;
+  if (content === null) {
+    return null;
+  }
   let parsed;
   try {
     parsed = JSON.parse(content);
@@ -46,16 +49,15 @@ function resolveVercelJsonSkills(filePath) {
       }
     }
   }
-  return { relevantSkills, keys };
+  return { keys, relevantSkills };
 }
 function isVercelJsonPath(filePath) {
-  if (typeof filePath !== "string") return false;
+  if (typeof filePath !== "string") {
+    return false;
+  }
   const normalized = filePath.replace(/\\/g, "/");
   const base = normalized.split("/").pop();
   return base === "vercel.json";
 }
-export {
-  VERCEL_JSON_SKILLS,
-  isVercelJsonPath,
-  resolveVercelJsonSkills
-};
+
+export { isVercelJsonPath, resolveVercelJsonSkills, VERCEL_JSON_SKILLS };

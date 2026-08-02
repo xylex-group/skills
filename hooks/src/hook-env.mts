@@ -12,15 +12,15 @@ import {
   closeSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLogger, logCaughtError, type Logger } from "./logger.mjs";
+import { createLogger, type Logger, logCaughtError } from "./logger.mts";
 
 const log: Logger = createLogger();
 
@@ -45,10 +45,12 @@ export function pluginRoot(metaUrl?: string): string {
 // ---------------------------------------------------------------------------
 
 function resolveAuditLogPath(hookInputCwd?: string | null): string | null {
-  const cwdFromHookInput = typeof hookInputCwd === "string" && hookInputCwd.trim() !== ""
-    ? hookInputCwd
-    : null;
-  const projectRoot = process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
+  const cwdFromHookInput =
+    typeof hookInputCwd === "string" && hookInputCwd.trim() !== ""
+      ? hookInputCwd
+      : null;
+  const projectRoot =
+    process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
   const configuredPath = process.env.XYLEX_PLUGIN_AUDIT_LOG_FILE;
 
   if (configuredPath === "off") {
@@ -60,19 +62,33 @@ function resolveAuditLogPath(hookInputCwd?: string | null): string | null {
   }
 
   const projectSlug = projectRoot.replaceAll("/", "-");
-  return join(homedir(), ".claude", "projects", projectSlug, "xylex-group-plugin", "skill-injections.jsonl");
+  return join(
+    homedir(),
+    ".claude",
+    "projects",
+    projectSlug,
+    "xylex-group-plugin",
+    "skill-injections.jsonl"
+  );
 }
 
-export function appendAuditLog(record: Record<string, unknown>, hookInputCwd?: string | null): void {
+export function appendAuditLog(
+  record: Record<string, unknown>,
+  hookInputCwd?: string | null
+): void {
   const auditLogPath = resolveAuditLogPath(hookInputCwd);
-  if (auditLogPath === null) return;
+  if (auditLogPath === null) {
+    return;
+  }
 
   try {
     mkdirSync(dirname(auditLogPath), { recursive: true });
     const payload = { timestamp: new Date().toISOString(), ...record };
     appendFileSync(auditLogPath, `${JSON.stringify(payload)}\n`, "utf-8");
   } catch (error) {
-    logCaughtError(log, "hook-env:append-audit-log-failed", error, { auditLogPath });
+    logCaughtError(log, "hook-env:append-audit-log-failed", error, {
+      auditLogPath,
+    });
   }
 }
 
@@ -85,7 +101,9 @@ export function appendAuditLog(record: Record<string, unknown>, hookInputCwd?: s
  * Returns the `agent_id` field when present (subagent context),
  * or `"main"` for the lead agent.
  */
-export function getDedupScopeId(payload: Record<string, unknown> | null | undefined): string {
+export function getDedupScopeId(
+  payload: Record<string, unknown> | null | undefined
+): string {
   if (
     payload &&
     typeof payload === "object" &&
@@ -120,45 +138,86 @@ function dedupScopeIdSegment(scopeId: string): string {
   return createHash("sha256").update(scopeId).digest("hex");
 }
 
-function resolveDedupTempPath(sessionId: string, basename: string, scopeId?: string): string {
+function resolveDedupTempPath(
+  sessionId: string,
+  basename: string,
+  scopeId?: string
+): string {
   const tempRoot = resolve(tmpdir());
   const scopeSegment = scopeId ? `-${dedupScopeIdSegment(scopeId)}` : "";
-  const candidate = resolve(join(tempRoot, `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}${scopeSegment}-${basename}`));
+  const candidate = resolve(
+    join(
+      tempRoot,
+      `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}${scopeSegment}-${basename}`
+    )
+  );
   const tempPrefix = tempRoot.endsWith(sep) ? tempRoot : `${tempRoot}${sep}`;
 
   if (!candidate.startsWith(tempPrefix)) {
-    throw new Error(`dedup temp path escaped tmpdir: tempRoot=${tempRoot} candidate=${candidate}`);
+    throw new Error(
+      `dedup temp path escaped tmpdir: tempRoot=${tempRoot} candidate=${candidate}`
+    );
   }
 
   return candidate;
 }
 
-export function dedupFilePath(sessionId: string, kind: string, scopeId?: string): string {
+export function dedupFilePath(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): string {
   return resolveDedupTempPath(sessionId, `${kind}.txt`, scopeId);
 }
 
-export function dedupClaimDirPath(sessionId: string, kind: string, scopeId?: string): string {
+export function dedupClaimDirPath(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): string {
   return resolveDedupTempPath(sessionId, `${kind}.d`, scopeId);
 }
 
-export function readSessionFile(sessionId: string, kind: string, scopeId?: string): string {
+export function readSessionFile(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): string {
   try {
     return readFileSync(dedupFilePath(sessionId, kind, scopeId), "utf-8");
   } catch (error) {
-    logCaughtError(log, "hook-env:read-session-file-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:read-session-file-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
     return "";
   }
 }
 
-export function writeSessionFile(sessionId: string, kind: string, value: string, scopeId?: string): void {
+export function writeSessionFile(
+  sessionId: string,
+  kind: string,
+  value: string,
+  scopeId?: string
+): void {
   try {
     writeFileSync(dedupFilePath(sessionId, kind, scopeId), value, "utf-8");
   } catch (error) {
-    logCaughtError(log, "hook-env:write-session-file-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:write-session-file-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
   }
 }
 
-export function tryClaimSessionKey(sessionId: string, kind: string, key: string, scopeId?: string): boolean {
+export function tryClaimSessionKey(
+  sessionId: string,
+  kind: string,
+  key: string,
+  scopeId?: string
+): boolean {
   try {
     const claimDir = dedupClaimDirPath(sessionId, kind, scopeId);
     mkdirSync(claimDir, { recursive: true });
@@ -179,29 +238,52 @@ export function tryClaimSessionKey(sessionId: string, kind: string, key: string,
   }
 }
 
-export function listSessionKeys(sessionId: string, kind: string, scopeId?: string): string[] {
+export function listSessionKeys(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): string[] {
   try {
     return readdirSync(dedupClaimDirPath(sessionId, kind, scopeId))
       .map((entry) => decodeURIComponent(entry))
       .filter((entry) => entry !== "")
       .sort();
   } catch (error) {
-    logCaughtError(log, "hook-env:list-session-keys-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:list-session-keys-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
     return [];
   }
 }
 
-export function syncSessionFileFromClaims(sessionId: string, kind: string, scopeId?: string): string {
+export function syncSessionFileFromClaims(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): string {
   const value = listSessionKeys(sessionId, kind, scopeId).join(",");
   writeSessionFile(sessionId, kind, value, scopeId);
   return value;
 }
 
-export function removeSessionClaimDir(sessionId: string, kind: string, scopeId?: string): void {
+export function removeSessionClaimDir(
+  sessionId: string,
+  kind: string,
+  scopeId?: string
+): void {
   try {
-    rmSync(dedupClaimDirPath(sessionId, kind, scopeId), { recursive: true, force: true });
+    rmSync(dedupClaimDirPath(sessionId, kind, scopeId), {
+      force: true,
+      recursive: true,
+    });
   } catch (error) {
-    logCaughtError(log, "hook-env:remove-session-claim-dir-failed", error, { sessionId, kind, scopeId });
+    logCaughtError(log, "hook-env:remove-session-claim-dir-failed", error, {
+      kind,
+      scopeId,
+      sessionId,
+    });
   }
 }
 
@@ -212,35 +294,34 @@ export function removeSessionClaimDir(sessionId: string, kind: string, scopeId?:
  * (`xylex-group-plugin-<session>-<scopeId>-seen-skills.{d,txt}`) are also cleared.
  */
 export interface RemoveArtifactsResult {
-  removedFiles: number;
   removedDirs: number;
+  removedFiles: number;
 }
 
-const CLEARABLE_SESSION_KINDS = new Set([
-  "seen-skills",
-  "seen-context-chunks",
-]);
+const CLEARABLE_SESSION_KINDS = new Set(["seen-skills", "seen-context-chunks"]);
 
-export function removeAllSessionDedupArtifacts(sessionId: string): RemoveArtifactsResult {
-  const result: RemoveArtifactsResult = { removedFiles: 0, removedDirs: 0 };
+export function removeAllSessionDedupArtifacts(
+  sessionId: string
+): RemoveArtifactsResult {
+  const result: RemoveArtifactsResult = { removedDirs: 0, removedFiles: 0 };
   const tempRoot = resolve(tmpdir());
   const prefix = `xylex-group-plugin-${dedupSessionIdSegment(sessionId)}-`;
 
   let entries: string[];
   try {
-    entries = readdirSync(tempRoot).filter(
-      (name) => {
-        if (!name.startsWith(prefix)) return false;
-
-        for (const kind of CLEARABLE_SESSION_KINDS) {
-          if (name.endsWith(`-${kind}.d`) || name.endsWith(`-${kind}.txt`)) {
-            return true;
-          }
-        }
-
+    entries = readdirSync(tempRoot).filter((name) => {
+      if (!name.startsWith(prefix)) {
         return false;
-      },
-    );
+      }
+
+      for (const kind of CLEARABLE_SESSION_KINDS) {
+        if (name.endsWith(`-${kind}.d`) || name.endsWith(`-${kind}.txt`)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
   } catch {
     return result;
   }
@@ -249,17 +330,27 @@ export function removeAllSessionDedupArtifacts(sessionId: string): RemoveArtifac
     const fullPath = join(tempRoot, entry);
     if (entry.endsWith(".d")) {
       try {
-        rmSync(fullPath, { recursive: true, force: true });
+        rmSync(fullPath, { force: true, recursive: true });
         result.removedDirs++;
       } catch (error) {
-        logCaughtError(log, "hook-env:remove-all-session-dedup-artifacts-dir", error, { fullPath });
+        logCaughtError(
+          log,
+          "hook-env:remove-all-session-dedup-artifacts-dir",
+          error,
+          { fullPath }
+        );
       }
     } else {
       try {
         rmSync(fullPath);
         result.removedFiles++;
       } catch (error) {
-        logCaughtError(log, "hook-env:remove-all-session-dedup-artifacts-file", error, { fullPath });
+        logCaughtError(
+          log,
+          "hook-env:remove-all-session-dedup-artifacts-file",
+          error,
+          { fullPath }
+        );
       }
     }
   }
@@ -288,7 +379,9 @@ export function safeReadFile(path: string): string | null {
  */
 export function safeReadJson<T>(path: string): T | null {
   const content = safeReadFile(path);
-  if (content === null) return null;
+  if (content === null) {
+    return null;
+  }
   try {
     return JSON.parse(content) as T;
   } catch (error) {

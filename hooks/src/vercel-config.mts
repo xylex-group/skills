@@ -8,7 +8,7 @@
  * are relevant to the file's current content.
  */
 
-import { safeReadFile } from "./hook-env.mjs";
+import { safeReadFile } from "./hook-env.mts";
 
 // ---------------------------------------------------------------------------
 // Key → skill mapping
@@ -20,26 +20,25 @@ import { safeReadFile } from "./hook-env.mjs";
  * shared (rare — prefer the most specific skill).
  */
 const KEY_SKILL_MAP: Record<string, string[]> = {
-  // Routing
-  redirects: ["routing-middleware"],
-  rewrites: ["routing-middleware"],
-  headers: ["routing-middleware"],
-  cleanUrls: ["routing-middleware"],
-  trailingSlash: ["routing-middleware"],
-
-  // Functions / compute
-  functions: ["vercel-functions"],
-  regions: ["vercel-functions"],
+  buildCommand: ["deployments-cicd"],
 
   // Build / CI-CD
   builds: ["deployments-cicd"],
-  buildCommand: ["deployments-cicd"],
+  cleanUrls: ["routing-middleware"],
+  devCommand: ["deployments-cicd"],
+  framework: ["deployments-cicd"],
+
+  // Functions / compute
+  functions: ["vercel-functions"],
+  headers: ["routing-middleware"],
+  ignoreCommand: ["deployments-cicd"],
   installCommand: ["deployments-cicd"],
   outputDirectory: ["deployments-cicd"],
-  framework: ["deployments-cicd"],
-  devCommand: ["deployments-cicd"],
-  ignoreCommand: ["deployments-cicd"],
-
+  // Routing
+  redirects: ["routing-middleware"],
+  regions: ["vercel-functions"],
+  rewrites: ["routing-middleware"],
+  trailingSlash: ["routing-middleware"],
 };
 
 /**
@@ -57,8 +56,8 @@ export const VERCEL_JSON_SKILLS = new Set([
 // ---------------------------------------------------------------------------
 
 export interface VercelJsonRouting {
-  relevantSkills: Set<string>;
   keys: string[];
+  relevantSkills: Set<string>;
 }
 
 /**
@@ -68,9 +67,13 @@ export interface VercelJsonRouting {
  * Returns `null` if the file cannot be read or parsed (caller should
  * fall back to default priority-based matching).
  */
-export function resolveVercelJsonSkills(filePath: string): VercelJsonRouting | null {
+export function resolveVercelJsonSkills(
+  filePath: string
+): VercelJsonRouting | null {
   const content = safeReadFile(filePath);
-  if (content === null) return null; // file doesn't exist or can't be read
+  if (content === null) {
+    return null; // file doesn't exist or can't be read
+  }
 
   let parsed: unknown;
   try {
@@ -95,7 +98,7 @@ export function resolveVercelJsonSkills(filePath: string): VercelJsonRouting | n
     }
   }
 
-  return { relevantSkills, keys };
+  return { keys, relevantSkills };
 }
 
 /**
@@ -103,7 +106,9 @@ export function resolveVercelJsonSkills(filePath: string): VercelJsonRouting | n
  * Matches both root and monorepo apps/star/vercel.json patterns.
  */
 export function isVercelJsonPath(filePath: string): boolean {
-  if (typeof filePath !== "string") return false;
+  if (typeof filePath !== "string") {
+    return false;
+  }
   const normalized = filePath.replace(/\\/g, "/");
   const base = normalized.split("/").pop();
   return base === "vercel.json";

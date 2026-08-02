@@ -2,21 +2,21 @@
 import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { safeReadFile } from "./hook-env.mjs";
+
 function extractFrontmatter(markdown) {
   let src = markdown;
-  if (src.charCodeAt(0) === 65279) {
+  if (src.charCodeAt(0) === 65_279) {
     src = src.slice(1);
   }
-  const match = src.match(
-    /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/
-  );
+  const match = src.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) {
-    return { yaml: "", body: src };
+    return { body: src, yaml: "" };
   }
-  return { yaml: match[1], body: match[2] };
+  return { body: match[2], yaml: match[1] };
 }
 function invalidYaml(message, lineNumber) {
-  const location = typeof lineNumber === "number" ? ` (line ${lineNumber})` : "";
+  const location =
+    typeof lineNumber === "number" ? ` (line ${lineNumber})` : "";
   return new Error(`Invalid YAML frontmatter: ${message}${location}`);
 }
 function isIgnorableLine(line) {
@@ -25,7 +25,9 @@ function isIgnorableLine(line) {
 }
 function nextSignificantLine(lines, startIndex) {
   for (let i = startIndex; i < lines.length; i += 1) {
-    if (!isIgnorableLine(lines[i])) return i;
+    if (!isIgnorableLine(lines[i])) {
+      return i;
+    }
   }
   return -1;
 }
@@ -46,7 +48,9 @@ function countIndent(line) {
 }
 function parseYamlScalar(raw) {
   const value = raw.trim();
-  if (value === "") return "";
+  if (value === "") {
+    return "";
+  }
   const first = value[0];
   const last = value[value.length - 1];
   if ((first === "'" || first === '"') && last === first && value.length >= 2) {
@@ -62,11 +66,13 @@ function parseYamlScalar(raw) {
 }
 function parseInlineArray(raw) {
   const value = raw.trim();
-  if (!value.startsWith("[") || !value.endsWith("]")) {
+  if (!(value.startsWith("[") && value.endsWith("]"))) {
     throw invalidYaml("inline array must start with '[' and end with ']'");
   }
   const inner = value.slice(1, -1);
-  if (inner.trim() === "") return [];
+  if (inner.trim() === "") {
+    return [];
+  }
   const items = [];
   let token = "";
   let quote = null;
@@ -117,14 +123,98 @@ function parseInlineValue(raw) {
   }
   return parseYamlScalar(value);
 }
+function parseBlockScalarIndicator(raw) {
+  const value = raw.trim();
+  const match = value.match(/^([|>])([+-])?$/);
+  if (!match) {
+    return null;
+  }
+  const style = match[1];
+  const chompChar = match[2];
+  const chomp =
+    chompChar === "-" ? "strip" : chompChar === "+" ? "keep" : "clip";
+  return { chomp, style };
+}
+function parseBlockScalar(lines, startIndex, parentIndent, style, chomp) {
+  let index = startIndex;
+  const contentLines = [];
+  let contentIndent = null;
+  while (index < lines.length) {
+    const line = lines[index];
+    if (line.trim() === "") {
+      if (contentIndent !== null) {
+        contentLines.push("");
+      }
+      index += 1;
+      continue;
+    }
+    const lineIndent = countIndent(line);
+    if (lineIndent <= parentIndent) {
+      break;
+    }
+    if (contentIndent === null) {
+      contentIndent = lineIndent;
+    }
+    if (lineIndent < contentIndent) {
+      throw invalidYaml(
+        `unexpected indentation in block scalar, expected at least ${contentIndent} spaces but found ${lineIndent}`,
+        index + 1
+      );
+    }
+    contentLines.push(line.slice(contentIndent));
+    index += 1;
+  }
+  while (contentLines.length > 0 && contentLines[0] === "") {
+    contentLines.shift();
+  }
+  let text;
+  if (style === "|") {
+    text = contentLines.join("\n");
+  } else {
+    const paragraphs = [];
+    let current = [];
+    for (const line of contentLines) {
+      if (line === "") {
+        if (current.length > 0) {
+          paragraphs.push(current.join(" "));
+          current = [];
+        } else if (paragraphs.length > 0) {
+          paragraphs.push("");
+        }
+        continue;
+      }
+      current.push(line.trimEnd());
+    }
+    if (current.length > 0) {
+      paragraphs.push(current.join(" "));
+    }
+    text = paragraphs.join("\n");
+  }
+  if (chomp === "strip") {
+    text = text.replace(/\n+$/, "");
+  } else if (chomp === "keep") {
+    if (style === "|" && contentLines.length > 0 && !text.endsWith("\n")) {
+    }
+  } else {
+    text = text.replace(/\n+$/, "");
+    if (style === "|") {
+      text =
+        text.length > 0
+          ? `${text}
+`
+          : "";
+    }
+  }
+  return { nextIndex: index, value: text };
+}
 function parseYamlBlock(lines, startIndex, indent) {
   let index = nextSignificantLine(lines, startIndex);
   if (index === -1) {
-    return { value: "", nextIndex: lines.length };
+    return { nextIndex: lines.length, value: "" };
   }
   const firstIndent = countIndent(lines[index]);
   if (firstIndent < indent) {
-    return { value: "", nextIndex: index };
+    return { nextIndex: index, value: "" };
   }
   if (firstIndent !== indent) {
     throw invalidYaml(
@@ -141,7 +231,9 @@ function parseYamlBlock(lines, startIndex, indent) {
         continue;
       }
       const lineIndent = countIndent(lines[index]);
-      if (lineIndent < indent) break;
+      if (lineIndent < indent) {
+        break;
+      }
       if (lineIndent !== indent) {
         throw invalidYaml(
           `unexpected indentation inside array, expected ${indent} spaces but found ${lineIndent}`,
@@ -174,7 +266,7 @@ function parseYamlBlock(lines, startIndex, indent) {
       arr.push(child.value);
       index = child.nextIndex;
     }
-    return { value: arr, nextIndex: index };
+    return { nextIndex: index, value: arr };
   }
   const obj = {};
   while (index < lines.length) {
@@ -183,7 +275,9 @@ function parseYamlBlock(lines, startIndex, indent) {
       continue;
     }
     const lineIndent = countIndent(lines[index]);
-    if (lineIndent < indent) break;
+    if (lineIndent < indent) {
+      break;
+    }
     if (lineIndent !== indent) {
       throw invalidYaml(
         `unexpected indentation inside object, expected ${indent} spaces but found ${lineIndent}`,
@@ -212,7 +306,21 @@ function parseYamlBlock(lines, startIndex, indent) {
       );
     }
     const remainder = content.slice(colonIndex + 1);
-    if (remainder.trim() !== "") {
+    const remainderTrimmed = remainder.trim();
+    if (remainderTrimmed !== "") {
+      const blockIndicator = parseBlockScalarIndicator(remainderTrimmed);
+      if (blockIndicator) {
+        const scalar = parseBlockScalar(
+          lines,
+          index + 1,
+          indent,
+          blockIndicator.style,
+          blockIndicator.chomp
+        );
+        obj[key] = scalar.value;
+        index = scalar.nextIndex;
+        continue;
+      }
       obj[key] = parseInlineValue(remainder);
       index += 1;
       continue;
@@ -233,13 +341,15 @@ function parseYamlBlock(lines, startIndex, indent) {
     obj[key] = child.value;
     index = child.nextIndex;
   }
-  return { value: obj, nextIndex: index };
+  return { nextIndex: index, value: obj };
 }
 function parseSimpleYaml(yamlStr) {
   const normalized = yamlStr.replace(/\r\n?/g, "\n");
   const lines = normalized.split("\n");
   const start = nextSignificantLine(lines, 0);
-  if (start === -1) return {};
+  if (start === -1) {
+    return {};
+  }
   const firstIndent = countIndent(lines[start]);
   if (firstIndent !== 0) {
     throw invalidYaml(
@@ -252,27 +362,48 @@ function parseSimpleYaml(yamlStr) {
   if (trailing !== -1) {
     throw invalidYaml("unexpected trailing content", trailing + 1);
   }
-  if (parsed.value == null || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+  if (
+    parsed.value == null ||
+    typeof parsed.value !== "object" ||
+    Array.isArray(parsed.value)
+  ) {
     throw invalidYaml("root document must be a key-value object");
   }
   return parsed.value;
 }
 function parseValidateRules(raw) {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   const rules = [];
   for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
     const obj = item;
-    if (typeof obj.pattern !== "string" || obj.pattern === "") continue;
-    if (typeof obj.message !== "string" || obj.message === "") continue;
+    if (typeof obj.pattern !== "string" || obj.pattern === "") {
+      continue;
+    }
+    if (typeof obj.message !== "string" || obj.message === "") {
+      continue;
+    }
     const severity = obj.severity;
-    if (severity !== "error" && severity !== "recommended" && severity !== "warn") continue;
+    if (
+      severity !== "error" &&
+      severity !== "recommended" &&
+      severity !== "warn"
+    ) {
+      continue;
+    }
     const rule = {
-      pattern: obj.pattern,
       message: obj.message,
-      severity
+      pattern: obj.pattern,
+      severity,
     };
-    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
+    if (
+      typeof obj.skipIfFileContains === "string" &&
+      obj.skipIfFileContains !== ""
+    ) {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     if (typeof obj.upgradeToSkill === "string" && obj.upgradeToSkill !== "") {
@@ -291,21 +422,32 @@ function parseValidateRules(raw) {
   return rules;
 }
 function parseChainToRules(raw) {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   const rules = [];
   for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
     const obj = item;
-    if (typeof obj.pattern !== "string" || obj.pattern === "") continue;
-    if (typeof obj.targetSkill !== "string" || obj.targetSkill === "") continue;
+    if (typeof obj.pattern !== "string" || obj.pattern === "") {
+      continue;
+    }
+    if (typeof obj.targetSkill !== "string" || obj.targetSkill === "") {
+      continue;
+    }
     const rule = {
       pattern: obj.pattern,
-      targetSkill: obj.targetSkill
+      targetSkill: obj.targetSkill,
     };
     if (typeof obj.message === "string" && obj.message !== "") {
       rule.message = obj.message;
     }
-    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
+    if (
+      typeof obj.skipIfFileContains === "string" &&
+      obj.skipIfFileContains !== ""
+    ) {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     rules.push(rule);
@@ -313,30 +455,48 @@ function parseChainToRules(raw) {
   return rules;
 }
 function parseSkillFrontmatter(yamlStr) {
-  if (!yamlStr || !yamlStr.trim()) {
-    return { name: "", description: "", summary: "", metadata: {}, validate: [], chainTo: [] };
+  if (!(yamlStr && yamlStr.trim())) {
+    return {
+      chainTo: [],
+      description: "",
+      metadata: {},
+      name: "",
+      summary: "",
+      validate: [],
+    };
   }
   const doc = parseSimpleYaml(yamlStr);
   return {
-    name: typeof doc.name === "string" ? doc.name : "",
-    description: typeof doc.description === "string" ? doc.description : "",
-    summary: typeof doc.summary === "string" ? doc.summary : "",
-    metadata: doc.metadata != null && typeof doc.metadata === "object" && !Array.isArray(doc.metadata) ? doc.metadata : {},
-    validate: parseValidateRules(doc.validate),
     chainTo: parseChainToRules(doc.chainTo),
-    ...doc.retrieval != null && typeof doc.retrieval === "object" && !Array.isArray(doc.retrieval) ? { retrieval: parseRetrievalBlock(doc.retrieval) } : {}
+    description: typeof doc.description === "string" ? doc.description : "",
+    metadata:
+      doc.metadata != null &&
+      typeof doc.metadata === "object" &&
+      !Array.isArray(doc.metadata)
+        ? doc.metadata
+        : {},
+    name: typeof doc.name === "string" ? doc.name : "",
+    summary: typeof doc.summary === "string" ? doc.summary : "",
+    validate: parseValidateRules(doc.validate),
+    ...(doc.retrieval != null &&
+    typeof doc.retrieval === "object" &&
+    !Array.isArray(doc.retrieval)
+      ? { retrieval: parseRetrievalBlock(doc.retrieval) }
+      : {}),
   };
 }
 function parseRetrievalBlock(raw) {
   const toStringArray = (v) => {
-    if (!Array.isArray(v)) return [];
+    if (!Array.isArray(v)) {
+      return [];
+    }
     return v.filter((s) => typeof s === "string" && s !== "");
   };
   return {
     aliases: toStringArray(raw.aliases),
-    intents: toStringArray(raw.intents),
     entities: toStringArray(raw.entities),
-    examples: toStringArray(raw.examples)
+    examples: toStringArray(raw.examples),
+    intents: toStringArray(raw.intents),
   };
 }
 function scanSkillsDir(rootDir) {
@@ -346,18 +506,22 @@ function scanSkillsDir(rootDir) {
   try {
     entries = readdirSync(rootDir).sort();
   } catch {
-    return { skills, diagnostics };
+    return { diagnostics, skills };
   }
   for (const entry of entries) {
     const skillDir = join(rootDir, entry);
     try {
-      if (!statSync(skillDir).isDirectory()) continue;
+      if (!statSync(skillDir).isDirectory()) {
+        continue;
+      }
     } catch {
       continue;
     }
     const skillFile = join(skillDir, "SKILL.md");
     const content = safeReadFile(skillFile);
-    if (content === null) continue;
+    if (content === null) {
+      continue;
+    }
     let parsed;
     try {
       const { yaml: yamlStr } = extractFrontmatter(content);
@@ -365,24 +529,24 @@ function scanSkillsDir(rootDir) {
     } catch (err) {
       const error = err;
       diagnostics.push({
-        file: skillFile,
         error: error.constructor?.name ?? "Error",
-        message: error.message
+        file: skillFile,
+        message: error.message,
       });
       continue;
     }
     skills.push({
-      dir: entry,
-      name: parsed.name || entry,
-      description: parsed.description,
-      summary: parsed.summary,
-      metadata: parsed.metadata,
-      validate: parsed.validate,
       chainTo: parsed.chainTo,
-      ...parsed.retrieval ? { retrieval: parsed.retrieval } : {}
+      description: parsed.description,
+      dir: entry,
+      metadata: parsed.metadata,
+      name: parsed.name || entry,
+      summary: parsed.summary,
+      validate: parsed.validate,
+      ...(parsed.retrieval ? { retrieval: parsed.retrieval } : {}),
     });
   }
-  return { skills, diagnostics };
+  return { diagnostics, skills };
 }
 function parsePromptSignals(raw, opts) {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
@@ -392,38 +556,49 @@ function parsePromptSignals(raw, opts) {
   const skill = opts?.skill ?? "";
   const warn = opts?.addWarning;
   const toStringArray = (v) => {
-    if (!Array.isArray(v)) return [];
+    if (!Array.isArray(v)) {
+      return [];
+    }
     return v.filter((x) => typeof x === "string" && x !== "");
   };
   const countEmptyStrings = (v) => {
-    if (!Array.isArray(v)) return 0;
+    if (!Array.isArray(v)) {
+      return 0;
+    }
     return v.filter((x) => typeof x === "string" && x === "").length;
   };
   const toStringArrayArray = (v) => {
-    if (!Array.isArray(v)) return [];
-    return v.filter((g) => Array.isArray(g)).map((g) => g.filter((x) => typeof x === "string" && x !== "")).filter((g) => g.length > 0);
+    if (!Array.isArray(v)) {
+      return [];
+    }
+    return v
+      .filter((g) => Array.isArray(g))
+      .map((g) => g.filter((x) => typeof x === "string" && x !== ""))
+      .filter((g) => g.length > 0);
   };
   const countNonArrayAllOf = (v) => {
-    if (!Array.isArray(v)) return 0;
+    if (!Array.isArray(v)) {
+      return 0;
+    }
     return v.filter((g) => !Array.isArray(g)).length;
   };
   const phrases = toStringArray(obj.phrases);
   const allOf = toStringArrayArray(obj.allOf);
   const anyOf = toStringArray(obj.anyOf);
   const noneOf = toStringArray(obj.noneOf);
-  const minScore = typeof obj.minScore === "number" && !Number.isNaN(obj.minScore) ? obj.minScore : 6;
+  const minScore =
+    typeof obj.minScore === "number" && !Number.isNaN(obj.minScore)
+      ? obj.minScore
+      : 6;
   if (warn) {
     if (Array.isArray(obj.phrases) && phrases.length === 0) {
-      warn(
-        `skill "${skill}": promptSignals.phrases is empty after filtering`,
-        {
-          code: "PROMPT_SIGNALS_EMPTY_PHRASES",
-          skill,
-          field: "promptSignals.phrases",
-          valueType: "array",
-          hint: "Add at least one non-empty phrase string"
-        }
-      );
+      warn(`skill "${skill}": promptSignals.phrases is empty after filtering`, {
+        code: "PROMPT_SIGNALS_EMPTY_PHRASES",
+        field: "promptSignals.phrases",
+        hint: "Add at least one non-empty phrase string",
+        skill,
+        valueType: "array",
+      });
     }
     const emptyCount = countEmptyStrings(obj.phrases);
     if (emptyCount > 0) {
@@ -431,10 +606,10 @@ function parsePromptSignals(raw, opts) {
         `skill "${skill}": promptSignals.phrases contains ${emptyCount} empty string(s)`,
         {
           code: "PROMPT_SIGNALS_EMPTY_PHRASES",
-          skill,
           field: "promptSignals.phrases",
+          hint: "Remove empty strings from phrases",
+          skill,
           valueType: "array",
-          hint: "Remove empty strings from phrases"
         }
       );
     }
@@ -444,60 +619,66 @@ function parsePromptSignals(raw, opts) {
         `skill "${skill}": promptSignals.allOf contains ${nonArrayCount} non-array element(s)`,
         {
           code: "PROMPT_SIGNALS_INVALID_ALLOF_GROUP",
-          skill,
           field: "promptSignals.allOf",
+          hint: "Each allOf entry must be an array of strings (e.g. [term1, term2])",
+          skill,
           valueType: "array",
-          hint: "Each allOf entry must be an array of strings (e.g. [term1, term2])"
         }
       );
     }
-    if (typeof obj.minScore === "number" && !Number.isNaN(obj.minScore) && obj.minScore < 1) {
+    if (
+      typeof obj.minScore === "number" &&
+      !Number.isNaN(obj.minScore) &&
+      obj.minScore < 1
+    ) {
       warn(
         `skill "${skill}": promptSignals.minScore is ${obj.minScore}, below minimum of 1`,
         {
           code: "PROMPT_SIGNALS_LOW_MINSCORE",
-          skill,
           field: "promptSignals.minScore",
+          hint: "Set minScore to at least 1",
+          skill,
           valueType: "number",
-          hint: "Set minScore to at least 1"
         }
       );
     }
   }
-  if (phrases.length === 0 && allOf.length === 0 && anyOf.length === 0 && noneOf.length === 0) {
+  if (
+    phrases.length === 0 &&
+    allOf.length === 0 &&
+    anyOf.length === 0 &&
+    noneOf.length === 0
+  ) {
     return void 0;
   }
-  return { phrases, allOf, anyOf, noneOf, minScore };
+  return { allOf, anyOf, minScore, noneOf, phrases };
 }
 function normalizePatternField(opts) {
   const { raw, skill, field, fieldTypeHint, coerceStrings, addWarning } = opts;
   let arr;
   if (coerceStrings && typeof raw === "string") {
-    addWarning(
-      `skill "${skill}": ${field} is a string, coercing to array`,
-      {
-        code: "COERCE_STRING_TO_ARRAY",
-        skill,
-        field,
-        valueType: "string",
-        hint: `Change ${field} to a YAML list`
-      }
-    );
+    addWarning(`skill "${skill}": ${field} is a string, coercing to array`, {
+      code: "COERCE_STRING_TO_ARRAY",
+      field,
+      hint: `Change ${field} to a YAML list`,
+      skill,
+      valueType: "string",
+    });
     arr = [raw];
-  } else if (!Array.isArray(raw)) {
+  } else if (Array.isArray(raw)) {
+    arr = raw;
+  } else {
     addWarning(
       `skill "${skill}": ${field} is not an array (${typeof raw}), defaulting to []`,
       {
         code: "INVALID_TYPE",
-        skill,
         field,
+        hint: `${field} must be an array of ${fieldTypeHint}`,
+        skill,
         valueType: typeof raw,
-        hint: `${field} must be an array of ${fieldTypeHint}`
       }
     );
     arr = [];
-  } else {
-    arr = raw;
   }
   return arr.filter((p, i) => {
     if (typeof p !== "string") {
@@ -505,25 +686,22 @@ function normalizePatternField(opts) {
         `skill "${skill}": ${field}[${i}] is not a string (${typeof p}), removing`,
         {
           code: "ENTRY_NOT_STRING",
-          skill,
           field: `${field}[${i}]`,
+          hint: `Each ${field} entry must be a string`,
+          skill,
           valueType: typeof p,
-          hint: `Each ${field} entry must be a string`
         }
       );
       return false;
     }
     if (p === "") {
-      addWarning(
-        `skill "${skill}": ${field}[${i}] is empty, removing`,
-        {
-          code: "ENTRY_EMPTY",
-          skill,
-          field: `${field}[${i}]`,
-          valueType: "string",
-          hint: `Remove empty entries from ${field}`
-        }
-      );
+      addWarning(`skill "${skill}": ${field}[${i}] is empty, removing`, {
+        code: "ENTRY_EMPTY",
+        field: `${field}[${i}]`,
+        hint: `Remove empty entries from ${field}`,
+        skill,
+        valueType: "string",
+      });
       return false;
     }
     return true;
@@ -543,87 +721,91 @@ function buildSkillMap(rootDir) {
     let rawPathPatterns;
     if (meta.pathPatterns !== void 0) {
       rawPathPatterns = meta.pathPatterns;
-    } else if (meta.filePattern !== void 0) {
+    } else if (meta.filePattern === void 0) {
+      rawPathPatterns = [];
+    } else {
       rawPathPatterns = meta.filePattern;
       addWarning(
         `skill "${skill.dir}": metadata.filePattern is deprecated, rename to pathPatterns`,
         {
           code: "DEPRECATED_FIELD",
-          skill: skill.dir,
           field: "filePattern",
+          hint: "Rename metadata.filePattern to metadata.pathPatterns",
+          skill: skill.dir,
           valueType: typeof meta.filePattern,
-          hint: "Rename metadata.filePattern to metadata.pathPatterns"
         }
       );
-    } else {
-      rawPathPatterns = [];
     }
     const filteredPathPatterns = normalizePatternField({
-      raw: rawPathPatterns,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
-      coerceStrings: true,
-      addWarning
+      raw: rawPathPatterns,
+      skill: skill.dir,
     });
     let rawBashPatterns;
     if (meta.bashPatterns !== void 0) {
       rawBashPatterns = meta.bashPatterns;
-    } else if (meta.bashPattern !== void 0) {
+    } else if (meta.bashPattern === void 0) {
+      rawBashPatterns = [];
+    } else {
       rawBashPatterns = meta.bashPattern;
       addWarning(
         `skill "${skill.dir}": metadata.bashPattern is deprecated, rename to bashPatterns`,
         {
           code: "DEPRECATED_FIELD",
-          skill: skill.dir,
           field: "bashPattern",
+          hint: "Rename metadata.bashPattern to metadata.bashPatterns",
+          skill: skill.dir,
           valueType: typeof meta.bashPattern,
-          hint: "Rename metadata.bashPattern to metadata.bashPatterns"
         }
       );
-    } else {
-      rawBashPatterns = [];
     }
     const filteredBashPatterns = normalizePatternField({
-      raw: rawBashPatterns,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
-      coerceStrings: true,
-      addWarning
-    });
-    const rawImportPatterns = meta.importPatterns !== void 0 ? meta.importPatterns : [];
-    const filteredImportPatterns = normalizePatternField({
-      raw: rawImportPatterns,
+      raw: rawBashPatterns,
       skill: skill.dir,
+    });
+    const rawImportPatterns =
+      meta.importPatterns === void 0 ? [] : meta.importPatterns;
+    const filteredImportPatterns = normalizePatternField({
+      addWarning,
+      coerceStrings: true,
       field: "importPatterns",
       fieldTypeHint: "package name strings",
-      coerceStrings: true,
-      addWarning
+      raw: rawImportPatterns,
+      skill: skill.dir,
     });
     const promptSignals = parsePromptSignals(meta.promptSignals, {
+      addWarning,
       skill: skill.dir,
-      addWarning
     });
-    const rawDocs = meta.docs !== void 0 ? meta.docs : [];
+    const rawDocs = meta.docs === void 0 ? [] : meta.docs;
     const filteredDocs = normalizePatternField({
-      raw: rawDocs,
-      skill: skill.dir,
+      addWarning,
+      coerceStrings: true,
       field: "docs",
       fieldTypeHint: "URL strings",
-      coerceStrings: true,
-      addWarning
+      raw: rawDocs,
+      skill: skill.dir,
     });
     const rawSitemap = meta.sitemap;
-    const sitemap = typeof rawSitemap === "string" && rawSitemap.length > 0 ? rawSitemap : void 0;
+    const sitemap =
+      typeof rawSitemap === "string" && rawSitemap.length > 0
+        ? rawSitemap
+        : void 0;
     const entry = {
+      bashPatterns: filteredBashPatterns,
+      docs: filteredDocs,
+      importPatterns: filteredImportPatterns,
+      pathPatterns: filteredPathPatterns,
       priority: meta.priority ?? 5,
       summary: skill.summary || "",
-      docs: filteredDocs,
-      pathPatterns: filteredPathPatterns,
-      bashPatterns: filteredBashPatterns,
-      importPatterns: filteredImportPatterns,
-      validate: skill.validate
+      validate: skill.validate,
     };
     if (sitemap) {
       entry.sitemap = sitemap;
@@ -640,10 +822,10 @@ function buildSkillMap(rootDir) {
     skills[skill.dir] = entry;
   }
   return {
-    skills,
     diagnostics,
+    skills,
+    warningDetails,
     warnings,
-    warningDetails
   };
 }
 var KNOWN_KEYS = /* @__PURE__ */ new Set([
@@ -657,7 +839,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "validate",
   "chainTo",
   "promptSignals",
-  "retrieval"
+  "retrieval",
 ]);
 function validateSkillMap(raw) {
   const errors = [];
@@ -674,65 +856,63 @@ function validateSkillMap(raw) {
   }
   if (raw == null || typeof raw !== "object") {
     return {
-      ok: false,
-      errors: ["skill-map must be a non-null object"],
       errorDetails: [
         {
           code: "INVALID_ROOT",
-          skill: "",
           field: "",
-          valueType: typeof raw,
+          hint: "Pass a valid skill-map object",
           message: "skill-map must be a non-null object",
-          hint: "Pass a valid skill-map object"
-        }
-      ]
+          skill: "",
+          valueType: typeof raw,
+        },
+      ],
+      errors: ["skill-map must be a non-null object"],
+      ok: false,
     };
   }
   if (!("skills" in raw)) {
     return {
-      ok: false,
-      errors: ["skill-map is missing required 'skills' key"],
       errorDetails: [
         {
           code: "MISSING_SKILLS_KEY",
-          skill: "",
           field: "skills",
-          valueType: "undefined",
+          hint: "Add a 'skills' key to the skill-map object",
           message: "skill-map is missing required 'skills' key",
-          hint: "Add a 'skills' key to the skill-map object"
-        }
-      ]
+          skill: "",
+          valueType: "undefined",
+        },
+      ],
+      errors: ["skill-map is missing required 'skills' key"],
+      ok: false,
     };
   }
   const rawObj = raw;
   const skills = rawObj.skills;
   if (skills == null || typeof skills !== "object" || Array.isArray(skills)) {
     return {
-      ok: false,
-      errors: ["'skills' must be a non-null object (not an array)"],
       errorDetails: [
         {
           code: "SKILLS_NOT_OBJECT",
-          skill: "",
           field: "skills",
-          valueType: Array.isArray(skills) ? "array" : typeof skills,
+          hint: "'skills' should be a plain object keyed by skill directory name",
           message: "'skills' must be a non-null object (not an array)",
-          hint: "'skills' should be a plain object keyed by skill directory name"
-        }
-      ]
+          skill: "",
+          valueType: Array.isArray(skills) ? "array" : typeof skills,
+        },
+      ],
+      errors: ["'skills' must be a non-null object (not an array)"],
+      ok: false,
     };
   }
   const normalizedSkills = {};
-  for (const [skill, config] of Object.entries(
-    skills
-  )) {
+  for (const [skill, config] of Object.entries(skills)) {
     if (config == null || typeof config !== "object" || Array.isArray(config)) {
       addError(`skill "${skill}": config must be a non-null object`, {
         code: "CONFIG_NOT_OBJECT",
-        skill,
         field: "",
+        hint: "Each skill config must be a plain object",
+        skill,
         valueType: Array.isArray(config) ? "array" : typeof config,
-        hint: "Each skill config must be a plain object"
       });
       continue;
     }
@@ -741,10 +921,10 @@ function validateSkillMap(raw) {
       if (!KNOWN_KEYS.has(key)) {
         addWarning(`skill "${skill}": unknown key "${key}"`, {
           code: "UNKNOWN_KEY",
-          skill,
           field: key,
+          hint: `Remove or rename unknown key "${key}"`,
+          skill,
           valueType: typeof cfg[key],
-          hint: `Remove or rename unknown key "${key}"`
         });
       }
     }
@@ -756,10 +936,10 @@ function validateSkillMap(raw) {
           `skill "${skill}": priority is not a valid number, defaulting to 5`,
           {
             code: "INVALID_PRIORITY",
-            skill,
             field: "priority",
+            hint: "Set priority to a numeric value (e.g., 5)",
+            skill,
             valueType: typeof p,
-            hint: "Set priority to a numeric value (e.g., 5)"
           }
         );
       } else {
@@ -767,53 +947,56 @@ function validateSkillMap(raw) {
       }
     }
     const pathPatterns = normalizePatternField({
-      raw: "pathPatterns" in cfg ? cfg.pathPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
-      coerceStrings: false,
-      addWarning
+      raw: "pathPatterns" in cfg ? cfg.pathPatterns : [],
+      skill,
     });
     const bashPatterns = normalizePatternField({
-      raw: "bashPatterns" in cfg ? cfg.bashPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
-      coerceStrings: false,
-      addWarning
+      raw: "bashPatterns" in cfg ? cfg.bashPatterns : [],
+      skill,
     });
     const importPatterns = normalizePatternField({
-      raw: "importPatterns" in cfg ? cfg.importPatterns : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "importPatterns",
       fieldTypeHint: "package name strings",
-      coerceStrings: false,
-      addWarning
+      raw: "importPatterns" in cfg ? cfg.importPatterns : [],
+      skill,
     });
     const summary = typeof cfg.summary === "string" ? cfg.summary : "";
     const docs = normalizePatternField({
-      raw: "docs" in cfg ? cfg.docs : [],
-      skill,
+      addWarning,
+      coerceStrings: false,
       field: "docs",
       fieldTypeHint: "URL strings",
-      coerceStrings: false,
-      addWarning
+      raw: "docs" in cfg ? cfg.docs : [],
+      skill,
     });
     const validate = parseValidateRules(cfg.validate);
     const promptSignals = parsePromptSignals(cfg.promptSignals, {
+      addWarning,
       skill,
-      addWarning
     });
-    const sitemap = typeof cfg.sitemap === "string" && cfg.sitemap.length > 0 ? cfg.sitemap : void 0;
+    const sitemap =
+      typeof cfg.sitemap === "string" && cfg.sitemap.length > 0
+        ? cfg.sitemap
+        : void 0;
     const chainTo = parseChainToRules(cfg.chainTo);
     const normalizedEntry = {
+      bashPatterns,
+      docs,
+      importPatterns,
+      pathPatterns,
       priority,
       summary,
-      docs,
-      pathPatterns,
-      bashPatterns,
-      importPatterns,
-      validate
+      validate,
     };
     if (sitemap) {
       normalizedEntry.sitemap = sitemap;
@@ -824,63 +1007,76 @@ function validateSkillMap(raw) {
     if (promptSignals) {
       normalizedEntry.promptSignals = promptSignals;
     }
-    if (cfg.retrieval != null && typeof cfg.retrieval === "object" && !Array.isArray(cfg.retrieval)) {
+    if (
+      cfg.retrieval != null &&
+      typeof cfg.retrieval === "object" &&
+      !Array.isArray(cfg.retrieval)
+    ) {
       normalizedEntry.retrieval = cfg.retrieval;
     }
     normalizedSkills[skill] = normalizedEntry;
   }
   const allSlugs = new Set(Object.keys(normalizedSkills));
   for (const [skill, config] of Object.entries(normalizedSkills)) {
-    if (!config.chainTo) continue;
+    if (!config.chainTo) {
+      continue;
+    }
     for (const rule of config.chainTo) {
       if (!allSlugs.has(rule.targetSkill)) {
         addError(
           `skill "${skill}": chainTo references non-existent skill "${rule.targetSkill}"`,
           {
             code: "CHAIN_TO_MISSING_TARGET",
-            skill,
             field: "chainTo.targetSkill",
+            hint: `Ensure "${rule.targetSkill}" exists as a skill directory`,
+            skill,
             valueType: "string",
-            hint: `Ensure "${rule.targetSkill}" exists as a skill directory`
           }
         );
       }
     }
   }
   for (const [skill, config] of Object.entries(normalizedSkills)) {
-    if (!config.validate?.length) continue;
+    if (!config.validate?.length) {
+      continue;
+    }
     const chainTargets = new Set(
       (config.chainTo ?? []).map((c) => c.targetSkill)
     );
     for (const rule of config.validate) {
-      if (rule.upgradeToSkill && (rule.severity === "error" || rule.severity === "recommended") && !chainTargets.has(rule.upgradeToSkill)) {
+      if (
+        rule.upgradeToSkill &&
+        (rule.severity === "error" || rule.severity === "recommended") &&
+        !chainTargets.has(rule.upgradeToSkill)
+      ) {
         addWarning(
           `skill "${skill}": validate rule with upgradeToSkill "${rule.upgradeToSkill}" (severity: ${rule.severity}) has no matching chainTo entry`,
           {
             code: "UPGRADE_WITHOUT_CHAIN",
-            skill,
             field: "validate.upgradeToSkill",
+            hint: `Add a chainTo entry targeting "${rule.upgradeToSkill}" or let build-manifest synthesize one`,
+            skill,
             valueType: "string",
-            hint: `Add a chainTo entry targeting "${rule.upgradeToSkill}" or let build-manifest synthesize one`
           }
         );
       }
     }
   }
   if (errors.length > 0) {
-    return { ok: false, errors, errorDetails };
+    return { errorDetails, errors, ok: false };
   }
   return {
-    ok: true,
     normalizedSkillMap: { skills: normalizedSkills },
+    ok: true,
+    warningDetails,
     warnings,
-    warningDetails
   };
 }
+
 export {
   buildSkillMap,
   extractFrontmatter,
   parseSkillFrontmatter,
   scanSkillsDir,
-  validateSkillMap
+  validateSkillMap,
 };

@@ -8,8 +8,8 @@ import {
   tryClaimSessionKey,
   writeSessionFile,
 } from "./src/hook-env.mts";
-import { formatOutput as formatPreToolOutput } from "./src/pretooluse-skill-inject.mts";
 import { mergeSeenSkillStatesWithCompactionReset } from "./src/patterns.mts";
+import { formatOutput as formatPreToolOutput } from "./src/pretooluse-skill-inject.mts";
 import {
   formatOutput,
   parsePromptInput,
@@ -24,8 +24,11 @@ const originalDedupMode = process.env.XYLEX_PLUGIN_HOOK_DEDUP;
 const touchedSessionIds = new Set<string>();
 
 function restoreEnv(
-  name: "XYLEX_PLUGIN_SEEN_SKILLS" | "XYLEX_PLUGIN_CONTEXT_COMPACTED" | "XYLEX_PLUGIN_HOOK_DEDUP",
-  value: string | undefined,
+  name:
+    | "XYLEX_PLUGIN_SEEN_SKILLS"
+    | "XYLEX_PLUGIN_CONTEXT_COMPACTED"
+    | "XYLEX_PLUGIN_HOOK_DEDUP",
+  value: string | undefined
 ): void {
   if (typeof value === "string") {
     process.env[name] = value;
@@ -36,7 +39,10 @@ function restoreEnv(
 
 function cleanupSession(sessionId: string): void {
   rmSync(dedupFilePath(sessionId, SESSION_KIND), { force: true });
-  rmSync(dedupClaimDirPath(sessionId, SESSION_KIND), { recursive: true, force: true });
+  rmSync(dedupClaimDirPath(sessionId, SESSION_KIND), {
+    force: true,
+    recursive: true,
+  });
 }
 
 function newSessionId(name: string): string {
@@ -79,10 +85,15 @@ describe("user prompt seen-skills dedup state", () => {
     const sessionId = newSessionId("sync");
 
     process.env.XYLEX_PLUGIN_SEEN_SKILLS = "skill-env";
-    const synced = syncPromptSeenSkillClaims(sessionId, ["skill-new", "skill-env"]);
+    const synced = syncPromptSeenSkillClaims(sessionId, [
+      "skill-new",
+      "skill-env",
+    ]);
 
     expect(synced).toBe("skill-env,skill-new");
-    expect(readSessionFile(sessionId, SESSION_KIND)).toBe("skill-env,skill-new");
+    expect(readSessionFile(sessionId, SESSION_KIND)).toBe(
+      "skill-env,skill-new"
+    );
     expect(process.env.XYLEX_PLUGIN_SEEN_SKILLS).toBe("skill-env");
   });
 
@@ -105,14 +116,14 @@ describe("user prompt seen-skills dedup state", () => {
       readSessionFile(sessionId, SESSION_KIND),
       listSessionKeys(sessionId, SESSION_KIND).join(","),
       {
-        sessionId,
         includeEnv: false,
+        sessionId,
         skillMap: {
           "ai-sdk": { priority: 7 },
-          workflow: { priority: 8 },
           "low-skill": { priority: 6 },
+          workflow: { priority: 8 },
         },
-      },
+      }
     );
 
     expect(result.compactionResetApplied).toBe(true);
@@ -123,9 +134,13 @@ describe("user prompt seen-skills dedup state", () => {
     expect(readSessionFile(sessionId, SESSION_KIND)).toBe("low-skill");
     expect(readSessionFile(sessionId, SESSION_KIND, scopeId)).toBe("low-skill");
     expect(listSessionKeys(sessionId, SESSION_KIND)).toEqual(["low-skill"]);
-    expect(listSessionKeys(sessionId, SESSION_KIND, scopeId)).toEqual(["low-skill"]);
+    expect(listSessionKeys(sessionId, SESSION_KIND, scopeId)).toEqual([
+      "low-skill",
+    ]);
     expect(tryClaimSessionKey(sessionId, SESSION_KIND, "ai-sdk")).toBe(true);
-    expect(tryClaimSessionKey(sessionId, SESSION_KIND, "workflow", scopeId)).toBe(true);
+    expect(
+      tryClaimSessionKey(sessionId, SESSION_KIND, "workflow", scopeId)
+    ).toBe(true);
   });
 });
 
@@ -134,17 +149,17 @@ describe("user prompt cursor compatibility", () => {
     const parsed = parsePromptInput(
       JSON.stringify({
         conversation_id: "cursor-conversation",
-        workspace_roots: ["/tmp/cursor-workspace", "/tmp/ignored"],
         cursor_version: "1.0.0",
         prompt: "Use the AI SDK for streaming text generation",
-      }),
+        workspace_roots: ["/tmp/cursor-workspace", "/tmp/ignored"],
+      })
     );
 
     expect(parsed).toEqual({
-      prompt: "Use the AI SDK for streaming text generation",
-      platform: "cursor",
-      sessionId: "cursor-conversation",
       cwd: "/tmp/cursor-workspace",
+      platform: "cursor",
+      prompt: "Use the AI SDK for streaming text generation",
+      sessionId: "cursor-conversation",
     });
   });
 
@@ -158,33 +173,35 @@ describe("user prompt cursor compatibility", () => {
       undefined,
       {
         ...process.env,
-        CURSOR_PROJECT_DIR: "/tmp/cursor-project",
         CLAUDE_PROJECT_ROOT: "/tmp/claude-project",
-      },
+        CURSOR_PROJECT_DIR: "/tmp/cursor-project",
+      }
     );
 
     expect(parsed).toEqual({
-      prompt: "Use ai elements for streaming markdown in this chat UI",
-      platform: "cursor",
-      sessionId: "cursor-conversation",
       cwd: "/tmp/cursor-project",
+      platform: "cursor",
+      prompt: "Use ai elements for streaming markdown in this chat UI",
+      sessionId: "cursor-conversation",
     });
   });
 
   it("test_formatOutput_returns_cursor_flat_shape_with_continue_and_env", () => {
-    const output = JSON.parse(formatOutput(
-      ["You must run the Skill(ai-sdk) tool."],
-      ["ai-sdk"],
-      ["ai-sdk"],
-      [],
-      [],
-      [],
-      [],
-      { "ai-sdk": "matched AI SDK" },
-      undefined,
-      "cursor",
-      { XYLEX_PLUGIN_SEEN_SKILLS: "ai-sdk" },
-    ));
+    const output = JSON.parse(
+      formatOutput(
+        ["You must run the Skill(ai-sdk) tool."],
+        ["ai-sdk"],
+        ["ai-sdk"],
+        [],
+        [],
+        [],
+        [],
+        { "ai-sdk": "matched AI SDK" },
+        undefined,
+        "cursor",
+        { XYLEX_PLUGIN_SEEN_SKILLS: "ai-sdk" }
+      )
+    );
 
     expect(output.continue).toBe(true);
     expect(output.additional_context).toContain("Skill(ai-sdk)");
@@ -194,17 +211,19 @@ describe("user prompt cursor compatibility", () => {
   });
 
   it("test_formatOutput_omits_droppedByCap_from_prettooluse_injected_metadata_comment", () => {
-    const output = JSON.parse(formatPreToolOutput({
-      parts: ["You must run the Skill(ai-sdk) tool."],
-      matched: new Set(["ai-sdk", "workflow"]),
-      injectedSkills: ["ai-sdk"],
-      summaryOnly: [],
-      droppedByCap: ["workflow"],
-      droppedByBudget: [],
-      toolName: "Write",
-      toolTarget: "app/page.tsx",
-      platform: "claude-code",
-    }));
+    const output = JSON.parse(
+      formatPreToolOutput({
+        droppedByBudget: [],
+        droppedByCap: ["workflow"],
+        injectedSkills: ["ai-sdk"],
+        matched: new Set(["ai-sdk", "workflow"]),
+        parts: ["You must run the Skill(ai-sdk) tool."],
+        platform: "claude-code",
+        summaryOnly: [],
+        toolName: "Write",
+        toolTarget: "app/page.tsx",
+      })
+    );
 
     const context = output.hookSpecificOutput?.additionalContext ?? "";
     expect(context).toContain("skillInjection");

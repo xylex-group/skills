@@ -4,17 +4,16 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
-import {
-  formatOutput
-} from "./compat.mjs";
-import {
-  removeAllSessionDedupArtifacts
-} from "./hook-env.mjs";
+import { formatOutput } from "./compat.mjs";
+import { removeAllSessionDedupArtifacts } from "./hook-env.mjs";
 import { createLogger } from "./logger.mjs";
+
 var CONTEXT_CLEARING_EVENTS = /* @__PURE__ */ new Set(["clear", "compact"]);
 function parseSessionStartSeenSkillsInput(raw) {
   try {
-    if (!raw.trim()) return null;
+    if (!raw.trim()) {
+      return null;
+    }
     return JSON.parse(raw);
   } catch {
     return null;
@@ -27,11 +26,13 @@ function detectSessionStartSeenSkillsPlatform(input, _env = process.env) {
   return "claude-code";
 }
 function formatSessionStartSeenSkillsCursorOutput() {
-  return JSON.stringify(formatOutput("cursor", {
-    env: {
-      XYLEX_PLUGIN_SEEN_SKILLS: ""
-    }
-  }));
+  return JSON.stringify(
+    formatOutput("cursor", {
+      env: {
+        XYLEX_PLUGIN_SEEN_SKILLS: "",
+      },
+    })
+  );
 }
 function resetDedupStateForSession(sessionId) {
   return removeAllSessionDedupArtifacts(sessionId);
@@ -56,20 +57,23 @@ function main() {
   }
   log.debug("session-start-seen-skills:decision", {
     event: hookEvent || "unknown",
-    sessionId: sessionId || "none",
-    resetTriggered,
+    removedDirs,
     removedFiles,
-    removedDirs
+    resetTriggered,
+    sessionId: sessionId || "none",
   });
 }
 var SESSION_START_SEEN_SKILLS_ENTRYPOINT = fileURLToPath(import.meta.url);
-var isSessionStartSeenSkillsEntrypoint = process.argv[1] ? resolve(process.argv[1]) === SESSION_START_SEEN_SKILLS_ENTRYPOINT : false;
+var isSessionStartSeenSkillsEntrypoint = process.argv[1]
+  ? resolve(process.argv[1]) === SESSION_START_SEEN_SKILLS_ENTRYPOINT
+  : false;
 if (isSessionStartSeenSkillsEntrypoint) {
   main();
 }
+
 export {
   detectSessionStartSeenSkillsPlatform,
   formatSessionStartSeenSkillsCursorOutput,
   parseSessionStartSeenSkillsInput,
-  resetDedupStateForSession
+  resetDedupStateForSession,
 };

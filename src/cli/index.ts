@@ -8,9 +8,9 @@
  */
 
 import { existsSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { explain, formatExplainResult } from "./explain.ts";
+import { join, resolve } from "node:path";
 import { doctor, formatDoctorResult } from "../commands/doctor.ts";
+import { explain, formatExplainResult } from "./explain.ts";
 
 function validateProjectRoot(projectRoot: string): void {
   const skillsDir = join(projectRoot, "skills");
@@ -92,7 +92,7 @@ function runExplain(explainArgs: string[]) {
         console.error("Error: --budget requires a byte count");
         process.exit(1);
       }
-      budgetBytes = parseInt(explainArgs[i], 10);
+      budgetBytes = Number.parseInt(explainArgs[i], 10);
       if (!Number.isFinite(budgetBytes) || budgetBytes <= 0) {
         console.error("Error: --budget must be a positive integer");
         process.exit(1);
@@ -100,16 +100,18 @@ function runExplain(explainArgs: string[]) {
     } else if (arg === "--help" || arg === "-h") {
       printUsage();
       process.exit(0);
-    } else if (!target) {
-      target = arg;
-    } else {
+    } else if (target) {
       console.error(`Error: unexpected argument "${arg}"`);
       process.exit(1);
+    } else {
+      target = arg;
     }
   }
 
   if (!target) {
-    console.error("Error: explain requires a <target> argument (file path or bash command)");
+    console.error(
+      "Error: explain requires a <target> argument (file path or bash command)"
+    );
     printUsage();
     process.exit(1);
   }
@@ -118,7 +120,7 @@ function runExplain(explainArgs: string[]) {
   validateProjectRoot(projectRoot);
 
   try {
-    const result = explain(target, projectRoot, { likelySkills, budgetBytes });
+    const result = explain(target, projectRoot, { budgetBytes, likelySkills });
 
     if (jsonOutput) {
       console.log(JSON.stringify(result, null, 2));

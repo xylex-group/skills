@@ -9,7 +9,7 @@
  *   bun scripts/audit-retrieval-metadata.ts [--json] [--top N]
  */
 
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -18,20 +18,20 @@ const MANIFEST_PATH = join(ROOT, "generated", "skill-manifest.json");
 
 interface RetrievalMeta {
   aliases: string[];
-  intents: string[];
   entities: string[];
   examples: string[];
+  intents: string[];
 }
 
 interface SkillAudit {
-  name: string;
-  priority: number;
-  hasRetrieval: boolean;
   aliases: number;
-  intents: number;
   entities: number;
   examples: number;
   gaps: string[];
+  hasRetrieval: boolean;
+  intents: number;
+  name: string;
+  priority: number;
 }
 
 const MIN_ALIASES = 3;
@@ -64,36 +64,44 @@ function audit(): SkillAudit[] {
     const entities = r?.entities?.length ?? 0;
     const examples = r?.examples?.length ?? 0;
 
-    if (!r) gaps.push("missing retrieval section entirely");
-    if (aliases < MIN_ALIASES)
+    if (!r) {
+      gaps.push("missing retrieval section entirely");
+    }
+    if (aliases < MIN_ALIASES) {
       gaps.push(`aliases: ${aliases}/${MIN_ALIASES}`);
-    if (intents < MIN_INTENTS)
+    }
+    if (intents < MIN_INTENTS) {
       gaps.push(`intents: ${intents}/${MIN_INTENTS}`);
-    if (entities < MIN_ENTITIES)
+    }
+    if (entities < MIN_ENTITIES) {
       gaps.push(`entities: ${entities}/${MIN_ENTITIES}`);
-    if (examples < MIN_EXAMPLES)
+    }
+    if (examples < MIN_EXAMPLES) {
       gaps.push(`examples: ${examples}/${MIN_EXAMPLES}`);
+    }
 
     results.push({
-      name,
-      priority: skill.priority,
-      hasRetrieval: Boolean(r),
       aliases,
-      intents,
       entities,
       examples,
       gaps,
+      hasRetrieval: Boolean(r),
+      intents,
+      name,
+      priority: skill.priority,
     });
   }
 
-  return results.sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
+  return results.sort(
+    (a, b) => b.priority - a.priority || a.name.localeCompare(b.name)
+  );
 }
 
 // --- CLI ---
 const args = process.argv.slice(2);
 const jsonMode = args.includes("--json");
 const topIdx = args.indexOf("--top");
-const topN = topIdx >= 0 ? parseInt(args[topIdx + 1], 10) : 15;
+const topN = topIdx >= 0 ? Number.parseInt(args[topIdx + 1], 10) : 15;
 
 const results = audit();
 const topSkills = results.slice(0, topN);
@@ -104,31 +112,31 @@ if (jsonMode) {
   console.log(
     JSON.stringify(
       {
-        totalSkills: results.length,
-        topN,
-        skillsWithGaps: withGaps.length,
-        topSkillsWithGaps: topWithGaps.length,
-        topSkills: topSkills.map((s) => ({
+        allGaps: withGaps.map((s) => ({
+          gaps: s.gaps,
           name: s.name,
           priority: s.priority,
+        })),
+        skillsWithGaps: withGaps.length,
+        topN,
+        topSkills: topSkills.map((s) => ({
           aliases: s.aliases,
-          intents: s.intents,
           entities: s.entities,
           examples: s.examples,
           gaps: s.gaps,
-        })),
-        allGaps: withGaps.map((s) => ({
+          intents: s.intents,
           name: s.name,
           priority: s.priority,
-          gaps: s.gaps,
         })),
+        topSkillsWithGaps: topWithGaps.length,
+        totalSkills: results.length,
       },
       null,
       2
     )
   );
 } else {
-  console.log(`\n=== Retrieval Metadata Audit ===`);
+  console.log("\n=== Retrieval Metadata Audit ===");
   console.log(`Total skills: ${results.length}`);
   console.log(`Skills with gaps: ${withGaps.length}/${results.length}`);
   console.log(
@@ -145,17 +153,19 @@ if (jsonMode) {
       `  ${status} ${s.name} (p${s.priority}) — aliases:${s.aliases} intents:${s.intents} entities:${s.entities} examples:${s.examples}`
     );
     if (s.gaps.length > 0) {
-      for (const g of s.gaps) console.log(`      ↳ ${g}`);
+      for (const g of s.gaps) {
+        console.log(`      ↳ ${g}`);
+      }
     }
   }
 
   if (withGaps.length > topWithGaps.length) {
-    console.log(`\n--- Other Skills with Gaps ---`);
+    console.log("\n--- Other Skills with Gaps ---");
     for (const s of withGaps) {
-      if (topSkills.includes(s)) continue;
-      console.log(
-        `  ✗ ${s.name} (p${s.priority}) — ${s.gaps.join(", ")}`
-      );
+      if (topSkills.includes(s)) {
+        continue;
+      }
+      console.log(`  ✗ ${s.name} (p${s.priority}) — ${s.gaps.join(", ")}`);
     }
   }
 

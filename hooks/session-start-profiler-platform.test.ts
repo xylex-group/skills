@@ -6,8 +6,8 @@ describe("session-start-profiler platform detection", () => {
     expect(
       detectSessionStartPlatform(
         { session_id: "sess-123" },
-        { CURSOR_PROJECT_DIR: "/tmp/cursor-root" },
-      ),
+        { CURSOR_PROJECT_DIR: "/tmp/cursor-root" }
+      )
     ).toBe("claude-code");
   });
 
@@ -21,8 +21,8 @@ describe("session-start-profiler platform detection", () => {
         {
           CLAUDE_ENV_FILE: "/tmp/claude.env",
           CURSOR_PROJECT_DIR: "/tmp/cursor-root",
-        },
-      ),
+        }
+      )
     ).toBe("claude-code");
   });
 });

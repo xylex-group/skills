@@ -1,9 +1,15 @@
 // hooks/src/patterns.mts
 import { createHash } from "crypto";
-import { appendFileSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  appendFileSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
-import { basename } from "path";
-import { join, resolve } from "path";
+import { basename, join, resolve } from "path";
+
 var REGEX_META_CHARS = ".()+[]{}|^$\\";
 function parseBraceExpansion(pattern, startIndex) {
   let depth = 0;
@@ -134,7 +140,9 @@ function listSessionSeenSkillArtifactPaths(sessionId) {
   const claimDirs = [];
   try {
     for (const entry of readdirSync(tempRoot)) {
-      if (!entry.startsWith(prefix)) continue;
+      if (!entry.startsWith(prefix)) {
+        continue;
+      }
       const fullPath = join(tempRoot, entry);
       if (entry.endsWith("-seen-skills.txt")) {
         files.push(fullPath);
@@ -145,9 +153,9 @@ function listSessionSeenSkillArtifactPaths(sessionId) {
       }
     }
   } catch {
-    return { files: [], claimDirs: [] };
+    return { claimDirs: [], files: [] };
   }
-  return { files, claimDirs };
+  return { claimDirs, files };
 }
 function collectSessionSeenSkillValues(sessionId) {
   const { files, claimDirs } = listSessionSeenSkillArtifactPaths(sessionId);
@@ -155,20 +163,23 @@ function collectSessionSeenSkillValues(sessionId) {
   for (const filePath of files) {
     try {
       values.push(readFileSync(filePath, "utf-8"));
-    } catch {
-    }
+    } catch {}
   }
   for (const claimDirPath of claimDirs) {
     try {
-      const claimedSkills = readdirSync(claimDirPath).map((entry) => decodeURIComponent(entry)).filter((entry) => entry !== "").join(",");
+      const claimedSkills = readdirSync(claimDirPath)
+        .map((entry) => decodeURIComponent(entry))
+        .filter((entry) => entry !== "")
+        .join(",");
       values.push(claimedSkills);
-    } catch {
-    }
+    } catch {}
   }
   return values;
 }
 function filterSeenSkillState(value, blockedSkills) {
-  if (blockedSkills.size === 0) return value;
+  if (blockedSkills.size === 0) {
+    return value;
+  }
   const filtered = /* @__PURE__ */ new Set();
   for (const skill of parseSeenSkills(value)) {
     if (!blockedSkills.has(skill)) {
@@ -177,7 +188,11 @@ function filterSeenSkillState(value, blockedSkills) {
   }
   return serializeSeenSkills(filtered);
 }
-function isHighPrioritySkill(skill, skillMap, minPriority = COMPACTION_REINJECT_MIN_PRIORITY) {
+function isHighPrioritySkill(
+  skill,
+  skillMap,
+  minPriority = COMPACTION_REINJECT_MIN_PRIORITY
+) {
   const priority = skillMap?.[skill]?.priority;
   return typeof priority === "number" && priority >= minPriority;
 }
@@ -188,47 +203,63 @@ function persistCompactionResetEnv(nextSeenEnv) {
   process.env.XYLEX_PLUGIN_SEEN_SKILLS = nextSeenEnv;
   process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED = "";
   const envFile = process.env.CLAUDE_ENV_FILE;
-  if (!envFile) return;
+  if (!envFile) {
+    return;
+  }
   try {
     appendFileSync(
       envFile,
       [
         `export XYLEX_PLUGIN_SEEN_SKILLS="${escapeShellEnvValue(nextSeenEnv)}"`,
-        'export XYLEX_PLUGIN_CONTEXT_COMPACTED=""'
+        'export XYLEX_PLUGIN_CONTEXT_COMPACTED=""',
       ].join("\n") + "\n",
       "utf-8"
     );
-  } catch {
-  }
+  } catch {}
 }
 function pruneSessionSeenSkillArtifacts(sessionId, clearedSkills) {
-  if (clearedSkills.size === 0) return;
+  if (clearedSkills.size === 0) {
+    return;
+  }
   const { files, claimDirs } = listSessionSeenSkillArtifactPaths(sessionId);
   for (const filePath of files) {
     try {
       const rawValue = readFileSync(filePath, "utf-8");
-      writeFileSync(filePath, filterSeenSkillState(rawValue, clearedSkills), "utf-8");
-    } catch {
-    }
+      writeFileSync(
+        filePath,
+        filterSeenSkillState(rawValue, clearedSkills),
+        "utf-8"
+      );
+    } catch {}
   }
   for (const claimDirPath of claimDirs) {
     for (const skill of clearedSkills) {
       try {
         rmSync(join(claimDirPath, encodeURIComponent(skill)), { force: true });
-      } catch {
-      }
+      } catch {}
     }
   }
 }
-function mergeSeenSkillStatesWithCompactionReset(envValue, fileValue, claimValue, options) {
+function mergeSeenSkillStatesWithCompactionReset(
+  envValue,
+  fileValue,
+  claimValue,
+  options
+) {
   const includeEnv = options?.includeEnv ?? true;
-  const compactionTriggered = process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
+  const compactionTriggered =
+    process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
   let seenEnv = envValue;
   let seenFile = fileValue;
   let seenClaims = claimValue;
   let clearedSkills = [];
   if (compactionTriggered) {
-    const compactionState = options?.sessionId ? mergeSeenSkillStates(envValue, ...collectSessionSeenSkillValues(options.sessionId)) : mergeSeenSkillStates(envValue, fileValue, claimValue);
+    const compactionState = options?.sessionId
+      ? mergeSeenSkillStates(
+          envValue,
+          ...collectSessionSeenSkillValues(options.sessionId)
+        )
+      : mergeSeenSkillStates(envValue, fileValue, claimValue);
     const skillsToClear = /* @__PURE__ */ new Set();
     for (const skill of parseSeenSkills(compactionState)) {
       if (isHighPrioritySkill(skill, options?.skillMap)) {
@@ -246,14 +277,16 @@ function mergeSeenSkillStatesWithCompactionReset(envValue, fileValue, claimValue
     }
     persistCompactionResetEnv(seenEnv);
   }
-  const seenState = includeEnv ? mergeSeenSkillStates(seenEnv, seenFile, seenClaims) : mergeSeenSkillStates(seenFile, seenClaims);
+  const seenState = includeEnv
+    ? mergeSeenSkillStates(seenEnv, seenFile, seenClaims)
+    : mergeSeenSkillStates(seenFile, seenClaims);
   return {
+    clearedSkills,
+    compactionResetApplied: compactionTriggered,
+    seenClaims,
     seenEnv,
     seenFile,
-    seenClaims,
     seenState,
-    compactionResetApplied: compactionTriggered,
-    clearedSkills
   };
 }
 function mergeScopedSeenSkillStates(scopeId, envValue, fileValue, claimValue) {
@@ -263,7 +296,9 @@ function mergeScopedSeenSkillStates(scopeId, envValue, fileValue, claimValue) {
   return mergeSeenSkillStates(fileValue, claimValue);
 }
 function appendSeenSkill(envValue, skill) {
-  if (typeof skill !== "string" || skill.trim() === "") return envValue || "";
+  if (typeof skill !== "string" || skill.trim() === "") {
+    return envValue || "";
+  }
   const current = typeof envValue === "string" ? envValue.trim() : "";
   return current === "" ? skill : `${current},${skill}`;
 }
@@ -275,7 +310,9 @@ function compileSkillPatterns(skillMap, callbacks) {
       try {
         compiledPaths.push({ pattern: p, regex: globToRegex(p) });
       } catch (err) {
-        if (cb.onPathGlobError) cb.onPathGlobError(skill, p, err);
+        if (cb.onPathGlobError) {
+          cb.onPathGlobError(skill, p, err);
+        }
       }
     }
     const compiledBash = [];
@@ -283,7 +320,9 @@ function compileSkillPatterns(skillMap, callbacks) {
       try {
         compiledBash.push({ pattern: p, regex: new RegExp(p) });
       } catch (err) {
-        if (cb.onBashRegexError) cb.onBashRegexError(skill, p, err);
+        if (cb.onBashRegexError) {
+          cb.onBashRegexError(skill, p, err);
+        }
       }
     }
     const compiledImports = [];
@@ -291,56 +330,79 @@ function compileSkillPatterns(skillMap, callbacks) {
       try {
         compiledImports.push({ pattern: p, regex: importPatternToRegex(p) });
       } catch (err) {
-        if (cb.onImportPatternError) cb.onImportPatternError(skill, p, err);
+        if (cb.onImportPatternError) {
+          cb.onImportPatternError(skill, p, err);
+        }
       }
     }
     return {
-      skill,
-      priority: typeof config.priority === "number" ? config.priority : 0,
-      compiledPaths,
       compiledBash,
-      compiledImports
+      compiledImports,
+      compiledPaths,
+      priority: typeof config.priority === "number" ? config.priority : 0,
+      skill,
     };
   });
 }
 function importPatternToRegex(pattern) {
   if (typeof pattern !== "string") {
-    throw new TypeError(`importPatternToRegex: expected string, got ${typeof pattern}`);
+    throw new TypeError(
+      `importPatternToRegex: expected string, got ${typeof pattern}`
+    );
   }
   if (pattern === "") {
     throw new Error("importPatternToRegex: pattern must not be empty");
   }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, `[^'"]*`);
-  return new RegExp(`(?:from\\s+|require\\s*\\(\\s*|import\\s*\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`, "m");
+  const escaped = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, `[^'"]*`);
+  return new RegExp(
+    `(?:from\\s+|require\\s*\\(\\s*|import\\s*\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`,
+    "m"
+  );
 }
 function matchImportWithReason(content, compiled) {
-  if (!content || compiled.length === 0) return null;
+  if (!content || compiled.length === 0) {
+    return null;
+  }
   for (const { pattern, regex } of compiled) {
     if (regex.test(content)) {
-      return { pattern, matchType: "import" };
+      return { matchType: "import", pattern };
     }
   }
   return null;
 }
 function matchPathWithReason(filePath, compiled) {
-  if (!filePath || compiled.length === 0) return null;
+  if (!filePath || compiled.length === 0) {
+    return null;
+  }
   const normalized = filePath.replace(/\\/g, "/");
   for (const { pattern, regex } of compiled) {
-    if (regex.test(normalized)) return { pattern, matchType: "full" };
+    if (regex.test(normalized)) {
+      return { matchType: "full", pattern };
+    }
     const base = basename(normalized);
-    if (regex.test(base)) return { pattern, matchType: "basename" };
+    if (regex.test(base)) {
+      return { matchType: "basename", pattern };
+    }
     const segments = normalized.split("/");
     for (let i = 1; i < segments.length; i++) {
       const suffix = segments.slice(-i).join("/");
-      if (regex.test(suffix)) return { pattern, matchType: "suffix" };
+      if (regex.test(suffix)) {
+        return { matchType: "suffix", pattern };
+      }
     }
   }
   return null;
 }
 function matchBashWithReason(command, compiled) {
-  if (!command || compiled.length === 0) return null;
+  if (!command || compiled.length === 0) {
+    return null;
+  }
   for (const { pattern, regex } of compiled) {
-    if (regex.test(command)) return { pattern, matchType: "full" };
+    if (regex.test(command)) {
+      return { matchType: "full", pattern };
+    }
   }
   return null;
 }
@@ -349,14 +411,23 @@ function parseLikelySkills(envValue) {
 }
 function rankEntries(entries) {
   return entries.slice().sort((a, b) => {
-    const aPri = typeof a.effectivePriority === "number" ? a.effectivePriority : a.priority;
-    const bPri = typeof b.effectivePriority === "number" ? b.effectivePriority : b.priority;
+    const aPri =
+      typeof a.effectivePriority === "number"
+        ? a.effectivePriority
+        : a.priority;
+    const bPri =
+      typeof b.effectivePriority === "number"
+        ? b.effectivePriority
+        : b.priority;
     return bPri - aPri || a.skill.localeCompare(b.skill);
   });
 }
-var DOCS_WARNING = "**MANDATORY: Your training data for these libraries is OUTDATED and UNRELIABLE.** APIs, method signatures, and config options change frequently and WITHOUT WARNING. You MUST open and read the official docs linked below BEFORE writing ANY code. DO NOT guess, assume, or rely on memorized APIs \u2014 they are likely WRONG.";
+var DOCS_WARNING =
+  "**MANDATORY: Your training data for these libraries is OUTDATED and UNRELIABLE.** APIs, method signatures, and config options change frequently and WITHOUT WARNING. You MUST open and read the official docs linked below BEFORE writing ANY code. DO NOT guess, assume, or rely on memorized APIs \u2014 they are likely WRONG.";
 function buildDocsBlock(injectedSkills, skillMap) {
-  if (!skillMap) return "";
+  if (!skillMap) {
+    return "";
+  }
   const entries = [];
   for (const skill of injectedSkills) {
     const cfg = skillMap[skill];
@@ -369,20 +440,23 @@ function buildDocsBlock(injectedSkills, skillMap) {
       entries.push(line);
     }
   }
-  if (entries.length === 0) return "";
+  if (entries.length === 0) {
+    return "";
+  }
   return [
     "---",
     DOCS_WARNING,
     "",
     "Official documentation:",
     ...entries,
-    "---"
+    "---",
   ].join("\n");
 }
+
 export {
-  COMPACTION_REINJECT_MIN_PRIORITY,
   appendSeenSkill,
   buildDocsBlock,
+  COMPACTION_REINJECT_MIN_PRIORITY,
   compileSkillPatterns,
   globToRegex,
   importPatternToRegex,
@@ -395,5 +469,5 @@ export {
   parseLikelySkills,
   parseSeenSkills,
   rankEntries,
-  serializeSeenSkills
+  serializeSeenSkills,
 };
