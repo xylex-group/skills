@@ -270,7 +270,7 @@ export function explain(
   );
 
   // Build result with injection/cap/budget tracking
-  const matches: ExplainMatch[] = rankedEntries.map((entry, idx) => {
+  const matches: ExplainMatch[] = rankedEntries.map((entry, _idx) => {
     const plan = injectionPlan.get(entry.skill)!;
     return {
       bodyBytes: plan.bodyBytes,

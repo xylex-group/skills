@@ -2,6 +2,7 @@
   "name": "xylex-group-plugin",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "XYLEX Group agent skills plugin for Claude Code, Cursor, Codex, Grok, and skills.sh",
   "license": "MIT",
   "bin": {
@@ -18,10 +19,14 @@
     "build:skills": "bun run scripts/build-skills.ts",
     "build:skills:check": "bun run scripts/build-skills.ts --check",
     "check": "ultracite check",
+    "ci": "bun run lint && bun run typecheck && bun test hooks && bun run build && bun run validate && bun run doctor",
     "doctor": "bun run src/cli/index.ts doctor",
     "fix": "ultracite fix",
-    "test": "bun run typecheck && bun test",
-    "typecheck": "tsc -p hooks/tsconfig.json --noEmit",
+    "format": "ultracite fix",
+    "lint": "ultracite check",
+    "test": "bun run typecheck && bun test hooks",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:hooks": "tsc -p hooks/tsconfig.json --noEmit",
     "validate": "bun run scripts/validate.ts --coverage skip"
   },
   "dependencies": {
@@ -29,6 +34,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",
+    "@types/bun": "^1.3.14",
     "@types/node": "^25.3.5",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",

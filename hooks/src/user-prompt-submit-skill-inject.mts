@@ -41,21 +41,21 @@ import {
   syncSessionFileFromClaims,
   tryClaimSessionKey,
   writeSessionFile,
-} from "./hook-env.mts";
-import { initializeLexicalIndex, searchSkills } from "./lexical-index.mts";
-import type { Logger } from "./logger.mts";
-import { createLogger, logDecision } from "./logger.mts";
+} from "./hook-env.mjs";
+import { initializeLexicalIndex, searchSkills } from "./lexical-index.mjs";
+import type { Logger } from "./logger.mjs";
+import { createLogger, logDecision } from "./logger.mjs";
 import {
   buildDocsBlock,
   COMPACTION_REINJECT_MIN_PRIORITY,
   mergeSeenSkillStates,
   mergeSeenSkillStatesWithCompactionReset,
   parseSeenSkills,
-} from "./patterns.mts";
-import type { LoadedSkills } from "./pretooluse-skill-inject.mts";
-import { injectSkills, loadSkills } from "./pretooluse-skill-inject.mts";
-import type { PromptAnalysisReport } from "./prompt-analysis.mts";
-import { analyzePrompt } from "./prompt-analysis.mts";
+} from "./patterns.mjs";
+import type { LoadedSkills } from "./pretooluse-skill-inject.mjs";
+import { injectSkills, loadSkills } from "./pretooluse-skill-inject.mjs";
+import type { PromptAnalysisReport } from "./prompt-analysis.mjs";
+import { analyzePrompt } from "./prompt-analysis.mjs";
 import {
   classifyTroubleshootingIntent,
   compilePromptSignals,
@@ -63,8 +63,8 @@ import {
   matchPromptWithReason,
   normalizePromptText,
   scorePromptWithLexical,
-} from "./prompt-patterns.mts";
-import { selectManagedContextChunk } from "./vercel-context.mts";
+} from "./prompt-patterns.mjs";
+import { selectManagedContextChunk } from "./vercel-context.mjs";
 
 const MAX_SKILLS = 2;
 const DEFAULT_INJECTION_BUDGET_BYTES = 8000;
@@ -856,7 +856,7 @@ export function formatOutput(
   injectedSkills: string[],
   contextChunks: string[],
   summaryOnly: string[],
-  droppedByCap: string[],
+  _droppedByCap: string[],
   droppedByBudget: string[],
   promptMatchReasons?: Record<string, string>,
   skillMap?: Record<string, { docs?: string[]; sitemap?: string }>,

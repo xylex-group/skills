@@ -1,4 +1,89 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/biome/core", "ultracite/biome/type-aware"]
+  "extends": ["ultracite/biome/core", "ultracite/biome/type-aware"],
+  "files": {
+    "includes": [
+      "!**/node_modules",
+      "!**/bun.lock",
+      "!**/package-lock.json",
+      "!**/generated",
+      // tsup emits sibling .mjs next to hooks.json — lint TypeScript sources only
+      "!hooks/*.mjs",
+      "!**/*.log",
+      "!.biome-check.txt",
+      "!.reports"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts", "**/*.test.mts", "**/hooks/**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnresolvedImports": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off"
+          },
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "scripts/**",
+        "src/**",
+        "hooks/src/**",
+        "hooks/tsup.config.ts"
+      ],
+      "linter": {
+        "rules": {
+          // Plugin/hook codebase: pragmatic adoption (correctness still on)
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off",
+            "noVoid": "off"
+          },
+          "performance": {
+            "useTopLevelRegex": "off",
+            "noAwaitInLoops": "off",
+            "noNamespaceImport": "off",
+            "noAccumulatingSpread": "off"
+          },
+          "style": {
+            "noIncrementDecrement": "off",
+            "useNodejsImportProtocol": "error",
+            "useDestructuring": "off",
+            "useTemplate": "off",
+            "noNestedTernary": "off",
+            "noNonNullAssertion": "off",
+            "useAtIndex": "off",
+            "noExportedImports": "off",
+            "useConsistentTypeDefinitions": "off",
+            "noParameterAssign": "off",
+            "useErrorCause": "off",
+            "useForOf": "off",
+            "useDefaultParameterLast": "off",
+            "useShorthandAssign": "off"
+          },
+          "suspicious": {
+            "noVar": "error",
+            "noEqualsToNull": "off",
+            "noUnnecessaryConditions": "off",
+            "noExplicitAny": "off",
+            "noEmptyBlockStatements": "off",
+            "noAssignInExpressions": "off",
+            "useArraySortCompare": "off",
+            "useAwait": "off",
+            "noUnusedExpressions": "off"
+          },
+          "correctness": {
+            // Bun runtime + workspace .mjs re-exports confuse the resolver
+            "noUnresolvedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

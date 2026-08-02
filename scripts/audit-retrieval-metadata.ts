@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SKILLS_DIR = join(ROOT, "skills");
+const _SKILLS_DIR = join(ROOT, "skills");
 const MANIFEST_PATH = join(ROOT, "generated", "skill-manifest.json");
 
 interface RetrievalMeta {

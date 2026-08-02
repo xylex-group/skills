@@ -5,7 +5,7 @@
 
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { safeReadFile } from "./hook-env.mts";
+import { safeReadFile } from "./hook-env.mjs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -721,7 +721,7 @@ function parseChainToRules(raw: unknown): ChainToRule[] {
 }
 
 export function parseSkillFrontmatter(yamlStr: string): SkillFrontmatter {
-  if (!(yamlStr && yamlStr.trim())) {
+  if (!yamlStr?.trim()) {
     return {
       chainTo: [],
       description: "",

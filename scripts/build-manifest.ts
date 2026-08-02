@@ -62,7 +62,9 @@ function compileRegexSources(config: SkillEntry) {
   const bashRegexSources: string[] = [];
   for (const p of config.bashPatterns) {
     try {
-      new RegExp(p); // validate
+      // validate compile without leaving an unused `new` expression
+      const _bashRe = new RegExp(p);
+      void _bashRe;
       bashRegexSources.push(p);
       bashPatterns.push(p);
     } catch {

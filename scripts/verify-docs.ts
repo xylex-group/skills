@@ -27,7 +27,7 @@ const actualSkillCount = readdirSync(skillsDir, { withFileTypes: true }).filter(
   (d) => d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md"))
 ).length;
 
-const canonicalSlugs = new Set(
+const _canonicalSlugs = new Set(
   readdirSync(skillsDir, { withFileTypes: true })
     .filter(
       (d) => d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md"))

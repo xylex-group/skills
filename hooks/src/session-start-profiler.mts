@@ -10,31 +10,23 @@
  * cold-scanning for obvious frameworks.
  */
 
-import { execFileSync } from "node:child_process";
-import {
-  accessSync,
-  type Dirent,
-  existsSync,
-  constants as fsConstants,
-  readdirSync,
-  readFileSync,
-} from "node:fs";
-import { delimiter, join, resolve } from "node:path";
+import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   formatOutput,
   type HookPlatform,
   normalizeInput,
   setSessionEnv,
-} from "./compat.mts";
-import { pluginRoot, safeReadJson, writeSessionFile } from "./hook-env.mts";
-import { createLogger, type Logger, logCaughtError } from "./logger.mts";
-import { hasSessionStartActivationMarkers } from "./session-start-activation.mts";
-import { buildSkillMap } from "./skill-map-frontmatter.mts";
+} from "./compat.mjs";
+import { pluginRoot, safeReadJson, writeSessionFile } from "./hook-env.mjs";
+import { createLogger, type Logger, logCaughtError } from "./logger.mjs";
+import { hasSessionStartActivationMarkers } from "./session-start-activation.mjs";
+import { buildSkillMap } from "./skill-map-frontmatter.mjs";
 import {
   refreshActiveSessionMarker,
   trackDauActiveToday,
-} from "./telemetry.mts";
+} from "./telemetry.mjs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -314,188 +306,6 @@ export function checkGreenfield(projectRoot: string): GreenfieldResult | null {
 }
 
 // ---------------------------------------------------------------------------
-// Vercel CLI version check
-// ---------------------------------------------------------------------------
-
-interface VercelCliStatus {
-  currentVersion?: string;
-  installed: boolean;
-  latestVersion?: string;
-  needsUpdate: boolean;
-}
-
-// Subprocess args kept as constants to avoid array literals that confuse the
-// validate.ts slug-extraction regex (it scans for `["..."]` patterns).
-const VERCEL_VERSION_ARGS: string[] = "--version".split(" ");
-const NPM_VIEW_ARGS: string[] = "view vercel version".split(" ");
-// Built via split to avoid array literal that confuses slug-extraction regex.
-const SPAWN_STDIO = "ignore pipe ignore".split(" ") as ("ignore" | "pipe")[];
-const EXEC_SYNC_TIMEOUT_MS = 3000;
-const NUMERIC_VERSION_RE = /\d+(?:\.\d+)*/;
-const WINDOWS_EXECUTABLE_EXTENSIONS = (
-  process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM"
-)
-  .split(";")
-  .filter(Boolean);
-
-function getBinaryPathCandidates(binaryName: string): string[] {
-  if (process.platform !== "win32") {
-    return [binaryName];
-  }
-
-  const hasExecutableExtension = /\.[^./\\]+$/.test(binaryName);
-  const suffixes = hasExecutableExtension
-    ? [""]
-    : ["", ...WINDOWS_EXECUTABLE_EXTENSIONS];
-  return suffixes.map((suffix: string) => `${binaryName}${suffix}`);
-}
-
-function resolveBinaryFromPath(binaryName: string): string | null {
-  try {
-    const pathEntries = (process.env.PATH || "")
-      .split(delimiter)
-      .filter(Boolean);
-    for (const pathEntry of pathEntries) {
-      for (const candidateName of getBinaryPathCandidates(binaryName)) {
-        const candidatePath = join(pathEntry, candidateName);
-        try {
-          accessSync(candidatePath, fsConstants.X_OK);
-          return candidatePath;
-        } catch {}
-      }
-    }
-  } catch (error) {
-    logCaughtError(
-      log,
-      "session-start-profiler:binary-resolution-failed",
-      error,
-      {
-        binaryName,
-      }
-    );
-    return null;
-  }
-
-  log.debug("session-start-profiler:binary-resolution-skipped", {
-    binaryName,
-    reason: "not-found",
-  });
-  return null;
-}
-
-function parseVersionSegments(version: string): number[] | null {
-  const matchedVersion = version.match(NUMERIC_VERSION_RE)?.[0];
-  if (!matchedVersion) {
-    return null;
-  }
-
-  return matchedVersion
-    .split(".")
-    .map((segment: string) => Number.parseInt(segment, 10));
-}
-
-function compareVersionSegments(
-  leftVersion: string,
-  rightVersion: string
-): number | null {
-  const leftSegments = parseVersionSegments(leftVersion);
-  const rightSegments = parseVersionSegments(rightVersion);
-
-  if (!(leftSegments && rightSegments)) {
-    return null;
-  }
-
-  const maxLength = Math.max(leftSegments.length, rightSegments.length);
-  for (let index = 0; index < maxLength; index += 1) {
-    const leftSegment = leftSegments[index] ?? 0;
-    const rightSegment = rightSegments[index] ?? 0;
-    if (leftSegment !== rightSegment) {
-      return leftSegment - rightSegment;
-    }
-  }
-
-  return 0;
-}
-
-/**
- * Check if Vercel CLI is installed and whether it's up to date.
- * Uses `vercel --version` for the local version and the npm registry for latest.
- * Returns quickly — each subprocess has a tight timeout.
- */
-function checkVercelCli(): VercelCliStatus {
-  const vercelBinary = resolveBinaryFromPath("vercel");
-  if (!vercelBinary) {
-    return { installed: false, needsUpdate: false };
-  }
-
-  // 1. Check if vercel is installed
-  let currentVersion: string | undefined;
-  try {
-    const raw: string = execFileSync(vercelBinary, VERCEL_VERSION_ARGS, {
-      encoding: "utf-8",
-      stdio: SPAWN_STDIO,
-      timeout: EXEC_SYNC_TIMEOUT_MS,
-    }).trim();
-    // Output may include extra lines; version is typically last non-empty line
-    const lines: string[] = raw
-      .split("\n")
-      .map((l: string) => l.trim())
-      .filter(Boolean);
-    currentVersion = lines[lines.length - 1];
-  } catch (error) {
-    logCaughtError(
-      log,
-      "session-start-profiler:vercel-version-check-failed",
-      error,
-      {
-        args: VERCEL_VERSION_ARGS.join(" "),
-        command: vercelBinary,
-      }
-    );
-    return { installed: false, needsUpdate: false };
-  }
-
-  const npmBinary = resolveBinaryFromPath("npm");
-  if (!npmBinary) {
-    return { currentVersion, installed: true, needsUpdate: false };
-  }
-
-  // 2. Fetch latest version from npm registry
-  let latestVersion: string | undefined;
-  try {
-    const raw: string = execFileSync(npmBinary, NPM_VIEW_ARGS, {
-      encoding: "utf-8",
-      stdio: SPAWN_STDIO,
-      timeout: EXEC_SYNC_TIMEOUT_MS,
-    }).trim();
-    latestVersion = raw;
-  } catch (error) {
-    logCaughtError(
-      log,
-      "session-start-profiler:npm-latest-version-check-failed",
-      error,
-      {
-        args: NPM_VIEW_ARGS.join(" "),
-        command: npmBinary,
-        currentVersion,
-      }
-    );
-    return { currentVersion, installed: true, needsUpdate: false };
-  }
-
-  const versionComparison =
-    currentVersion && latestVersion
-      ? compareVersionSegments(currentVersion, latestVersion)
-      : null;
-  const needsUpdate: boolean =
-    versionComparison === null
-      ? !!(currentVersion && latestVersion && currentVersion !== latestVersion)
-      : versionComparison < 0;
-
-  return { currentVersion, installed: true, latestVersion, needsUpdate };
-}
-
-// ---------------------------------------------------------------------------
 // Main entry point — profile the project and write env vars.
 // ---------------------------------------------------------------------------
 
@@ -633,8 +443,7 @@ export function buildSessionStartProfilerEnvVars(args: {
 }
 
 export function buildSessionStartProfilerUserMessages(
-  greenfield: GreenfieldResult | null,
-  _cliStatus?: VercelCliStatus
+  greenfield: GreenfieldResult | null
 ): string[] {
   const messages: string[] = [];
 

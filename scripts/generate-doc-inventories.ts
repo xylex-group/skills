@@ -220,7 +220,7 @@ export function generateInventory(): DocInventory {
 
 function checkDocs(inventory: DocInventory): string[] {
   const errors: string[] = [];
-  const { counts, canonicalSlugs } = inventory;
+  const { counts } = inventory;
 
   // Helper: find all skill count mentions in a file
   function checkSkillCounts(filePath: string, label: string) {
@@ -270,7 +270,7 @@ function checkDocs(inventory: DocInventory): string[] {
     }
     const content = readFileSync(filePath, "utf-8");
     // Known false-positive aliases (used in retrieval metadata examples, not as canonical names)
-    const allowList = new Set([
+    const _allowList = new Set([
       "vercel-cron", // appears only in retrieval.aliases examples in 05-reference.md
     ]);
     // Check for known drift: vercel-cron should be cron-jobs

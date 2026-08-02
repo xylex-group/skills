@@ -82,7 +82,7 @@ Options:
 }
 
 const { values: flags } = parseArgs({
-  args: Bun.argv.slice(2),
+  args: process.argv.slice(2),
   options: {
     coverage: { default: "run", type: "string" },
     format: { default: "pretty", type: "string" },
@@ -675,7 +675,7 @@ async function validateCommandConventions() {
 
     // Check frontmatter
     const fm = parseFrontmatter(content);
-    if (!(fm && fm.description)) {
+    if (!fm?.description) {
       fail(
         "CMD_NO_DESCRIPTION",
         `commands/${file} — missing frontmatter description`,
@@ -1153,7 +1153,8 @@ async function validatePatternCompilation() {
         continue;
       }
       try {
-        new RegExp(pat);
+        const _re = new RegExp(pat);
+        void _re;
         compiled++;
       } catch (err: any) {
         failures++;

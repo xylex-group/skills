@@ -21,7 +21,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectPlatform, type HookPlatform } from "./compat.mts";
+import { detectPlatform, type HookPlatform } from "./compat.mjs";
 import {
   appendAuditLog,
   listSessionKeys,
@@ -31,7 +31,7 @@ import {
   safeReadJson,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-} from "./hook-env.mts";
+} from "./hook-env.mjs";
 
 /** Minimal Claude Code hook JSON shape (avoids hard dep on claude-agent-sdk). */
 type SyncHookJSONOutput = {
@@ -44,14 +44,14 @@ type SyncHookJSONOutput = {
   [key: string]: unknown;
 };
 
-import type { Logger } from "./logger.mts";
-import { createLogger, logDecision } from "./logger.mts";
+import type { Logger } from "./logger.mjs";
+import { createLogger, logDecision } from "./logger.mjs";
 import type {
   CompileCallbacks,
   CompiledPattern,
   CompiledSkillEntry,
   ManifestSkill,
-} from "./patterns.mts";
+} from "./patterns.mjs";
 import {
   buildDocsBlock,
   COMPACTION_REINJECT_MIN_PRIORITY,
@@ -64,16 +64,16 @@ import {
   parseLikelySkills,
   parseSeenSkills,
   rankEntries,
-} from "./patterns.mts";
-import type { SkillConfig } from "./skill-map-frontmatter.mts";
-import { buildSkillMap, validateSkillMap } from "./skill-map-frontmatter.mts";
-import type { VercelJsonRouting } from "./vercel-config.mts";
+} from "./patterns.mjs";
+import type { SkillConfig } from "./skill-map-frontmatter.mjs";
+import { buildSkillMap, validateSkillMap } from "./skill-map-frontmatter.mjs";
+import type { VercelJsonRouting } from "./vercel-config.mjs";
 import {
   isVercelJsonPath,
   resolveVercelJsonSkills,
   VERCEL_JSON_SKILLS,
-} from "./vercel-config.mts";
-import { selectManagedContextChunk } from "./vercel-context.mts";
+} from "./vercel-config.mjs";
+import { selectManagedContextChunk } from "./vercel-context.mjs";
 
 const MAX_SKILLS = 3;
 const DEFAULT_INJECTION_BUDGET_BYTES = 18_000;
@@ -345,7 +345,7 @@ export function loadSkills(
   let manifestVersion = 0;
   let manifestSkillsFull: Record<string, Partial<ManifestSkill>> | null = null;
   const manifest = safeReadJson<Manifest>(manifestPath);
-  if (manifest && manifest.skills && typeof manifest.skills === "object") {
+  if (manifest?.skills && typeof manifest.skills === "object") {
     skillMap = manifest.skills as Record<string, SkillConfig>;
     manifestVersion = manifest.version || 1;
     if (manifestVersion >= 2) {
@@ -710,7 +710,7 @@ export function deduplicateSkills(
   logger?: Logger
 ): DeduplicateResult {
   const l = logger || log;
-  const cap = maxSkills ?? MAX_SKILLS;
+  const _cap = maxSkills ?? MAX_SKILLS;
   const likely = likelySkills || new Set<string>();
   const setupModeActive = setupMode === true;
 
@@ -915,11 +915,12 @@ export function injectSkills(
     injectedSkills,
     budgetBytes,
     maxSkills,
-    skillMap,
+    skillMap: _skillMap,
     logger,
     forceSummarySkills,
     platform: optPlatform,
   } = options || {};
+  void _skillMap;
   const platform: HookPlatform = optPlatform ?? "claude-code";
   const root = pluginRoot || PLUGIN_ROOT;
   const l = logger || log;
@@ -1197,7 +1198,7 @@ export function formatOutput({
   injectedSkills,
   contextChunks,
   summaryOnly,
-  droppedByCap,
+  droppedByCap: _droppedByCap,
   droppedByBudget,
   toolName,
   toolTarget,
@@ -1207,6 +1208,7 @@ export function formatOutput({
   platform = "claude-code",
   env,
 }: FormatOutputParams): string {
+  void _droppedByCap;
   if (parts.length === 0) {
     return formatPlatformOutput(platform, undefined, env);
   }
@@ -1287,7 +1289,7 @@ function run(): string {
     timing.skillmap_load = Math.round(log.now() - tSkillmap);
   }
 
-  const { compiledSkills, usedManifest } = skills;
+  const { compiledSkills } = skills;
 
   // Session dedup state
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
