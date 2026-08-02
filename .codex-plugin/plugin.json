@@ -1,0 +1,38 @@
+{
+  "name": "xylex-group",
+  "version": "0.1.0",
+  "description": "Official XYLEX Group agent skills and tooling.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "homepage": "https://github.com/xylex-group/skills",
+  "repository": "https://github.com/xylex-group/skills",
+  "license": "MIT",
+  "keywords": [
+    "xylex",
+    "agent-skills",
+    "create-xylex-skill",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "XYLEX Group",
+    "shortDescription": "Official XYLEX Group agent skills",
+    "longDescription": "Official XYLEX Group agent skills and tooling: ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
+    "developerName": "XYLEX Group",
+    "category": "Development",
+    "capabilities": [
+      "Instructions",
+      "Lifecycle hooks"
+    ],
+    "websiteURL": "https://github.com/xylex-group/skills",
+    "defaultPrompt": [
+      "Use XYLEX Group skills for this task.",
+      "Scaffold a new XYLEX skill with create-xylex-skill.",
+      "Which XYLEX skill fits this request?"
+    ],
+    "brandColor": "#111111"
+  }
+}
