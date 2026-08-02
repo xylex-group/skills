@@ -1,0 +1,25 @@
+{
+  "$schema": "../schemas/grok-marketplace.schemas.json",
+  "name": "xylex-group",
+  "description": "Official XYLEX Group plugin marketplace",
+  "owner": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "plugins": [
+    {
+      "name": "xylex-group-plugin",
+      "description": "XYLEX Group agent skills — ecosystem graph, skill injection hooks, and skill library",
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": ["xylex", "athena", "xbp", "agent-skills"],
+      "version": "0.1.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    }
+  ]
+}
