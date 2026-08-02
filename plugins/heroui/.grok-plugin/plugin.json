@@ -1,0 +1,19 @@
+{
+  "name": "heroui",
+  "version": "1.0.0",
+  "description": "HeroUI v3 agent skills for React and Native — components, theming, styling, composition, frameworks, CLI, and v2→v3 migration.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "repository": "https://github.com/heroui-inc/heroui",
+  "homepage": "https://www.heroui.com",
+  "license": "MIT",
+  "keywords": [
+    "heroui",
+    "heroui react",
+    "@heroui/react",
+    "@heroui/styles",
+    "heroui native"
+  ]
+}

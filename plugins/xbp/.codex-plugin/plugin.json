@@ -33,6 +33,8 @@
       "Help set up xbp deploy for this repo.",
       "Which XBP skill fits this request?"
     ],
-    "brandColor": "#111111"
+    "brandColor": "#111111",
+    "composerIcon": "./assets/xbp.png",
+    "logo": "./assets/xbp.png"
   }
 }

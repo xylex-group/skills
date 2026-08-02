@@ -1,73 +1,213 @@
 ---
 name: athena-auth-ui-tables
-description: Build, integrate, inspect, debug, customize, document, test, or release Athena Auth UI table surfaces. Use for `AthenaTable`, `AuthTable`, `/tables`, `/athena/table-query`, Athena model-derived rows and columns, findMany/select execution, relation flattening, server or client sorting, filtering, pagination, selection, virtualization, loading and empty states, row and bulk actions, action feedback, mobile cards, value renderers, table builder configuration, generated table code, or any implementation and docs under `packages/athena-auth-ui/packages/heroui/src/components/auth/table/**`, `src/athena/table-query*`, and the table showcase. Use when the user runs /athena-auth-ui-tables.
+description: >
+  Build, integrate, inspect, debug, customize, document, test, or release Athena
+  Auth UI table surfaces from packages/athena-auth-ui/packages/heroui. Covers
+  AthenaTable, AuthTable, AthenaTableActionBar, TableEmptyState, TableSkeleton,
+  AuthTableMobileCards, TableRowActionsMenu; chips (AthenaTableChipConfig,
+  createChipRenderer, statusChipRenderer, columnsFromAthenaModel chips);
+  AthenaModelRow / RowOf / columnsFromAthenaModel / toAthenaTableColumns;
+  useAthenaQuery, useAthenaTableView, useAthenaTableQuery; sorting, selection,
+  pagination, virtualization; row/bulk actions and feedback; portable table
+  builder presets and codegen; createAthenaTableQueryRoute data proxy; and the
+  next-heroui-example tables showcase (/tables, table-showcase-page,
+  use-table-showcase, portable presets). Use when the user runs
+  /athena-auth-ui-tables or works on *table* under packages/heroui/src.
 ---
 
 # Athena Auth UI Tables
 
-Use the current checkout as source of truth. Also use `$athena-auth-ui` when the task changes package-wide exports, styles, providers, release behavior, or non-table workspace UI. Use `$athena-js` when the issue is primarily Athena SDK model/query semantics.
+Package surface lives under:
 
-## Read in this order
+- **Library:** `packages/athena-auth-ui/packages/heroui`
+- **Public barrel:** `src/tables.ts` → `@xylex-group/athena-auth-ui/tables`
+- **Narrow query re-export:** `@xylex-group/athena-auth-ui/athena/table-query`
+- **Reference consumer:** `packages/athena-auth-ui/examples/next-heroui-example`
+  - Route: `src/app/(site)/tables/page.tsx`
+  - Showcase: `src/components/table-showcase-page.tsx` +
+    `src/components/table-showcase/use-table-showcase.ts` +
+    `src/lib/table-showcase*.ts`
 
-1. Locate the Athena Auth UI package root. In the Athena workspace use `packages/athena-auth-ui`; in the standalone repository use the repository root.
-2. Read `packages/heroui/package.json` and confirm `/tables` and `/athena/table-query` are published.
-3. Read `packages/heroui/src/tables.ts` for the complete public symbol surface.
-4. Read `docs/entrypoints/tables.mdx` and the dedicated generated docs page for the affected component or hook.
-5. Read the concrete implementation family from [references/implementation-map.md](references/implementation-map.md).
-6. Read the nearest tests and example-app table consumer before editing behavior.
+Also use `$athena-auth-ui` for package-wide exports/providers/styles/release.
+Use `$athena-js` when the issue is SDK model/query/execute semantics (not UI).
 
-Use [references/public-api.md](references/public-api.md) for export selection, types, and invariants. Use [references/query-and-builder-contracts.md](references/query-and-builder-contracts.md) for Athena query execution and portable builder configurations.
+## Source of truth (read order)
+
+1. `packages/heroui/package.json` — confirm `./tables` and `./athena/table-query`.
+2. `packages/heroui/src/tables.ts` — **complete** public symbol surface
+   (components, hooks, chips, models, builder, feedback, toasts).
+3. Docs: `docs/entrypoints/tables.mdx`, `docs/athena-tables.mdx`,
+   `docs/data-hooks.mdx`, plus generated component/hook pages.
+4. Implementation families in
+   [references/implementation-map.md](references/implementation-map.md).
+5. Chips / models / rows contracts in
+   [references/chips-models-rows.md](references/chips-models-rows.md).
+6. Query + portable builder in
+   [references/query-and-builder-contracts.md](references/query-and-builder-contracts.md).
+7. Example wiring in
+   [references/example-showcase.md](references/example-showcase.md).
+8. Nearest `packages/heroui/tests/table-*.test.*` and showcase tests.
+
+When artifacts disagree: **export map + barrels + source** win; regenerate docs
+with `bun run docs:generate`. Never recommend deep `src/**` or `dist/**` imports.
 
 ## Route the task
 
-### Render or compose a table
+### Compose / render a table
 
-Start with `AthenaTable` for the full generic table and `AuthTable` for auth-styled empty-state normalization. Define stable row keys, typed columns, loading state, empty state, sorting mode, pagination, and accessible labels explicitly. Use package renderers and action helpers before introducing application-local copies.
+- Prefer **`AthenaTable<Row>`** for the full generic surface (sort, search,
+  status filters, pagination, resize, virtualization, mobile cards, actions,
+  async loading).
+- Use **`AuthTable`** when you need the auth empty-state wrapper.
+- Define stable **`getRowKey`**, typed **`AthenaTableColumn<Row>[]`**, loading
+  skeleton, empty state, sort mode, pagination, and a11y labels explicitly.
+- Column display precedence: custom `render` → declarative **`chip`** →
+  **`format`** → default stringify (`resolveColumnRender`).
+- Empty states: treat as one centered composition. `TableEmptyState` owns
+  `min-h-44` and has **no** action slot — never append actions below it; collapse
+  min-height in one wrapper or use an action-capable empty primitive.
 
-Treat `emptyState` as one complete composition. Keep its title, description, and actions in a single centered shell. `TableEmptyState` already owns a `min-h-44` centered surface, so do not append an action below that full-height surface. When the public component has no action slot, collapse its internal minimum height inside one centered consumer wrapper or reuse an existing action-capable shared empty-state primitive.
+### Athena models → columns / rows
 
-### Connect Athena data
+```ts
+import { table } from "@xylex-group/athena"
+import {
+  type AthenaModelRow,
+  columnsFromAthenaModel,
+  AthenaTable,
+} from "@xylex-group/athena-auth-ui/tables"
 
-Use `useAthenaQuery` or `useAthenaInfiniteQuery` (aliases: `useAthenaTableQuery` / `useAthenaInfiniteTableQuery`) with an `AthenaReadQueryDefinition` (alias: `AthenaTableQueryDefinition`). Execution is `@xylex-group/athena` `executeAthenaReadQuery` (re-exported as `executeAthenaTableQuery`). Preserve mode-specific behavior for `findMany` and fluent `select`, relation selection and flattening, filters, multi-column order, limits, count handling, and debug AST output. Never bypass `@xylex-group/athena` with a parallel database client. For SDK-native React cache without TanStack/`dataProxy`, use `@xylex-group/athena/react` `useAthenaReadQuery` instead of the auth-ui hooks.
+const tasks = table("tasks").schema("public").columns({ /* … */ }).primaryKey()
+type TaskRow = AthenaModelRow<typeof tasks>
 
-### Change sorting, selection, or pagination
+const columns = columnsFromAthenaModel(tasks, {
+  labels: { title: "Task" },
+  rowHeaders: ["title"],
+  chips: {
+    status: { color: "status", variant: "soft" },
+    active: { color: "boolean", variant: "soft" },
+  },
+})
+```
 
-Trace controlled props, internal Zustand stores, TanStack state conversion, persisted preferences, and server query conversion together. Keep page reset behavior, total counts, limit clamping, selection identity, sort priority, null ordering, and client/server sorting ownership explicit.
+- `AthenaModelRow<TModel>` = `RowOf<TModel>` from `@xylex-group/athena`.
+- Also re-exported: `AthenaRow`, `AthenaInsert`, `AthenaUpdate`,
+  `AthenaFormValues`, `AthenaTableDef`.
+- Keep metadata compatible with real `meta.columns` / relations — do not invent
+  colliding wrapper model types.
 
-### Change actions, renderers, or feedback
+### Chips
 
-Keep action enablement, disabled reasons, invocation, templates, toast adapters, copy/download/href helpers, mobile cards, and desktop rows aligned. Preserve generic row typing and avoid embedding app-specific behavior in the reusable table layer.
+- Types: `AthenaTableChipConfig`, `AthenaTableChipOptions`, descriptors,
+  when-rules, sizes/variants.
+- Builders: `createDefaultAthenaTableChipConfig`, `normalizeAthenaTableChipConfig`,
+  `serializeAthenaTableChipConfig`, `chipConfigToOptions`,
+  `createChipRenderer` / `createChipRendererFromConfig`, `statusChipRenderer`,
+  `renderChip`, `resolveAthenaTableChipDescriptors`,
+  `resolveStatusColor` / `resolveBooleanColor`.
+- Portable builder columns carry a JSON-serializable `chip` field
+  (export/import snake_case boundary).
+- Showcase demos chips via model columns + builder column config
+  (`buildChipDemoModelColumnsSample`, chip map text editors).
 
-### Change the table builder or generated code
+### Connect data (query stack)
 
-Treat the example-app builder JSON as a portable contract. Update serialization, legacy import normalization, preview, generated code, config hash/seed, package versions, UI fields, tests, and docs in the same pass.
+| Path | API |
+| --- | --- |
+| Server / proxy / worker | `@xylex-group/athena` `executeAthenaReadQuery` (alias `executeAthenaTableQuery`) |
+| Auth UI TanStack tables | `useAthenaQuery` / `useAthenaInfiniteQuery` (+ table-prefixed aliases) |
+| Composed columns+query | `useAthenaTableView` or `toAthenaTableColumns` + `useAthenaQuery` |
+| Athena-native React only | `@xylex-group/athena/react` `useAthenaReadQuery` |
 
-### Change exports or docs
+Do **not** mix TanStack `useAthenaQuery` and Athena-native `useAthenaReadQuery`
+for the same screen data. Hooks never construct clients — pass v3
+`createClient` / server façades / `withContext` views.
 
-Update the concrete implementation, `src/tables.ts`, root `src/index.ts` where intended, `package.json` for new subpaths, generated docs, and example imports together. Do not recommend deep `src` or `dist` imports.
+Data proxy (example pattern):
+
+```ts
+import { createAthenaTableQueryRoute } from "@xylex-group/athena-auth-ui/tables"
+export const { POST } = createAthenaTableQueryRoute({
+  authorize: async ({ request }) => Boolean(request.headers.get("cookie")),
+  getClient: async () => createAthenaServerClient({ url, key }),
+})
+```
+
+### Sorting, selection, pagination
+
+Trace controlled props ↔ Zustand stores ↔ TanStack conversion ↔ server
+`orderBy` together. Keep:
+
+- client sort out of server query mutation and vice versa
+- multi-column sort priority + null strategies
+- page reset on filter/sort changes
+- `page`/`pageSize` as fetch window; `query.limit` as optional **total-row cap**
+  (not a second SQL LIMIT)
+
+### Actions, feedback, mobile rows
+
+Keep enablement, disabled reasons, invocation, templates, toast adapters,
+copy/download/href helpers, desktop rows, and `AuthTableMobileCards` aligned.
+`AthenaTableActionBar` selection props stay **optional** for standalone use.
+
+### Portable builder + generated code (showcase)
+
+Treat example builder JSON as a **public contract**:
+
+- snake_case file boundary; camelCase OK in React state
+- table paths as objects `{ schema_name, table_name }`
+- columns: `index`, `translation_key`, optional `chip` / format / sort
+- `config_hash`, `config_seed`, package versions for athena + athena-auth-ui
+- importers accept legacy camelCase + dotted paths; exporters emit current shape
+
+Update serializer, normalizer, hash/seed, preview, codegen, localStorage, tests,
+and docs **together**.
+
+Primary code: package `components/auth/table/builder/**` + example
+`src/lib/table-showcase*.ts` + `table-showcase-codegen/`.
+
+### Exports / docs
+
+When adding symbols: implementation → `src/tables.ts` → root `src/index.ts` if
+intended → `package.json` for new subpaths → `bun run docs:generate` → example
+imports + tests.
 
 ## Invariants
 
-- Derive model rows and metadata from `@xylex-group/athena`; do not create colliding wrapper model types.
-- Keep `AthenaModelRow<TModel>` compatible with real column and relation metadata.
-- Keep row keys stable across pagination, sorting, refetching, desktop rows, and mobile cards.
-- Keep server sorting out of client sort comparators and client sorting out of server query mutation.
-- Preserve multi-column sort priority and convert sorting state at one explicit boundary.
-- Keep loading controls as skeletons and known-unavailable actions disabled before invocation.
-- Preserve rounded package components and existing HeroUI composition patterns.
-- Avoid layering an idle drop-zone border around a table empty state when the surrounding card or table already provides the surface. Preserve the rounded drag-hover treatment, and show an idle drop-zone border only when it communicates a populated table boundary.
-- Keep action-bar props optional where standalone consumers do not own selection state.
-- Keep query keys deterministic and include every input that changes returned rows.
-- Preserve backwards-compatible imports while emitting only the current portable builder format.
+- Derive rows/metadata from `@xylex-group/athena` models (`AthenaModelRow`).
+- Stable row keys across pagination, sort, refetch, desktop, and mobile.
+- Chip configs stay JSON-serializable for builder export.
+- Server vs client sorting ownership is explicit at one conversion boundary.
+- Loading = skeletons; unavailable actions stay disabled before invoke.
+- Empty-state surface is one centered composition (no stacked full-height shells).
+- Avoid idle drop-zone borders on empty tables unless the boundary is meaningful;
+  keep rounded drag-hover.
+- Deterministic query keys include every input that changes rows.
+- Backwards-compatible preset import; current format on export only.
 
 ## Validation
 
-Match proof to the seam:
+| Seam | Proof |
+| --- | --- |
+| Query / sort / format / chips / import | `packages/heroui/tests/table-*.test.ts`, `to-athena-table-columns`, `table-chip-config`, `athena-table-query` |
+| Components / selection / virtualization | browser Vitest (`test:browser`) |
+| Types / exports | package `build` + type verify scripts |
+| Public API | `bun run docs:generate` |
+| Showcase / presets | `examples/.../src/lib/table-showcase*.test.ts`, example `tsc` / `nx run next-heroui-example:build` |
 
-- Query builders, sorting conversions, formatters, and import normalization: focused unit tests.
-- Components, selection, action menus, responsive behavior, and virtualization: browser tests.
-- Types or exports: package build and declaration generation.
-- Public API: docs generation and package publish checks.
-- Builder behavior: table-showcase tests plus direct example-app typecheck/build.
+```bash
+cd packages/athena-auth-ui
+bun run athena-js:build
+bunx nx run @xylex-group/athena-auth-ui:build
+# package tests under packages/heroui
+bunx nx run next-heroui-example:dev   # open /tables
+```
 
-Do not stop at formatting when behavior changed. On Windows, distinguish a successful Next compile followed by OpenNext symlink `EPERM` from a table regression.
+Windows OpenNext `EPERM` after a green Next compile is environment, not a table
+regression — confirm page generation first.
+
+## Related skills
+
+- `$athena-auth-ui` — full package + next-heroui-example
+- `$athena-js` / `$athena-js-typed-schema-registry` — models, RowOf, table DSL
+- `$update-skill` — rebuild this skill from library after large surface changes

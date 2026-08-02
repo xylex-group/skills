@@ -1,0 +1,19 @@
+{
+    "name":  "engineering",
+    "version":  "1.0.0",
+    "description":  "Engineering practice skills for Grok. TDD, dual-suite SDD, code review, check-work verification, and document-code-contracts.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "repository":  "https://github.com/xylex-group/skills",
+    "homepage":  "https://github.com/xylex-group/skills",
+    "license":  "MIT",
+    "keywords":  [
+                     "tdd",
+                     "sdd",
+                     "code review",
+                     "check work",
+                     "contracts"
+                 ]
+}

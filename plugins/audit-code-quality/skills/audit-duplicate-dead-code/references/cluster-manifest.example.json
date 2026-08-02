@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Clipboard/copy surfaces",
+    "type": "Duplicate",
+    "estimated_savings": "~80-120 lines",
+    "status": "In progress",
+    "reason": "Shared hook exists, but wrappers and copy feedback still drift across packages.",
+    "files": [
+      "src/hooks/use-copy-to-clipboard.ts",
+      "src/components/copy-button.tsx",
+      "packages/ui/registry/chat-ui/copy-button.tsx",
+      "packages/forms/ai-builder/utils/copy-button.tsx",
+      "src/components/chat/message-actions.tsx",
+      "packages/chat/hooks/use-thread-chat-handlers.ts"
+    ]
+  }
+]

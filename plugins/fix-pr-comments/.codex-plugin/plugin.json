@@ -1,0 +1,39 @@
+{
+    "name":  "fix-pr-comments",
+    "version":  "1.0.0",
+    "description":  "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "homepage":  "https://github.com/xylex-group/skills",
+    "repository":  "https://github.com/xylex-group/skills",
+    "license":  "MIT",
+    "keywords":  [
+                     "fix pr comments",
+                     "xbp",
+                     "code review",
+                     "github pr"
+                 ],
+    "skills":  "./skills/",
+    "interface":  {
+                      "displayName":  "Fix PR Comments",
+                      "shortDescription":  "Fix PR Comments agent skills",
+                      "longDescription":  "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
+                      "developerName":  "XYLEX Group",
+                      "category":  "Developer Tools",
+                      "capabilities":  [
+                                           "Instructions",
+                                           "Read",
+                                           "Write"
+                                       ],
+                      "websiteURL":  "https://github.com/xylex-group/skills",
+                      "defaultPrompt":  [
+                                            "Use Fix PR Comments skills for this task.",
+                                            "Which Fix PR Comments skill fits this request?"
+                                        ],
+                      "brandColor":  "#111111",
+                      "composerIcon":  "./assets/xbp.png",
+                      "logo":  "./assets/xbp.png"
+                  }
+}

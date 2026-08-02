@@ -1,0 +1,19 @@
+{
+    "name":  "architecture-plugins",
+    "version":  "1.0.0",
+    "description":  "Codebase architecture skills for Grok. Deep-module design, domain modeling, hexagonal/clean architecture patterns, and improve-codebase-architecture deepening reports.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "repository":  "https://github.com/xylex-group/skills",
+    "homepage":  "https://github.com/xylex-group/skills",
+    "license":  "MIT",
+    "keywords":  [
+                     "architecture",
+                     "codebase design",
+                     "domain modeling",
+                     "deep modules",
+                     "hexagonal architecture"
+                 ]
+}

@@ -1,6 +1,92 @@
 {
   "version": 1,
   "plugins": {
+    "agent-tools": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "create-skill",
+            "description": "Interactively create a new Grok skill (SKILL.md + optional scripts/references). Use when the user wants to create a ski…"
+          },
+          {
+            "name": "global-error-registry",
+            "description": "Design, install, migrate, validate, audit, and document a hexagonal application-global error registry with stable numer…"
+          },
+          {
+            "name": "hatch-pet",
+            "description": "Create, repair, validate, visually QA, and package Codex-compatible animated pets and pet spritesheets from character a…"
+          },
+          {
+            "name": "help",
+            "description": "Grok documentation and configuration help. Use when users ask about setup, configuration, MCP servers, authentication,…"
+          },
+          {
+            "name": "imagine",
+            "description": "How to use the image_gen and image_edit tool calls in Grok Build: when to build a visual with code instead of generatin…"
+          },
+          {
+            "name": "linear",
+            "description": "Manage Linear issues, projects, cycles, documents, and team workflows. Use when the user wants to read, create, update,…"
+          },
+          {
+            "name": "nvim-config",
+            "description": "Reference and editing guide for Floris’s Neovim config (NvChad-based) at %LOCALAPPDATA%/nvim (C:\\Users\\floris\\AppData\\L…"
+          },
+          {
+            "name": "setup-docs-blume",
+            "description": "Scaffold or fully rewrite apps/docs as a Blume product documentation site (Ultracite-style template → product marketing…"
+          },
+          {
+            "name": "statbot-js-sdk",
+            "description": "Maintain the statbot-js repository by turning route docs or route metadata into root OpenAPI artifacts, keeping the Typ…"
+          },
+          {
+            "name": "tailwind-canonicalize",
+            "description": "Install and wire tailwind-canonicalize into a JS/TS repo: detect package manager and favored lint/format stack (Biome,…"
+          },
+          {
+            "name": "triage-and-case-issues",
+            "description": "Turn pasted logs, stack traces, terse bug reports, and feature ideas into concise, repo-aware issue cases across Linear…"
+          },
+          {
+            "name": "ultracite-setup",
+            "description": "Fully install and wire Ultracite (Biome-first lint/format) into a JS/TS repo or monorepo: non-interactive init, package…"
+          },
+          {
+            "name": "update-skill",
+            "description": "Rebuild or refresh a Grok skill from a live library/package tree by inventorying package.json exports, types, component…"
+          },
+          {
+            "name": "vercel-data-security-guide",
+            "description": "Apply Next.js App Router data-security best practices for RSC, Data Access Layers, DTOs, server-only modules, React tai…"
+          }
+        ]
+      }
+    },
+    "architecture-plugins": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "architecture-patterns",
+            "description": "Implement proven backend architecture patterns including Clean Architecture, Hexagonal Architecture, and Domain-Driven…"
+          },
+          {
+            "name": "codebase-design",
+            "description": "Shared vocabulary for designing deep modules. Use when the user wants to design or improve a module's interface, find d…"
+          },
+          {
+            "name": "domain-modeling",
+            "description": "Build and sharpen a project's domain model. Use when the user wants to pin down domain terminology or a ubiquitous lang…"
+          },
+          {
+            "name": "improve-codebase-architecture",
+            "description": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you…"
+          }
+        ]
+      }
+    },
     "athena": {
       "sha": "400cfe5168256f4357fb3edac206d320a2595b92",
       "version": "1.0.0",
@@ -81,6 +167,287 @@
           {
             "name": "athena-workspace-map",
             "description": "Map Athena monorepo surfaces: which folder owns which package, app, crate, or service, and where published npm/Cargo na…"
+          }
+        ]
+      }
+    },
+    "audit-code-quality": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "audit-and-shrink",
+            "description": "Audit a codebase for duplicate code, dead code, and drifted parallel implementations; write a durable ranked audit mark…"
+          },
+          {
+            "name": "audit-duplicate-dead-code",
+            "description": "Audit repositories for duplicate code, dead code, refactor hotspots, and drifted parallel implementations. Use when Cod…"
+          },
+          {
+            "name": "duplicate-blastzone-audit",
+            "description": "Find similar or duplicate functions across a codebase, map blast zones of callers and dependents, rank clusters by yiel…"
+          },
+          {
+            "name": "fallow",
+            "description": "Codebase intelligence for JavaScript and TypeScript. Free static layer reports quality, changed-code risk, cleanup oppo…"
+          },
+          {
+            "name": "frontend-code-hygiene",
+            "description": "Enforce strict React and TypeScript frontend implementation conventions for this workspace. Use when Codex is creating,…"
+          },
+          {
+            "name": "reduce-contract-drift",
+            "description": "Identify, measure, prevent, and reduce contract drift across CLIs, HTTP APIs, SDKs, generated clients, proxies, databas…"
+          },
+          {
+            "name": "repo-audit-reporting",
+            "description": "Create concrete repository audit reports with provenance, live seam tracing, ranked findings, and exact code references…"
+          }
+        ]
+      }
+    },
+    "cloudflare": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "agents-sdk",
+            "description": "Build AI agents on Cloudflare Workers using the Agents SDK. Load when creating stateful agents, durable workflows, real…"
+          },
+          {
+            "name": "cloudflare",
+            "description": "Comprehensive Cloudflare platform skill covering Workers, Pages, storage (KV, D1, R2), AI (Workers AI, Vectorize, Agent…"
+          },
+          {
+            "name": "cloudflare-email-service",
+            "description": "Send and receive transactional emails with Cloudflare Email Service (Email Sending + Email Routing). Use when building…"
+          },
+          {
+            "name": "cloudflare-one",
+            "description": "Guides Cloudflare One Zero Trust and SASE work across Access, Gateway, WARP, Tunnel, Cloudflare WAN, DLP, CASB, device…"
+          },
+          {
+            "name": "cloudflare-one-migrations",
+            "description": "Plans migrations from Zscaler ZIA/ZPA, Palo Alto, legacy VPN, SWG, or SASE stacks to Cloudflare One. Use for migration…"
+          },
+          {
+            "name": "cloudflare-service-bindings",
+            "description": "Configure, explain, or debug Cloudflare Worker-to-Worker service bindings. Use when Codex needs to wire one Worker to a…"
+          },
+          {
+            "name": "durable-objects",
+            "description": "Create and review Cloudflare Durable Objects. Use when building stateful coordination (chat rooms, multiplayer games, b…"
+          },
+          {
+            "name": "nextjs-cloudflare-worker-porting",
+            "description": "Port existing Next.js projects to Cloudflare Workers using the current OpenNext and Wrangler workflow. Use when Codex n…"
+          },
+          {
+            "name": "sandbox-sdk",
+            "description": "Build sandboxed applications for secure code execution. Load when building AI code execution, code interpreters, CI/CD…"
+          },
+          {
+            "name": "turnstile-spin",
+            "description": "Set up Cloudflare Turnstile end-to-end in a project — scan the codebase, create the widget via the Cloudflare API, depl…"
+          },
+          {
+            "name": "web-perf",
+            "description": "Analyzes web performance using Chrome DevTools MCP. Measures Core Web Vitals (LCP, INP, CLS) and supplementary metrics…"
+          },
+          {
+            "name": "workers-best-practices",
+            "description": "Reviews and authors Cloudflare Workers code against production best practices. Load when writing new Workers, reviewing…"
+          },
+          {
+            "name": "wrangler",
+            "description": "Cloudflare Workers CLI for deploying, developing, and managing Workers, KV, R2, D1, Vectorize, Hyperdrive, Workers AI,…"
+          }
+        ]
+      }
+    },
+    "engineering": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "check-work",
+            "description": "Check your work with a verification subagent that reviews diffs, runs builds and tests, and evaluates correctness. Read…"
+          },
+          {
+            "name": "code-review",
+            "description": "Run an extremely strict maintainability review for abstraction quality, giant files, and spaghetti-condition growth. Us…"
+          },
+          {
+            "name": "document-code-contracts",
+            "description": "Document function, method, and package callable contracts directly from a codebase. Use when Codex needs to formalize w…"
+          },
+          {
+            "name": "spec-driven-development",
+            "description": "Spec-first dual-suite TDD: write a specification, add characterization tests that PASS on the current implementation, a…"
+          },
+          {
+            "name": "tdd",
+            "description": "Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions \"red-green-refactor…"
+          },
+          {
+            "name": "test-driven-development",
+            "description": "Use when implementing any feature or bugfix, before writing implementation code"
+          }
+        ]
+      }
+    },
+    "fix-pr-comments": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "create-test-for-pr-comment",
+            "description": "For every GitHub PR review comment being fixed, add a focused regression test whose title matches the review subject (i…"
+          },
+          {
+            "name": "fix-pr-comments",
+            "description": "AUTO-RUN: when the user pastes GitHub PR review notifications (chatgpt-codex-connector, \"New review comment on pull req…"
+          },
+          {
+            "name": "fix-pr-comments-xbp",
+            "description": "Legacy XBP MCP fix-pr-comments. Prefer global fix-pr-comments-xbp-v2 (CLI-only, no MCP). Same red→green / allowlist / a…"
+          },
+          {
+            "name": "fix-pr-comments-xbp-v2",
+            "description": "Blazing-fast CLI-only PR review fixes. Auto-detects discussion_r / issuecomment / paste from any args. Fixes ALL provid…"
+          },
+          {
+            "name": "gh-address-comments",
+            "description": "Help address review/issue comments on the open GitHub PR for the current branch using gh CLI; verify gh auth first and…"
+          }
+        ]
+      }
+    },
+    "heroui": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "heroui-all-components",
+            "description": "Catalog of all HeroUI v3 React components by category (Buttons, Forms, Overlays, Navigation, etc.). Use to pick the rig…"
+          },
+          {
+            "name": "heroui-animation-and-transitions",
+            "description": "Animate HeroUI v3 components with built-in CSS transitions (data-entering, data-pressed, etc.), Tailwind utilities, cus…"
+          },
+          {
+            "name": "heroui-cli",
+            "description": "Use heroui-cli to initialize HeroUI v3 projects, install/upgrade/uninstall @heroui/react and @heroui/styles, list packa…"
+          },
+          {
+            "name": "heroui-colors",
+            "description": "Apply HeroUI v3 semantic color roles and CSS variables: accent, default, success, warning, danger, foreground/muted, ba…"
+          },
+          {
+            "name": "heroui-composition-patterns",
+            "description": "Build flexible HeroUI v3 UI with composition: framework-agnostic styles from @heroui/styles, polymorphic styling via bu…"
+          },
+          {
+            "name": "heroui-dark-mode",
+            "description": "Add light, dark, and system theme switching to HeroUI v3. CSS-driven themes via class dark / data-theme on html (no Her…"
+          },
+          {
+            "name": "heroui-design-principles",
+            "description": "Apply HeroUI v3's 10 core design principles (semantic intent, accessibility, composition, progressive disclosure, predi…"
+          },
+          {
+            "name": "heroui-frameworks",
+            "description": "Integrate HeroUI v3 with Next.js (App Router, Pages Router) and Vite. Covers heroui-cli init, first Button usage, no-pr…"
+          },
+          {
+            "name": "heroui-migration",
+            "description": "HeroUI v2 to v3 migration guide for agents. Use when migrating HeroUI v2 apps to v3, upgrading components, or accessing…"
+          },
+          {
+            "name": "heroui-native",
+            "description": "HeroUI Native component library for React Native (Tailwind v4 via Uniwind). Use when building mobile UIs with HeroUI Na…"
+          },
+          {
+            "name": "heroui-react",
+            "description": "HeroUI v3 React component library (Tailwind CSS v4 + React Aria). Use when building UIs with HeroUI — creating Buttons,…"
+          },
+          {
+            "name": "heroui-styling",
+            "description": "Style HeroUI v3 components with className, inline style, BEM classes, data-state attributes, render-prop dynamic classe…"
+          }
+        ]
+      }
+    },
+    "rust": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "gov-uk-rs-sdk",
+            "description": "Workspace playbook for the multi-crate GOV.UK and Companies House Rust SDK. Use when implementing, explaining, validati…"
+          },
+          {
+            "name": "path-rs",
+            "description": "Use, implement, test, and explain the path-rs Rust library: expansion, lexical normalize/resolve, platform dirs, listin…"
+          },
+          {
+            "name": "rust-best-practices",
+            "description": "Guide for writing idiomatic Rust code based on Apollo GraphQL's best practices handbook. Use this skill when: (1) writi…"
+          },
+          {
+            "name": "rust-contract-spine",
+            "description": "Clean up Rust codebases, plan safe refactors, eliminate contract drift, and implement a contract-spine authority chain…"
+          },
+          {
+            "name": "rust-crate-setup",
+            "description": "Maps and enforces the path-rs Rust library crate layout, feature flags, module boundaries, public API re-exports, testi…"
+          },
+          {
+            "name": "rust-workspace-crates",
+            "description": "Design and refactor Rust projects into a Cargo workspace with reusable crates under `crates/*`. Use when a Rust codebas…"
+          }
+        ]
+      }
+    },
+    "ui-plugins": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "agentation",
+            "description": "Add Agentation visual feedback toolbar to a Next.js project. Use when the user asks about agentation, needs to implemen…"
+          },
+          {
+            "name": "anti-ui-slop",
+            "description": "Stop AI coding agents from shipping generic UI. Use for web or mobile UI design, frontend implementation, redesigns, UI…"
+          },
+          {
+            "name": "extract-design-system",
+            "description": "Extract design primitives from a public website and generate starter token files for your project."
+          },
+          {
+            "name": "polish-ui-components",
+            "description": "Design and refine polished UI components that feel premium, tactile, and production-ready. Use when Codex is building o…"
+          },
+          {
+            "name": "transitions-dev",
+            "description": "Production-ready CSS transitions for web apps. Use when implementing notification badges, dropdowns, modals, panel reve…"
+          },
+          {
+            "name": "transitions-polish",
+            "description": "Polish and refine existing motion against the transitions.dev motion-token scale — duration, distance, scale, blur, and…"
+          },
+          {
+            "name": "ui-design",
+            "description": "Design, build, or improve web and mobile interfaces using real product examples from UIZZE’s 800,000+ web and iOS scree…"
+          },
+          {
+            "name": "ui-radar",
+            "description": "Find and compare real UI examples from UIZZE’s 800,000+ web and iOS screens. Use for UI inspiration, UI research, desig…"
+          },
+          {
+            "name": "ui-slop-score",
+            "description": "Review a rendered web or mobile interface and score how generic it looks. Use for UI critique, design review, visual po…"
           }
         ]
       }

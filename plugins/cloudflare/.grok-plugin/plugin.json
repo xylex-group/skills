@@ -1,0 +1,20 @@
+{
+    "name":  "cloudflare",
+    "version":  "1.0.0",
+    "description":  "Cloudflare platform skills for Grok. Workers, Wrangler, Durable Objects, Agents SDK, Sandbox SDK, Turnstile, Cloudflare One, email, service bindings, and web performance.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "repository":  "https://github.com/xylex-group/skills",
+    "homepage":  "https://developers.cloudflare.com",
+    "license":  "MIT",
+    "keywords":  [
+                     "cloudflare",
+                     "workers",
+                     "wrangler",
+                     "durable objects",
+                     "turnstile",
+                     "agents sdk"
+                 ]
+}

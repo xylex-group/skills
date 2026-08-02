@@ -154,3 +154,9 @@ evals
 .reports
 .vercel
 /scripts/__pycache__
+
+# Local raw skill staging — drop drafts here; never commit skill bodies.
+# Track only the README (and optional .gitkeep) so the folder ships empty.
+/raw-skills/**
+!/raw-skills/README.md
+!/raw-skills/.gitkeep

@@ -1,0 +1,40 @@
+{
+    "name":  "rust",
+    "version":  "1.0.0",
+    "description":  "Rust engineering skills for Grok. Best practices, workspace crates, crate setup, contract spine, path-rs, and gov-uk-rs-sdk.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "homepage":  "https://www.rust-lang.org",
+    "repository":  "https://github.com/xylex-group/skills",
+    "license":  "MIT",
+    "keywords":  [
+                     "rust",
+                     "cargo",
+                     "path-rs",
+                     "workspace crates",
+                     "gov-uk-rs-sdk"
+                 ],
+    "skills":  "./skills/",
+    "interface":  {
+                      "displayName":  "Rust",
+                      "shortDescription":  "Rust agent skills",
+                      "longDescription":  "Rust engineering skills for Grok. Best practices, workspace crates, crate setup, contract spine, path-rs, and gov-uk-rs-sdk.",
+                      "developerName":  "XYLEX Group",
+                      "category":  "Developer Tools",
+                      "capabilities":  [
+                                           "Instructions",
+                                           "Read",
+                                           "Write"
+                                       ],
+                      "websiteURL":  "https://www.rust-lang.org",
+                      "defaultPrompt":  [
+                                            "Use Rust skills for this task.",
+                                            "Which Rust skill fits this request?"
+                                        ],
+                      "brandColor":  "#111111",
+                      "composerIcon":  "./assets/xbp.png",
+                      "logo":  "./assets/xbp.png"
+                  }
+}

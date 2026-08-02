@@ -1,46 +1,69 @@
 # Table Public API
 
-## Entrypoints
+Authoritative sources (re-read every task):
 
-- `@xylex-group/athena-auth-ui/tables`: focused public table API from `packages/heroui/src/tables.ts`.
-- `@xylex-group/athena-auth-ui/athena/table-query`: compat re-export of portable read-query from `@xylex-group/athena` (`src/athena/table-query.ts` → `table-query-executor.ts`).
-- `@xylex-group/athena-auth-ui`: selected table exports are also available from the root barrel. Confirm each symbol in `src/index.ts` before using the root import.
+- `packages/heroui/package.json` → `./tables`, `./athena/table-query`
+- `packages/heroui/src/tables.ts` — full symbol list
+- `docs/entrypoints/tables.mdx`, `docs/athena-tables.mdx`, `docs/data-hooks.mdx`
 
-Prefer `executeAthenaReadQuery` / `AthenaReadQueryDefinition` from `@xylex-group/athena` for non-UI call sites. Prefer auth-ui `useAthenaQuery` for TanStack + pagination + optional `dataProxy`.
+Prefer:
 
-The current manifest and barrels are authoritative if this reference drifts.
+```ts
+import { /* … */ } from "@xylex-group/athena-auth-ui/tables"
+```
+
+Root `@xylex-group/athena-auth-ui` re-exports a **subset** — confirm in
+`src/index.ts` before using root for table-only code.
 
 ## API families
 
 | Family | Main exports |
 | --- | --- |
-| Table components | `AthenaTable`, `AuthTable`, `AthenaTableActionBar`, `TableSkeleton`, `TableEmptyState`, `AuthTableMobileCards`, `TableRowActionsMenu`, `IconActionButton` |
-| Query hooks | `useAthenaQuery`, `useAthenaInfiniteQuery` (aliases: `useAthenaTableQuery`, `useAthenaInfiniteTableQuery`) |
-| Pagination | `useDataTablePagination`, `useClientPagination`, pagination option/result/summary types |
-| Selection | `useTableSelection`, `useTableSelectionStore`, `toTanstackRowSelection`, `TableSelection` |
-| Sorting | `useTableSorting`, `useTableSortingStore`, sorting descriptors/state; sorting-state converters and strategies |
-| Query execution | `executeAthenaReadQuery` / `executeAthenaTableQuery` (SDK re-export), select/findMany builders, filter/order/limit helpers, row flattening, total clamping |
-| Actions | action types, enablement/invocation helpers, copy/download/href builders, feedback wrappers |
-| Rendering | column render resolution, value formatting, chips, status colors, templates, image detection |
-| Athena model types | `AthenaTableDef`, `AthenaModelRow`, `AthenaRow`, `AthenaInsert`, `AthenaUpdate`, `AthenaFormValues`, `columnsFromAthenaModel` |
-| Feedback | toast adapter configuration, feedback templates, copy/action feedback, package toast helpers |
+| Components | `AthenaTable`, `AuthTable`, `AthenaTableActionBar`, `TableSkeleton`, `TableEmptyState`, `AuthTableMobileCards`, `TableRowActionsMenu`, `IconActionButton`, `AthenaTableError`, `FileThumbnail` |
+| Query hooks | `useAthenaQuery`, `useAthenaInfiniteQuery`, aliases `useAthenaTableQuery`, `useAthenaInfiniteTableQuery` |
+| View composition | `useAthenaTableView`, `toAthenaTableColumns`, `toReadQueryColumns`, `toTableRowActions` |
+| Pagination | `useDataTablePagination`, `useClientPagination` |
+| Selection | `useTableSelection`, `useTableSelectionStore`, `toTanstackRowSelection` |
+| Sorting | `useTableSorting`, `useTableSortingStore`, `normalizeSortingState`, `sortingStateToOrderBy`, `orderByToSortingState`, sort strategies |
+| Query execution | `executeAthenaReadQuery` / `executeAthenaTableQuery`, findMany/select builders, filters/order/limit helpers, flatten, clamp totals |
+| Data proxy route | `createAthenaTableQueryRoute`, `handleAthenaTableQueryPost`, `isAthenaTableQueryDefinition` |
+| Actions | `canRunAthenaTableAction`, `invokeAthenaTableAction`, action config CRUD, copy/download/href helpers, feedback |
+| Chips / values | `AthenaTableChipConfig*`, `createChipRenderer*`, `statusChipRenderer`, `renderChip`, formatters, status/boolean colors |
+| Models | `AthenaModelRow`, `columnsFromAthenaModel`, `AthenaRow`/`Insert`/`Update`/`FormValues`, `AthenaTableDef` |
+| Builder / preset | `buildTableBuilderPreset*`, `buildGeneratedCode`, import normalizers, path helpers, `TABLE_BUILDER_PRESET_KIND` |
+| Feedback / toast | table toast adapters + `AthenaToastProvider` / `showToast*` (shared) |
 
 ## Component choices
 
-- Use `AthenaTable<Row>` for the complete generic table with sorting, search, status filters, pagination, resizing, virtualization, responsive cards, actions, and async loading support.
-- Use `AuthTable` when the caller needs the package-auth empty-state wrapper around a table composition.
-- Use `TableEmptyState` for its centered status content, but remember that it owns a `min-h-44` surface and has no action slot. If a consumer needs an empty-state action, place the status and action in one centered wrapper and remove the nested surface's minimum height; never append the action below the full-height `TableEmptyState`.
-- Use `AthenaTableActionBar` independently only with optional selection props; do not make selection mandatory for standalone consumers.
-- Use `AuthTableMobileCards` and `resolveAuthTableMobileColumnRole` when customizing responsive rendering.
+| Need | Use |
+| --- | --- |
+| Full generic table | `AthenaTable<Row>` |
+| Auth empty-state wrapper | `AuthTable` |
+| Centered empty content only | `TableEmptyState` (no action slot; owns min-height) |
+| Bulk/standalone toolbar | `AthenaTableActionBar` (selection props optional) |
+| Mobile cards | `AuthTableMobileCards` + `resolveAuthTableMobileColumnRole` |
+| Per-row overflow menu | `TableRowActionsMenu` |
 
 ## Type rules
 
-- Parameterize components and columns with the actual row type.
-- Use `AthenaModelRow<typeof model>` for Athena models.
-- Use stable `getRowKey`; never use a changing display index when records can reorder.
-- Keep column IDs aligned with query column keys, sorting descriptors, action value keys, and persisted preferences.
-- Treat `columnsFromAthenaModel` as a basic helper, then override labels/renderers explicitly where richer metadata is required.
+- Parameterize with the real row type (`AthenaModelRow<typeof model>` or flat row).
+- Stable `getRowKey` — never a display index under reorder.
+- Align column `id` / `valueKey` with query keys, sort descriptors, action value columns, prefs.
+- `columnsFromAthenaModel` is a base helper; override labels/render/chips for rich UI.
+- Column display order: `render` → `chip` → `format` → default.
+
+## Query stack trap
+
+| Symbol | Package | Stack |
+| --- | --- | --- |
+| `useAthenaQuery` | `@xylex-group/athena-auth-ui/tables` | TanStack + optional `dataProxy` |
+| `useAthenaReadQuery` | `@xylex-group/athena/react` | Athena-native cache |
+| `executeAthenaReadQuery` | `@xylex-group/athena` (re-exported) | Imperative |
+
+One React cache stack per surface.
 
 ## Generated docs
 
-Read `docs/entrypoints/tables.mdx` first. Dedicated docs exist for `AthenaTable`, `AthenaTableActionBar`, `AuthTable`, mobile cards, table skeleton and empty state, row action menus, icon actions, table query hooks, pagination, selection, and sorting. Their current signatures and source links override summaries here.
+Start at `docs/entrypoints/tables.mdx`. Dedicated pages exist for AthenaTable,
+action bar, AuthTable, mobile cards, skeleton, empty state, row menus, hooks,
+pagination, selection, sorting. Live signatures override this summary.

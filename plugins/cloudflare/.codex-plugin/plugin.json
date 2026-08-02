@@ -1,0 +1,41 @@
+{
+    "name":  "cloudflare",
+    "version":  "1.0.0",
+    "description":  "Cloudflare platform skills for Grok. Workers, Wrangler, Durable Objects, Agents SDK, Sandbox SDK, Turnstile, Cloudflare One, email, service bindings, and web performance.",
+    "author":  {
+                   "name":  "XYLEX Group",
+                   "url":  "https://github.com/xylex-group"
+               },
+    "homepage":  "https://developers.cloudflare.com",
+    "repository":  "https://github.com/xylex-group/skills",
+    "license":  "MIT",
+    "keywords":  [
+                     "cloudflare",
+                     "workers",
+                     "wrangler",
+                     "durable objects",
+                     "turnstile",
+                     "agents sdk"
+                 ],
+    "skills":  "./skills/",
+    "interface":  {
+                      "displayName":  "Cloudflare",
+                      "shortDescription":  "Cloudflare agent skills",
+                      "longDescription":  "Cloudflare platform skills for Grok. Workers, Wrangler, Durable Objects, Agents SDK, Sandbox SDK, Turnstile, Cloudflare One, email, service bindings, and web performance.",
+                      "developerName":  "XYLEX Group",
+                      "category":  "Developer Tools",
+                      "capabilities":  [
+                                           "Instructions",
+                                           "Read",
+                                           "Write"
+                                       ],
+                      "websiteURL":  "https://developers.cloudflare.com",
+                      "defaultPrompt":  [
+                                            "Use Cloudflare skills for this task.",
+                                            "Which Cloudflare skill fits this request?"
+                                        ],
+                      "brandColor":  "#111111",
+                      "composerIcon":  "./assets/xbp.png",
+                      "logo":  "./assets/xbp.png"
+                  }
+}

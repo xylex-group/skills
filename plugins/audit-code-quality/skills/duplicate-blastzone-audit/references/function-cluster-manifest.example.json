@@ -1,0 +1,26 @@
+[
+  {
+    "name": "session-resolution",
+    "type": "duplicate+drift",
+    "symbols": [
+      { "name": "resolve_session", "file": "crates/auth/src/session.rs", "line": 42 },
+      { "name": "get_session_from_request", "file": "crates/cli/src/middleware.rs", "line": 18 }
+    ],
+    "canonical_target": "crates/auth/src/session.rs::resolve_session",
+    "notes": "CLI copy skips refresh; auth copy handles token rotation",
+    "yield_hint": 4,
+    "risk_hint": 3
+  },
+  {
+    "name": "format-error-response",
+    "type": "exact duplicate",
+    "symbols": [
+      { "name": "format_error", "file": "src/api/errors.rs", "line": 10 },
+      { "name": "format_error", "file": "src/legacy/errors.rs", "line": 55 }
+    ],
+    "canonical_target": "src/api/errors.rs::format_error",
+    "notes": "Legacy tree appears unused — verify blast zone before delete",
+    "yield_hint": 3,
+    "risk_hint": 1
+  }
+]

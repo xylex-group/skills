@@ -33,6 +33,8 @@
       "Which Athena skill fits this request?",
       "Help wire Athena auth or billing into this repo."
     ],
-    "brandColor": "#111111"
+    "brandColor": "#111111",
+    "composerIcon": "./assets/athena.png",
+    "logo": "./assets/athena.png"
   }
 }

@@ -110,6 +110,9 @@ bun run src/cli/index.ts explain path/to/file.ts
 | `typecheck` | `tsc` on `hooks/src` |
 | `test` | Typecheck + `bun test hooks` |
 | `build` | Skills, hooks (tsup), manifest, skill catalog |
+| `process:raw-skills` | **E2E** raw-skills → plugins + marketplace index + catalog validate |
+| `process:raw-skills:check` | Fail if `raw-skills/` and `plugins/` are out of sync |
+| `e2e:raw-skills` | Alias of `process:raw-skills` |
 | `validate` | Cross-refs, frontmatter, profiler slugs, fixtures |
 | `validate:catalog` | Marketplace catalog rules (`marketplace.json` + LICENSE) |
 | `build:plugin-index` | Regenerate `.grok-plugin/plugin-index.json` (never hand-edit) |
@@ -137,21 +140,81 @@ repo marketplace so the same first-party plugins install on both hosts. See
 
 ### Catalog plugins
 
-| Plugin | Path | Skills source |
-| ------ | ---- | ------------- |
-| [`athena`](plugins/athena/) | `./plugins/athena` | `~/.grok/skills/athena-*` (vendored) |
-| [`xbp`](plugins/xbp/) | `./plugins/xbp` | `~/.grok/skills/xbp`, `setup-xbp-deploy` (vendored) |
-| [`xylex-group-plugin`](.) | `./` (repo root) | Root `skills/` + hooks |
+| Plugin | Path | Skills | Icon |
+| ------ | ---- | ------ | ---- |
+| [`agent-tools`](plugins/agent-tools/) | `./plugins/agent-tools` | 14 | `assets/xbp.png` |
+| [`architecture-plugins`](plugins/architecture-plugins/) | `./plugins/architecture-plugins` | 4 | `assets/xbp.png` |
+| [`athena`](plugins/athena/) | `./plugins/athena` | 19 | `assets/athena.png` |
+| [`audit-code-quality`](plugins/audit-code-quality/) | `./plugins/audit-code-quality` | 7 | `assets/xbp.png` |
+| [`cloudflare`](plugins/cloudflare/) | `./plugins/cloudflare` | 13 | `assets/xbp.png` |
+| [`engineering`](plugins/engineering/) | `./plugins/engineering` | 6 | `assets/xbp.png` |
+| [`fix-pr-comments`](plugins/fix-pr-comments/) | `./plugins/fix-pr-comments` | 5 | `assets/xbp.png` |
+| [`heroui`](plugins/heroui/) | `./plugins/heroui` | 12 | `assets/heroui.png` |
+| [`rust`](plugins/rust/) | `./plugins/rust` | 6 | `assets/xbp.png` |
+| [`ui-plugins`](plugins/ui-plugins/) | `./plugins/ui-plugins` | 9 | `assets/xbp.png` |
+| [`xbp`](plugins/xbp/) | `./plugins/xbp` | 2 | `assets/xbp.png` |
+| [`xylex-group-plugin`](.) | `./` (repo root) | root `skills/` + hooks | `assets/xbp.png` |
+
+Stage under `raw-skills/<plugin>/`, then `bun run process:raw-skills`. Standard default icon is
+`assets/xbp.png` unless the plugin has a dedicated asset (athena, heroui).
 
 First-party plugins live under `plugins/<name>/`. Third-party plugins go under
 `external_plugins/<name>/` or use a remote `url` + pinned `sha` (Vercel-style).
 
-To refresh Athena/XBP skills from your local Grok library:
+### Raw skills → plugins pipeline (e2e)
+
+Stage skill trees under the **gitignored** `raw-skills/` folder, then process them
+into first-party plugins in one command:
+
+```text
+raw-skills/
+├── agent-tools/
+├── architecture-plugins/
+├── athena/
+├── audit-code-quality/
+├── cloudflare/
+├── engineering/
+├── fix-pr-comments/
+├── heroui/                 # all heroui-* skills
+├── rust/
+├── ui-plugins/
+├── xbp/
+└── ${ANY_OTHER_PLUGIN}/    # scaffolds plugins/<name>/ when new
+    └── my-skill/SKILL.md
+```
+
+```bash
+# place skills, then:
+pnpm run process:raw-skills
+# aliases: bun run process:raw-skills | pnpm run e2e:raw-skills
+```
+
+That e2e command:
+
+1. Discovers `raw-skills/<plugin>/**/SKILL.md` (and `raw-skills/<plugin>/skills/…`)
+2. Scaffolds `plugins/<plugin>/` (`.codex-plugin`, `.grok-plugin`, README) if missing
+3. Syncs each skill into `plugins/<plugin>/skills/<skill>/`
+4. Registers new plugins in both marketplaces (local source)
+5. Regenerates `.grok-plugin/plugin-index.json`
+6. Runs `validate-catalog`
+
+Useful flags (pass after `--` with pnpm):
+
+```bash
+pnpm run process:raw-skills -- --plugin athena
+pnpm run process:raw-skills -- --sync-only
+pnpm run process:raw-skills -- --check
+pnpm run process:raw-skills -- --mirror
+pnpm run process:raw-skills -- --dry-run
+```
+
+See [`raw-skills/README.md`](raw-skills/README.md) for the full layout.
 
 ```powershell
-# example: re-copy one skill
-Copy-Item -Recurse -Force "$env:USERPROFILE\.grok\skills\xbp" plugins\xbp\skills\xbp
-python scripts/generate-plugin-index.py
+# example: stage one skill from the local Grok library, then process
+New-Item -ItemType Directory -Force raw-skills/xbp | Out-Null
+Copy-Item -Recurse -Force "$env:USERPROFILE\.grok\skills\xbp" raw-skills\xbp\xbp
+pnpm run process:raw-skills -- --plugin xbp
 ```
 
 ### What a plugin is
@@ -248,8 +311,8 @@ CI runs `python3 scripts/generate-plugin-index.py --check` and fails if the comm
 ### Codex marketplace
 
 Codex / ChatGPT read [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json). Entries
-mirror the Grok catalog (`athena`, `xbp`, `xylex-group-plugin`) with local `source.path` values and
-required `policy` + `category` fields. Point Codex at this repo with:
+mirror the Grok catalog (all first-party plugins above, plus `xylex-group-plugin`) with local
+`source.path` values and required `policy` + `category` fields. Point Codex at this repo with:
 
 ```bash
 codex plugin marketplace add ./   # from a local clone
