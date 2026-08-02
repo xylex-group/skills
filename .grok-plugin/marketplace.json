@@ -8,16 +8,73 @@
   },
   "plugins": [
     {
+      "name": "athena",
+      "description": "Athena platform integration. Auth, JS/Rust SDKs, billing, storage, edge adapters, and workspace architecture guidance for building on Athena from Grok.",
+      "category": "database",
+      "source": {
+        "type": "local",
+        "path": "./plugins/athena"
+      },
+      "homepage": "https://github.com/xylex-group/athena",
+      "keywords": [
+        "athena",
+        "athena-js",
+        "athena auth",
+        "athena billing",
+        "xylex athena"
+      ],
+      "domains": [
+        "xylex-group.us"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "xbp",
+      "description": "XBP ops CLI integration. Deploy, release/bump, native OCI registry (registry.xbp.app), local OCI load, Docker Desktop Kubernetes, Cloudflare Workers containers and static assets, and consumer-repo ship from Grok.",
+      "category": "deployment",
+      "source": {
+        "type": "local",
+        "path": "./plugins/xbp"
+      },
+      "homepage": "https://github.com/xylex-group/xbp",
+      "keywords": [
+        "xbp",
+        "xbp deploy",
+        "xbp oci",
+        "registry.xbp.app"
+      ],
+      "domains": [
+        "xbp.app",
+        "registry.xbp.app"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
       "name": "xylex-group-plugin",
-      "description": "XYLEX Group agent skills — ecosystem graph, path/bash skill injection hooks, and the skill library for Athena, XBP, and related tools.",
-      "source": "./",
+      "description": "XYLEX Group agent skills meta-plugin — ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
       "category": "development",
+      "source": {
+        "type": "local",
+        "path": "./"
+      },
       "homepage": "https://github.com/xylex-group/skills",
       "keywords": [
         "xylex",
-        "athena",
-        "xbp",
-        "agent-skills"
+        "agent-skills",
+        "create-xylex-skill"
+      ],
+      "domains": [
+        "xylex-group.us"
       ],
       "version": "0.1.0",
       "license": "MIT",

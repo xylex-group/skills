@@ -1,6 +1,104 @@
 {
   "version": 1,
   "plugins": {
+    "athena": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "athena-architecture",
+            "description": "Athena architecture map for tracing crate ownership, runtime modes, request flow, config and bootstrap, client registry…"
+          },
+          {
+            "name": "athena-auth-cloudflare-worker",
+            "description": "Inspect, explain, or replicate the `athena-auth` Cloudflare Worker deployment pattern. Use when Codex needs to take a p…"
+          },
+          {
+            "name": "athena-auth-emails",
+            "description": "Implement, debug, or explain Athena Auth email behavior. Use when Codex needs to work on Athena Auth admin email CRUD,…"
+          },
+          {
+            "name": "athena-auth-runtime-contracts",
+            "description": "Trace, debug, or explain Athena Auth runtime contracts. Use when Codex needs to follow the real request path through `A…"
+          },
+          {
+            "name": "athena-auth-ui",
+            "description": "Integrate, inspect, customize, debug, document, test, or release `@xylex-group/athena-auth-ui` and its HeroUI implement…"
+          },
+          {
+            "name": "athena-auth-ui-tables",
+            "description": "Build, integrate, inspect, debug, customize, document, test, or release Athena Auth UI table surfaces. Use for `AthenaT…"
+          },
+          {
+            "name": "athena-billing",
+            "description": "Implement, integrate, inspect, debug, document, or test Athena billing across the main Athena workspace. Use for `/bill…"
+          },
+          {
+            "name": "athena-client-instantiation-migration",
+            "description": "Migrate Athena client construction off local createClient wrappers onto the published browser/server/auth/query adapter…"
+          },
+          {
+            "name": "athena-js",
+            "description": "Runtime and client usage guide for `@xylex-group/athena`, `@xylex-group/athena/react`, and the current `browser`, `cook…"
+          },
+          {
+            "name": "athena-js-cloudflare-edge-adapter",
+            "description": "Implement, debug, document, or test the Athena JS Cloudflare edge adapter: D1/R2 drop-in backends on createClient, hybr…"
+          },
+          {
+            "name": "athena-js-generator",
+            "description": "Generator config and CLI guide for `@xylex-group/athena`. Use when implementing, debugging, or explaining `athena-js ge…"
+          },
+          {
+            "name": "athena-js-typed-schema-registry",
+            "description": "Table DSL and typed registry guide for `@xylex-group/athena`. Use when implementing or debugging `table(...).schema(...…"
+          },
+          {
+            "name": "athena-js-v3-migration",
+            "description": "Migrate applications, packages, examples, or tests from Athena JS 2.16.x to Athena JS 3.0.1. Use when a task mentions r…"
+          },
+          {
+            "name": "athena-jsm",
+            "description": "Implement, integrate, inspect, debug, document, test, or release `@xylex-group/athena` from `packages/athena-js/**`. Us…"
+          },
+          {
+            "name": "athena-rs",
+            "description": "Server/runtime playbook for the Athena Rust monorepo (`athena_rs`): logging client vs X-Athena-Client tenant DBs, boots…"
+          },
+          {
+            "name": "athena-rs-sdk",
+            "description": "Rust Athena SDK/client playbook for `athena_rs`. Use when working with `AthenaClient`, `AthenaClientBuilder`, `BackendT…"
+          },
+          {
+            "name": "athena-storage",
+            "description": "Athena storage module playbook for managed file catalog work, S3 catalog and credential changes, storage auth flows, pr…"
+          },
+          {
+            "name": "athena-workspace-docs",
+            "description": "Maintain repo-local documentation and workspace manifests for `C:\\\\Users\\\\floris\\\\Documents\\\\GitHub\\\\athena`. Use when…"
+          },
+          {
+            "name": "athena-workspace-map",
+            "description": "Map Athena monorepo surfaces: which folder owns which package, app, crate, or service, and where published npm/Cargo na…"
+          }
+        ]
+      }
+    },
+    "xbp": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "setup-xbp-deploy",
+            "description": "One-shot xbp Cloudflare Worker deploy setup for static docs/apps: wrangler assets, package deploy scripts, .xbp [[worke…"
+          },
+          {
+            "name": "xbp",
+            "description": "Operate and debug the XBP ops CLI end-to-end: init wizard, version/release/bump, deploy (xbp-deploy engine: plan/run/ve…"
+          }
+        ]
+      }
+    },
     "xylex-group-plugin": {
       "version": "0.1.0",
       "components": {

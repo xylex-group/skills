@@ -9,7 +9,7 @@
     "xylex-group-plugin": "src/cli/index.ts"
   },
   "scripts": {
-    "build": "bun run build:skills && bun run build:hooks && bun run build:manifest && bun run build:from-skills && bun run build:catalog && bun run build:plugin-index",
+    "build": "bun run build:skills && bun run build:hooks && bun run build:manifest && bun run build:from-skills && bun run build:catalog",
     "build:catalog": "bun run scripts/generate-catalog.ts",
     "build:from-skills": "bun run scripts/build-from-skills.ts",
     "build:from-skills:check": "bun run scripts/build-from-skills.ts --check",
