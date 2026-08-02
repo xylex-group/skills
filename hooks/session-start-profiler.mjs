@@ -1,49 +1,57 @@
+// hooks/src/session-start-profiler.mts
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
-import { formatOutput, normalizeInput, setSessionEnv } from "./compat.mjs";
+import {
+  formatOutput,
+  normalizeInput,
+  setSessionEnv
+} from "./compat.mjs";
 import { pluginRoot, safeReadJson, writeSessionFile } from "./hook-env.mjs";
 import { createLogger, logCaughtError } from "./logger.mjs";
 import { hasSessionStartActivationMarkers } from "./session-start-activation.mjs";
 import { buildSkillMap } from "./skill-map-frontmatter.mjs";
 import {
   refreshActiveSessionMarker,
-  trackDauActiveToday,
+  trackDauActiveToday
 } from "./telemetry.mjs";
-
 var FILE_MARKERS = [
   { file: "skills", skills: ["create-xylex-skill"] },
   { file: "xylex.md", skills: ["create-xylex-skill"] },
   { file: ".xbp", skills: ["create-xylex-skill"] },
-  { file: "xbp.toml", skills: ["create-xylex-skill"] },
+  { file: "xbp.toml", skills: ["create-xylex-skill"] }
 ];
 var PACKAGE_MARKERS = {
   "@xylex-group/athena": ["create-xylex-skill"],
   "@xylex-group/athena-auth-ui": ["create-xylex-skill"],
-  "xylex-group-plugin": ["create-xylex-skill"],
+  "xylex-group-plugin": ["create-xylex-skill"]
 };
-var SETUP_ENV_TEMPLATE_FILES = [".env.example", ".env.sample", ".env.template"];
+var SETUP_ENV_TEMPLATE_FILES = [
+  ".env.example",
+  ".env.sample",
+  ".env.template"
+];
 var SETUP_DB_SCRIPT_MARKERS = [
   "db:push",
   "db:seed",
   "db:migrate",
-  "db:generate",
+  "db:generate"
 ];
 var SETUP_AUTH_DEPENDENCIES = /* @__PURE__ */ new Set([
   "better-auth",
-  "@xylex-group/athena",
+  "@xylex-group/athena"
 ]);
 var SETUP_RESOURCE_DEPENDENCIES = {
   "@neondatabase/serverless": "postgres",
   "@xylex-group/athena": "athena",
-  "drizzle-orm": "postgres",
+  "drizzle-orm": "postgres"
 };
 var SETUP_MODE_THRESHOLD = 3;
 var GREENFIELD_DEFAULT_SKILLS = ["create-xylex-skill"];
 var GREENFIELD_SETUP_SIGNALS = {
   bootstrapHints: ["greenfield"],
   resourceHints: [],
-  setupMode: true,
+  setupMode: true
 };
 var SESSION_GREENFIELD_KIND = "greenfield";
 var SESSION_LIKELY_SKILLS_KIND = "likely-skills";
@@ -63,8 +71,8 @@ function profileProject(projectRoot) {
   const pkg = readPackageJson(projectRoot);
   if (pkg) {
     const allDeps = {
-      ...(pkg.dependencies || {}),
-      ...(pkg.devDependencies || {}),
+      ...pkg.dependencies || {},
+      ...pkg.devDependencies || {}
     };
     for (const [dep, skillSlugs] of Object.entries(PACKAGE_MARKERS)) {
       if (dep in allDeps) {
@@ -74,10 +82,7 @@ function profileProject(projectRoot) {
       }
     }
   }
-  if (
-    existsSync(join(projectRoot, "skills")) &&
-    existsSync(join(projectRoot, "xylex.md"))
-  ) {
+  if (existsSync(join(projectRoot, "skills")) && existsSync(join(projectRoot, "xylex.md"))) {
     skills.add("create-xylex-skill");
   }
   return [...skills].sort();
@@ -85,21 +90,21 @@ function profileProject(projectRoot) {
 function profileBootstrapSignals(projectRoot) {
   const bootstrapHints = /* @__PURE__ */ new Set();
   const resourceHints = /* @__PURE__ */ new Set();
-  if (
-    SETUP_ENV_TEMPLATE_FILES.some((file) => existsSync(join(projectRoot, file)))
-  ) {
+  if (SETUP_ENV_TEMPLATE_FILES.some(
+    (file) => existsSync(join(projectRoot, file))
+  )) {
     bootstrapHints.add("env-example");
   }
   try {
     const dirents = readdirSync(projectRoot, { withFileTypes: true });
-    if (
-      dirents.some(
-        (d) => d.isFile() && d.name.toLowerCase().startsWith("readme")
-      )
-    ) {
+    if (dirents.some(
+      (d) => d.isFile() && d.name.toLowerCase().startsWith("readme")
+    )) {
       bootstrapHints.add("readme");
     }
-    if (dirents.some((d) => d.isFile() && /^drizzle\.config\./i.test(d.name))) {
+    if (dirents.some(
+      (d) => d.isFile() && /^drizzle\.config\./i.test(d.name)
+    )) {
       bootstrapHints.add("drizzle-config");
       bootstrapHints.add("postgres");
       resourceHints.add("postgres");
@@ -119,19 +124,18 @@ function profileBootstrapSignals(projectRoot) {
   }
   const pkg = readPackageJson(projectRoot);
   if (pkg) {
-    const scripts =
-      pkg.scripts && typeof pkg.scripts === "object" ? pkg.scripts : {};
-    const scriptEntries = Object.entries(scripts)
-      .map(([name, cmd]) => `${name} ${typeof cmd === "string" ? cmd : ""}`)
-      .join("\n");
+    const scripts = pkg.scripts && typeof pkg.scripts === "object" ? pkg.scripts : {};
+    const scriptEntries = Object.entries(scripts).map(
+      ([name, cmd]) => `${name} ${typeof cmd === "string" ? cmd : ""}`
+    ).join("\n");
     for (const marker of SETUP_DB_SCRIPT_MARKERS) {
       if (scriptEntries.includes(marker)) {
         bootstrapHints.add(marker.replace(":", "-"));
       }
     }
     const allDeps = {
-      ...(pkg.dependencies || {}),
-      ...(pkg.devDependencies || {}),
+      ...pkg.dependencies || {},
+      ...pkg.devDependencies || {}
     };
     for (const dep of Object.keys(allDeps)) {
       const resource = SETUP_RESOURCE_DEPENDENCIES[dep];
@@ -149,7 +153,7 @@ function profileBootstrapSignals(projectRoot) {
   return {
     bootstrapHints: hints,
     resourceHints: resources,
-    setupMode: hints.length >= SETUP_MODE_THRESHOLD,
+    setupMode: hints.length >= SETUP_MODE_THRESHOLD
   };
 }
 function checkGreenfield(projectRoot) {
@@ -168,21 +172,17 @@ function checkGreenfield(projectRoot) {
   if (dirents.some((d) => d.name === ".eve" && d.isDirectory())) {
     return null;
   }
-  const hasNonDotDir = dirents.some((d) => !d.name.startsWith("."));
-  const hasDotFile = dirents.some((d) => d.name.startsWith(".") && d.isFile());
+  const hasNonDotDir = dirents.some(
+    (d) => !d.name.startsWith(".")
+  );
+  const hasDotFile = dirents.some(
+    (d) => d.name.startsWith(".") && d.isFile()
+  );
   if (!(hasNonDotDir || hasDotFile)) {
     return { entries: dirents.map((d) => d.name).sort() };
   }
   return null;
 }
-var VERCEL_VERSION_ARGS = "--version".split(" ");
-var NPM_VIEW_ARGS = "view vercel version".split(" ");
-var SPAWN_STDIO = "ignore pipe ignore".split(" ");
-var WINDOWS_EXECUTABLE_EXTENSIONS = (
-  process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM"
-)
-  .split(";")
-  .filter(Boolean);
 function parseSessionStartInput(raw) {
   try {
     if (!raw.trim()) {
@@ -194,10 +194,7 @@ function parseSessionStartInput(raw) {
   }
 }
 function detectSessionStartPlatform(input, env = process.env) {
-  if (
-    typeof env.CLAUDE_ENV_FILE === "string" &&
-    env.CLAUDE_ENV_FILE.trim() !== ""
-  ) {
+  if (typeof env.CLAUDE_ENV_FILE === "string" && env.CLAUDE_ENV_FILE.trim() !== "") {
     return "claude-code";
   }
   if (input && ("conversation_id" in input || "cursor_version" in input)) {
@@ -218,16 +215,13 @@ function resolveSessionStartProjectRoot(env = process.env) {
 function collectBrokenSkillFrontmatterNames(files) {
   return [
     ...new Set(
-      files
-        .map((file) => file.replaceAll("\\", "/").split("/").at(-2) || "")
-        .filter((skill) => skill !== "")
-    ),
+      files.map(
+        (file) => file.replaceAll("\\", "/").split("/").at(-2) || ""
+      ).filter((skill) => skill !== "")
+    )
   ].sort();
 }
-function logBrokenSkillFrontmatterSummary(
-  rootDir = pluginRoot(),
-  logger = log
-) {
+function logBrokenSkillFrontmatterSummary(rootDir = pluginRoot(), logger = log) {
   if (!logger.isEnabled("summary")) {
     return null;
   }
@@ -243,7 +237,7 @@ function logBrokenSkillFrontmatterSummary(
     logger.summary("session-start-profiler:broken-skill-frontmatter", {
       brokenSkillCount: brokenSkills.length,
       brokenSkills,
-      message,
+      message
     });
     return message;
   } catch (error) {
@@ -252,7 +246,7 @@ function logBrokenSkillFrontmatterSummary(
       "session-start-profiler:broken-skill-frontmatter-check-failed",
       error,
       {
-        rootDir,
+        rootDir
       }
     );
     return null;
@@ -267,19 +261,17 @@ function buildSessionStartProfilerEnvVars(args) {
     envVars.XYLEX_PLUGIN_LIKELY_SKILLS = args.likelySkills.join(",");
   }
   if (args.setupSignals.bootstrapHints.length > 0) {
-    envVars.XYLEX_PLUGIN_BOOTSTRAP_HINTS =
-      args.setupSignals.bootstrapHints.join(",");
+    envVars.XYLEX_PLUGIN_BOOTSTRAP_HINTS = args.setupSignals.bootstrapHints.join(",");
   }
   if (args.setupSignals.resourceHints.length > 0) {
-    envVars.XYLEX_PLUGIN_RESOURCE_HINTS =
-      args.setupSignals.resourceHints.join(",");
+    envVars.XYLEX_PLUGIN_RESOURCE_HINTS = args.setupSignals.resourceHints.join(",");
   }
   if (args.setupSignals.setupMode) {
     envVars.XYLEX_PLUGIN_SETUP_MODE = "1";
   }
   return envVars;
 }
-function buildSessionStartProfilerUserMessages(greenfield, _cliStatus) {
+function buildSessionStartProfilerUserMessages(greenfield) {
   const messages = [];
   if (greenfield) {
     messages.push(
@@ -293,7 +285,7 @@ function formatSessionStartProfilerCursorOutput(envVars, userMessages) {
   return JSON.stringify(
     formatOutput("cursor", {
       additionalContext: additionalContext || void 0,
-      env: envVars,
+      env: envVars
     })
   );
 }
@@ -304,14 +296,11 @@ async function main() {
   const projectRoot = resolveSessionStartProjectRoot();
   refreshActiveSessionMarker();
   const greenfield = checkGreenfield(projectRoot);
-  const shouldActivate =
-    greenfield !== null ||
-    !existsSync(projectRoot) ||
-    hasSessionStartActivationMarkers(projectRoot);
+  const shouldActivate = greenfield !== null || !existsSync(projectRoot) || hasSessionStartActivationMarkers(projectRoot);
   if (!shouldActivate) {
     log.debug("session-start-profiler:skipped-non-xylex-project", {
       projectRoot,
-      reason: "non-empty-without-xylex-markers",
+      reason: "non-empty-without-xylex-markers"
     });
     if (sessionId) {
       writeSessionFile(sessionId, SESSION_GREENFIELD_KIND, "");
@@ -320,28 +309,22 @@ async function main() {
     if (platform === "cursor") {
       process.stdout.write(JSON.stringify(formatOutput("cursor", {})));
     }
-    await trackDauActiveToday().catch(() => {});
+    await trackDauActiveToday().catch(() => {
+    });
     process.exit(0);
   }
   logBrokenSkillFrontmatterSummary();
   const userMessages = buildSessionStartProfilerUserMessages(greenfield);
-  const likelySkills = greenfield
-    ? GREENFIELD_DEFAULT_SKILLS
-    : profileProject(projectRoot);
-  const setupSignals = greenfield
-    ? GREENFIELD_SETUP_SIGNALS
-    : profileBootstrapSignals(projectRoot);
+  const likelySkills = greenfield ? GREENFIELD_DEFAULT_SKILLS : profileProject(projectRoot);
+  const setupSignals = greenfield ? GREENFIELD_SETUP_SIGNALS : profileBootstrapSignals(projectRoot);
   const greenfieldValue = greenfield ? "true" : "";
   const likelySkillsValue = likelySkills.join(",");
   const envVars = buildSessionStartProfilerEnvVars({
     greenfield: greenfield !== null,
     likelySkills,
-    setupSignals,
+    setupSignals
   });
-  const cursorOutput =
-    platform === "cursor"
-      ? formatSessionStartProfilerCursorOutput(envVars, userMessages)
-      : null;
+  const cursorOutput = platform === "cursor" ? formatSessionStartProfilerCursorOutput(envVars, userMessages) : null;
   if (sessionId) {
     writeSessionFile(sessionId, SESSION_GREENFIELD_KIND, greenfieldValue);
     writeSessionFile(sessionId, SESSION_LIKELY_SKILLS_KIND, likelySkillsValue);
@@ -349,10 +332,7 @@ async function main() {
   try {
     if (platform === "claude-code") {
       for (const [key, value] of Object.entries(envVars)) {
-        if (
-          key === "XYLEX_PLUGIN_GREENFIELD" ||
-          key === "XYLEX_PLUGIN_LIKELY_SKILLS"
-        ) {
+        if (key === "XYLEX_PLUGIN_GREENFIELD" || key === "XYLEX_PLUGIN_LIKELY_SKILLS") {
           continue;
         }
         setSessionEnv(platform, key, value);
@@ -366,7 +346,7 @@ async function main() {
       {
         envVarCount: Object.keys(envVars).length,
         platform,
-        projectRoot,
+        projectRoot
       }
     );
   }
@@ -376,20 +356,18 @@ async function main() {
 
 `);
   }
-  await trackDauActiveToday().catch(() => {});
+  await trackDauActiveToday().catch(() => {
+  });
   if (cursorOutput) {
     process.stdout.write(cursorOutput);
   }
   process.exit(0);
 }
 var SESSION_START_PROFILER_ENTRYPOINT = fileURLToPath(import.meta.url);
-var isSessionStartProfilerEntrypoint = process.argv[1]
-  ? resolve(process.argv[1]) === SESSION_START_PROFILER_ENTRYPOINT
-  : false;
+var isSessionStartProfilerEntrypoint = process.argv[1] ? resolve(process.argv[1]) === SESSION_START_PROFILER_ENTRYPOINT : false;
 if (isSessionStartProfilerEntrypoint) {
   main();
 }
-
 export {
   buildSessionStartProfilerEnvVars,
   buildSessionStartProfilerUserMessages,
@@ -401,5 +379,5 @@ export {
   parseSessionStartInput,
   profileBootstrapSignals,
   profileProject,
-  resolveSessionStartProjectRoot,
+  resolveSessionStartProjectRoot
 };

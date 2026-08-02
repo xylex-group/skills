@@ -93,13 +93,59 @@ This repo also ships a lightweight plugin runtime (hooks + CLI) rebranded from a
 
 ```bash
 bun install
+bun run lint              # Ultracite / Biome
+bun run typecheck         # hooks TypeScript
+bun test                  # typecheck + unit tests
 bun run validate          # structural checks (coverage skipped by default)
 bun run doctor            # self-diagnosis
-bun run build:manifest    # generate generated/skill-manifest.json
+bun run build             # hooks + skill-manifest + catalog + plugin-index
+bun run ci                # lint + typecheck + test + build + validate + doctor
 bun run src/cli/index.ts explain path/to/file.ts
 ```
 
+| Script | Purpose |
+| ------ | ------- |
+| `lint` / `check` | Ultracite (Biome) |
+| `fix` / `format` | Auto-fix format + safe lint fixes |
+| `typecheck` | `tsc` on `hooks/src` |
+| `test` | Typecheck + `bun test hooks` |
+| `build` | Skills, hooks (tsup), manifest, skill catalog, plugin-index |
+| `validate` | Cross-refs, frontmatter, profiler slugs, fixtures |
+| `validate:catalog` | Grok marketplace catalog rules (`marketplace.json`) |
+| `build:plugin-index` | Regenerate `.grok-plugin/plugin-index.json` (never hand-edit) |
+| `build:plugin-index:check` | Fail CI if plugin-index is stale |
+| `ci` | Full green pipeline |
+
 Environment knobs use the `XYLEX_PLUGIN_*` prefix (for example `XYLEX_PLUGIN_TELEMETRY=on` is opt-in only; telemetry is off by default).
+
+## Grok marketplace catalog
+
+This repo is also a [Grok plugin marketplace](https://github.com/xylex-group/skills). Grok reads:
+
+| Path | Role |
+| ---- | ---- |
+| [`.grok-plugin/marketplace.json`](.grok-plugin/marketplace.json) | Marketplace index (hand-maintained) |
+| [`.grok-plugin/plugin-index.json`](.grok-plugin/plugin-index.json) | Component catalog (skills, hooks, …) — **generated, never hand-edit** |
+| [`LICENSE`](LICENSE) | MIT at the repository root |
+
+### Add or update a plugin entry
+
+Checklist:
+
+- [ ] Added/updated exactly one entry in `.grok-plugin/marketplace.json` (valid JSON, kebab-case `name`).
+- [ ] Remote source pins a full 40-char lowercase commit `sha`, and that commit is public + reachable.
+- [ ] Regenerated `.grok-plugin/plugin-index.json` (`python scripts/generate-plugin-index.py` or `bun run build:plugin-index`).
+- [ ] `python scripts/validate-catalog.py` (or `bun run validate:catalog`) passes locally.
+- [ ] `python scripts/generate-plugin-index.py --check` (or `bun run build:plugin-index:check`) passes locally.
+- [ ] `homepage` + clear `description` set.
+- [ ] License is stated (`license` on the entry + MIT `LICENSE` at the repo root).
+
+```bash
+# after editing marketplace.json or plugin contents:
+bun run build:plugin-index
+bun run validate:catalog
+bun run build:plugin-index:check
+```
 
 ## Ecosystem graph
 

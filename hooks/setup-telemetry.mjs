@@ -2,7 +2,6 @@
 
 // hooks/src/setup-telemetry.mts
 import { getTelemetryOverride } from "./telemetry.mjs";
-
 function main() {
   const telemetryOverride = getTelemetryOverride();
   if (telemetryOverride === "off") {
@@ -15,7 +14,7 @@ function main() {
     [
       "The default telemetry profile is a once-per-day DAU phone-home that sends only dau:active_today.",
       "To disable all telemetry, set XYLEX_PLUGIN_TELEMETRY=off.",
-      "",
+      ""
     ].join("\n")
   );
   process.exit(0);

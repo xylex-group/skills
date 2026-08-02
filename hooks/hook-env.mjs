@@ -8,25 +8,20 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  writeFileSync,
+  writeFileSync
 } from "fs";
 import { homedir, tmpdir } from "os";
 import { dirname, join, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { createLogger, logCaughtError } from "./logger.mjs";
-
 var log = createLogger();
 function pluginRoot(metaUrl) {
   const base = metaUrl ?? import.meta.url;
   return resolve(dirname(fileURLToPath(base)), "..");
 }
 function resolveAuditLogPath(hookInputCwd) {
-  const cwdFromHookInput =
-    typeof hookInputCwd === "string" && hookInputCwd.trim() !== ""
-      ? hookInputCwd
-      : null;
-  const projectRoot =
-    process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
+  const cwdFromHookInput = typeof hookInputCwd === "string" && hookInputCwd.trim() !== "" ? hookInputCwd : null;
+  const projectRoot = process.env.CLAUDE_PROJECT_ROOT || cwdFromHookInput || process.cwd();
   const configuredPath = process.env.XYLEX_PLUGIN_AUDIT_LOG_FILE;
   if (configuredPath === "off") {
     return null;
@@ -51,30 +46,17 @@ function appendAuditLog(record, hookInputCwd) {
   }
   try {
     mkdirSync(dirname(auditLogPath), { recursive: true });
-    const payload = {
-      timestamp: /* @__PURE__ */ new Date().toISOString(),
-      ...record,
-    };
-    appendFileSync(
-      auditLogPath,
-      `${JSON.stringify(payload)}
-`,
-      "utf-8"
-    );
+    const payload = { timestamp: (/* @__PURE__ */ new Date()).toISOString(), ...record };
+    appendFileSync(auditLogPath, `${JSON.stringify(payload)}
+`, "utf-8");
   } catch (error) {
     logCaughtError(log, "hook-env:append-audit-log-failed", error, {
-      auditLogPath,
+      auditLogPath
     });
   }
 }
 function getDedupScopeId(payload) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "agent_id" in payload &&
-    typeof payload.agent_id === "string" &&
-    payload.agent_id.length > 0
-  ) {
+  if (payload && typeof payload === "object" && "agent_id" in payload && typeof payload.agent_id === "string" && payload.agent_id.length > 0) {
     return payload.agent_id;
   }
   return "main";
@@ -122,7 +104,7 @@ function readSessionFile(sessionId, kind, scopeId) {
     logCaughtError(log, "hook-env:read-session-file-failed", error, {
       kind,
       scopeId,
-      sessionId,
+      sessionId
     });
     return "";
   }
@@ -134,7 +116,7 @@ function writeSessionFile(sessionId, kind, value, scopeId) {
     logCaughtError(log, "hook-env:write-session-file-failed", error, {
       kind,
       scopeId,
-      sessionId,
+      sessionId
     });
   }
 }
@@ -147,12 +129,7 @@ function tryClaimSessionKey(sessionId, kind, key, scopeId) {
     closeSync(fd);
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "EEXIST"
-    ) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST") {
       return false;
     }
     return false;
@@ -160,15 +137,12 @@ function tryClaimSessionKey(sessionId, kind, key, scopeId) {
 }
 function listSessionKeys(sessionId, kind, scopeId) {
   try {
-    return readdirSync(dedupClaimDirPath(sessionId, kind, scopeId))
-      .map((entry) => decodeURIComponent(entry))
-      .filter((entry) => entry !== "")
-      .sort();
+    return readdirSync(dedupClaimDirPath(sessionId, kind, scopeId)).map((entry) => decodeURIComponent(entry)).filter((entry) => entry !== "").sort();
   } catch (error) {
     logCaughtError(log, "hook-env:list-session-keys-failed", error, {
       kind,
       scopeId,
-      sessionId,
+      sessionId
     });
     return [];
   }
@@ -182,20 +156,17 @@ function removeSessionClaimDir(sessionId, kind, scopeId) {
   try {
     rmSync(dedupClaimDirPath(sessionId, kind, scopeId), {
       force: true,
-      recursive: true,
+      recursive: true
     });
   } catch (error) {
     logCaughtError(log, "hook-env:remove-session-claim-dir-failed", error, {
       kind,
       scopeId,
-      sessionId,
+      sessionId
     });
   }
 }
-var CLEARABLE_SESSION_KINDS = /* @__PURE__ */ new Set([
-  "seen-skills",
-  "seen-context-chunks",
-]);
+var CLEARABLE_SESSION_KINDS = /* @__PURE__ */ new Set(["seen-skills", "seen-context-chunks"]);
 function removeAllSessionDedupArtifacts(sessionId) {
   const result = { removedDirs: 0, removedFiles: 0 };
   const tempRoot = resolve(tmpdir());
@@ -266,7 +237,6 @@ function safeReadJson(path) {
     return null;
   }
 }
-
 export {
   appendAuditLog,
   dedupClaimDirPath,
@@ -281,5 +251,5 @@ export {
   safeReadJson,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-  writeSessionFile,
+  writeSessionFile
 };

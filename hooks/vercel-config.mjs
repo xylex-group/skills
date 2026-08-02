@@ -1,6 +1,5 @@
 // hooks/src/vercel-config.mts
 import { safeReadFile } from "./hook-env.mjs";
-
 var KEY_SKILL_MAP = {
   buildCommand: ["deployments-cicd"],
   // Build / CI-CD
@@ -18,12 +17,12 @@ var KEY_SKILL_MAP = {
   redirects: ["routing-middleware"],
   regions: ["vercel-functions"],
   rewrites: ["routing-middleware"],
-  trailingSlash: ["routing-middleware"],
+  trailingSlash: ["routing-middleware"]
 };
 var VERCEL_JSON_SKILLS = /* @__PURE__ */ new Set([
   "deployments-cicd",
   "routing-middleware",
-  "vercel-functions",
+  "vercel-functions"
 ]);
 function resolveVercelJsonSkills(filePath) {
   const content = safeReadFile(filePath);
@@ -59,5 +58,8 @@ function isVercelJsonPath(filePath) {
   const base = normalized.split("/").pop();
   return base === "vercel.json";
 }
-
-export { isVercelJsonPath, resolveVercelJsonSkills, VERCEL_JSON_SKILLS };
+export {
+  VERCEL_JSON_SKILLS,
+  isVercelJsonPath,
+  resolveVercelJsonSkills
+};

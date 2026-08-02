@@ -11,7 +11,9 @@
       "!hooks/*.mjs",
       "!**/*.log",
       "!.biome-check.txt",
-      "!.reports"
+      "!.reports",
+      // Ambient declaration shims (module wildcards are intentional)
+      "!types"
     ]
   },
   "overrides": [
@@ -80,7 +82,9 @@
           },
           "correctness": {
             // Bun runtime + workspace .mjs re-exports confuse the resolver
-            "noUnresolvedImports": "off"
+            "noUnresolvedImports": "off",
+            // hooks emit sibling .mjs at runtime (tsup); source must import `.mjs` not `.mts`
+            "useImportExtensions": "off"
           }
         }
       }

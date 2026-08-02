@@ -4,9 +4,8 @@ import {
   pluginRoot as resolvePluginRoot,
   safeReadFile,
   syncSessionFileFromClaims,
-  tryClaimSessionKey,
+  tryClaimSessionKey
 } from "./hook-env.mjs";
-
 var PLUGIN_ROOT = resolvePluginRoot();
 var DEFAULT_CONTEXT_CHUNK_BUDGET_BYTES = 1800;
 var CONTEXT_CHUNK_KIND = "seen-context-chunks";
@@ -16,53 +15,53 @@ var SKILL_TO_CHUNK = {
   "chat-sdk": { chunkId: "ai-stack", heading: "AI Stack" },
   "deployments-cicd": {
     chunkId: "deploy-operations",
-    heading: "Deploy and Operations",
+    heading: "Deploy and Operations"
   },
   "env-vars": {
     chunkId: "deploy-operations",
-    heading: "Deploy and Operations",
+    heading: "Deploy and Operations"
   },
   eve: { chunkId: "ai-stack", heading: "AI Stack" },
   marketplace: {
     chunkId: "deploy-operations",
-    heading: "Deploy and Operations",
+    heading: "Deploy and Operations"
   },
   "next-cache-components": {
     chunkId: "nextjs-platform",
-    heading: "Next.js and Rendering",
+    heading: "Next.js and Rendering"
   },
   "next-forge": {
     chunkId: "nextjs-platform",
-    heading: "Next.js and Rendering",
+    heading: "Next.js and Rendering"
   },
   "next-upgrade": {
     chunkId: "nextjs-platform",
-    heading: "Next.js and Rendering",
+    heading: "Next.js and Rendering"
   },
   nextjs: { chunkId: "nextjs-platform", heading: "Next.js and Rendering" },
   "routing-middleware": {
     chunkId: "compute-routing",
-    heading: "Compute and Routing",
+    heading: "Compute and Routing"
   },
   "runtime-cache": {
     chunkId: "compute-routing",
-    heading: "Compute and Routing",
+    heading: "Compute and Routing"
   },
   turbopack: { chunkId: "nextjs-platform", heading: "Next.js and Rendering" },
   "vercel-cli": {
     chunkId: "deploy-operations",
-    heading: "Deploy and Operations",
+    heading: "Deploy and Operations"
   },
   "vercel-functions": {
     chunkId: "compute-routing",
-    heading: "Compute and Routing",
+    heading: "Compute and Routing"
   },
   "vercel-sandbox": {
     chunkId: "compute-routing",
-    heading: "Compute and Routing",
+    heading: "Compute and Routing"
   },
   "vercel-storage": { chunkId: "storage-data", heading: "Storage and Data" },
-  workflow: { chunkId: "workflow-durable", heading: "Workflow and Durability" },
+  workflow: { chunkId: "workflow-durable", heading: "Workflow and Durability" }
 };
 function extractDirectSection(markdown, headingText) {
   const specText = headingText.trim().toLowerCase();
@@ -123,7 +122,7 @@ ${content}
     content,
     heading: mapping.heading,
     skill,
-    wrapped,
+    wrapped
   };
 }
 function claimManagedContextChunk(chunkId, sessionId) {
@@ -145,14 +144,11 @@ function selectManagedContextChunk(orderedSkills, options) {
   if (!chunk) {
     return null;
   }
-  return claimManagedContextChunk(chunk.chunkId, options?.sessionId)
-    ? chunk
-    : null;
+  return claimManagedContextChunk(chunk.chunkId, options?.sessionId) ? chunk : null;
 }
-
 export {
-  claimManagedContextChunk,
   DEFAULT_CONTEXT_CHUNK_BUDGET_BYTES,
+  claimManagedContextChunk,
   getManagedContextChunkForSkill,
-  selectManagedContextChunk,
+  selectManagedContextChunk
 };

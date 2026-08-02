@@ -4,11 +4,11 @@
  */
 
 interface XylexSkillEntry {
-  skill?: string;
-  priority: number;
-  pathPatterns: string[];
   bashPatterns: string[];
   importPatterns: string[];
+  pathPatterns: string[];
+  priority: number;
+  skill?: string;
   [key: string]: unknown;
 }
 
@@ -17,7 +17,10 @@ declare module "*.mjs" {
     yaml: string;
     body: string;
   };
-  export function parseSkillFrontmatter(yaml: string): Record<string, unknown> & {
+  export function parseSkillFrontmatter(yaml: string): Record<
+    string,
+    unknown
+  > & {
     name?: string;
     description?: string;
     summary?: string;
@@ -37,7 +40,9 @@ declare module "*.mjs" {
 
   export function globToRegex(pattern: string): RegExp;
   export function importPatternToRegex(pattern: string): RegExp;
-  export function compileSkillPatterns(skills: Record<string, unknown>): unknown;
+  export function compileSkillPatterns(
+    skills: Record<string, unknown>
+  ): unknown;
   export function matchPathWithReason(...args: unknown[]): unknown;
   export function matchBashWithReason(...args: unknown[]): unknown;
   export function matchImportWithReason(...args: unknown[]): unknown;

@@ -11,7 +11,7 @@ import {
   pluginRoot as resolvePluginRoot,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-  writeSessionFile,
+  writeSessionFile
 } from "./hook-env.mjs";
 import { initializeLexicalIndex, searchSkills } from "./lexical-index.mjs";
 import { createLogger, logDecision } from "./logger.mjs";
@@ -20,7 +20,7 @@ import {
   COMPACTION_REINJECT_MIN_PRIORITY,
   mergeSeenSkillStates,
   mergeSeenSkillStatesWithCompactionReset,
-  parseSeenSkills,
+  parseSeenSkills
 } from "./patterns.mjs";
 import { injectSkills, loadSkills } from "./pretooluse-skill-inject.mjs";
 import { analyzePrompt } from "./prompt-analysis.mjs";
@@ -30,10 +30,9 @@ import {
   lexicalFallbackMeetsFloor,
   matchPromptWithReason,
   normalizePromptText,
-  scorePromptWithLexical,
+  scorePromptWithLexical
 } from "./prompt-patterns.mjs";
 import { selectManagedContextChunk } from "./vercel-context.mjs";
-
 var MAX_SKILLS = 2;
 var DEFAULT_INJECTION_BUDGET_BYTES = 8e3;
 var MIN_PROMPT_LENGTH = 10;
@@ -47,9 +46,7 @@ var DOMINANT_TOPIC_SCORE_THRESHOLD = 600;
 var DOMINANT_TOPIC_MIN_SCORE = 50;
 var log = createLogger();
 function getSeenSkillsEnv() {
-  return typeof process.env[ENV_SEEN_SKILLS_KEY] === "string"
-    ? process.env[ENV_SEEN_SKILLS_KEY]
-    : "";
+  return typeof process.env[ENV_SEEN_SKILLS_KEY] === "string" ? process.env[ENV_SEEN_SKILLS_KEY] : "";
 }
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -69,29 +66,18 @@ function detectPromptHookPlatformFromRaw(raw) {
     if (isRecord(parsed)) {
       return detectPromptHookPlatform(parsed);
     }
-  } catch {}
+  } catch {
+  }
   return "claude-code";
 }
 function resolvePromptSessionId(input, env) {
-  return (
-    nonEmptyString(input.session_id) ??
-    nonEmptyString(input.conversation_id) ??
-    nonEmptyString(env.SESSION_ID)
-  );
+  return nonEmptyString(input.session_id) ?? nonEmptyString(input.conversation_id) ?? nonEmptyString(env.SESSION_ID);
 }
 function resolvePromptCwd(input, env) {
-  const workspaceRoot = Array.isArray(input.workspace_roots)
-    ? input.workspace_roots.find(
-        (entry) => typeof entry === "string" && entry.trim() !== ""
-      )
-    : null;
-  return (
-    nonEmptyString(input.cwd) ??
-    (typeof workspaceRoot === "string" ? workspaceRoot : null) ??
-    nonEmptyString(env.CURSOR_PROJECT_DIR) ??
-    nonEmptyString(env.CLAUDE_PROJECT_ROOT) ??
-    process.cwd()
-  );
+  const workspaceRoot = Array.isArray(input.workspace_roots) ? input.workspace_roots.find(
+    (entry) => typeof entry === "string" && entry.trim() !== ""
+  ) : null;
+  return nonEmptyString(input.cwd) ?? (typeof workspaceRoot === "string" ? workspaceRoot : null) ?? nonEmptyString(env.CURSOR_PROJECT_DIR) ?? nonEmptyString(env.CLAUDE_PROJECT_ROOT) ?? process.cwd();
 }
 function resolvePromptText(input) {
   return nonEmptyString(input.prompt) ?? nonEmptyString(input.message) ?? "";
@@ -119,12 +105,12 @@ function getInjectionBudget() {
 function capturePromptEnvSnapshot(env = process.env) {
   return {
     [ENV_SEEN_SKILLS_KEY]: env[ENV_SEEN_SKILLS_KEY],
-    [ENV_CONTEXT_COMPACTED_KEY]: env[ENV_CONTEXT_COMPACTED_KEY],
+    [ENV_CONTEXT_COMPACTED_KEY]: env[ENV_CONTEXT_COMPACTED_KEY]
   };
 }
 function finalizePromptEnvUpdates(platform, before, env = process.env) {
   if (platform !== "cursor") {
-    return void 0;
+    return;
   }
   const updates = {};
   for (const key of [ENV_SEEN_SKILLS_KEY, ENV_CONTEXT_COMPACTED_KEY]) {
@@ -139,26 +125,18 @@ function resolvePromptSeenSkillState(sessionId, skillMap) {
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const hasFileDedup = !dedupOff && !!sessionId;
   const seenEnv = getSeenSkillsEnv();
-  const seenClaims = hasFileDedup
-    ? listSessionKeys(sessionId, "seen-skills").join(",")
-    : "";
-  const seenFile = hasFileDedup
-    ? readSessionFile(sessionId, "seen-skills")
-    : "";
-  const seenStateResult = dedupOff
-    ? {
-        clearedSkills: [],
-        compactionResetApplied: false,
-        seenEnv,
-        seenState: hasFileDedup
-          ? mergeSeenSkillStates(seenFile, seenClaims)
-          : seenEnv,
-      }
-    : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
-        includeEnv: !hasFileDedup,
-        sessionId: hasFileDedup ? sessionId : void 0,
-        skillMap,
-      });
+  const seenClaims = hasFileDedup ? listSessionKeys(sessionId, "seen-skills").join(",") : "";
+  const seenFile = hasFileDedup ? readSessionFile(sessionId, "seen-skills") : "";
+  const seenStateResult = dedupOff ? {
+    clearedSkills: [],
+    compactionResetApplied: false,
+    seenEnv,
+    seenState: hasFileDedup ? mergeSeenSkillStates(seenFile, seenClaims) : seenEnv
+  } : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
+    includeEnv: !hasFileDedup,
+    sessionId: hasFileDedup ? sessionId : void 0,
+    skillMap
+  });
   const seenState = seenStateResult.seenState;
   if (hasFileDedup) {
     writeSessionFile(sessionId, "seen-skills", seenState);
@@ -171,7 +149,7 @@ function resolvePromptSeenSkillState(sessionId, skillMap) {
     seenClaims,
     seenEnv: seenStateResult.seenEnv,
     seenFile,
-    seenState,
+    seenState
   };
 }
 function syncPromptSeenSkillClaims(sessionId, loadedSkills) {
@@ -211,7 +189,7 @@ function parsePromptInput(raw, logger, env = process.env) {
   if (prompt.length < MIN_PROMPT_LENGTH) {
     l.debug("prompt-too-short", {
       length: prompt.length,
-      min: MIN_PROMPT_LENGTH,
+      min: MIN_PROMPT_LENGTH
     });
     return null;
   }
@@ -219,28 +197,21 @@ function parsePromptInput(raw, logger, env = process.env) {
     cwd,
     platform,
     promptLength: prompt.length,
-    sessionId,
+    sessionId
   });
   return { cwd, platform, prompt, sessionId };
 }
-function parseLikelySkillsEnv(
-  envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS
-) {
+function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS) {
   if (typeof envValue !== "string" || envValue.trim() === "") {
     return /* @__PURE__ */ new Set();
   }
   return new Set(
-    envValue
-      .split(",")
-      .map((skill) => skill.trim())
-      .filter((skill) => skill.length > 0)
+    envValue.split(",").map((skill) => skill.trim()).filter((skill) => skill.length > 0)
   );
 }
 function getPromptSignalMinScore(skillConfig) {
   const minScore = skillConfig?.promptSignals?.minScore;
-  return typeof minScore === "number" && !Number.isNaN(minScore)
-    ? minScore
-    : DEFAULT_PROMPT_MIN_SCORE;
+  return typeof minScore === "number" && !Number.isNaN(minScore) ? minScore : DEFAULT_PROMPT_MIN_SCORE;
 }
 function formatPromptScore(score) {
   return Number.isInteger(score) ? String(score) : score.toFixed(1);
@@ -257,11 +228,7 @@ function extractBelowThresholdScore(reason) {
 }
 function applyLexicalFallbackFloor(entry) {
   const lexicalScore = extractLexicalScore(entry.reason);
-  if (
-    lexicalScore == null ||
-    lexicalFallbackMeetsFloor(lexicalScore) ||
-    entry.score === Number.NEGATIVE_INFINITY
-  ) {
+  if (lexicalScore == null || lexicalFallbackMeetsFloor(lexicalScore) || entry.score === Number.NEGATIVE_INFINITY) {
     return entry;
   }
   const exactScore = extractBelowThresholdScore(entry.reason);
@@ -270,45 +237,32 @@ function applyLexicalFallbackFloor(entry) {
     ...entry,
     matched: score >= entry.minScore,
     reason: `${entry.reason}; lexical floor rejected (raw ${formatPromptScore(lexicalScore)} < 20)`,
-    score,
+    score
   };
 }
 function applyProjectContextBoost(entry, likelySkills) {
-  if (
-    !likelySkills.has(entry.skill) ||
-    entry.score === Number.NEGATIVE_INFINITY
-  ) {
+  if (!likelySkills.has(entry.skill) || entry.score === Number.NEGATIVE_INFINITY) {
     return entry;
   }
   const boostedScore = entry.score + PROJECT_CONTEXT_PROMPT_SCORE_BOOST;
   const boostReason = `project-context +${PROJECT_CONTEXT_PROMPT_SCORE_BOOST} (${formatPromptScore(entry.score)} -> ${formatPromptScore(boostedScore)})`;
-  const reason =
-    entry.reason.startsWith("below threshold:") &&
-    boostedScore >= entry.minScore
-      ? boostReason
-      : entry.reason
-        ? `${entry.reason}; ${boostReason}`
-        : boostReason;
+  const reason = entry.reason.startsWith("below threshold:") && boostedScore >= entry.minScore ? boostReason : entry.reason ? `${entry.reason}; ${boostReason}` : boostReason;
   return {
     ...entry,
     matched: boostedScore >= entry.minScore,
     reason,
-    score: boostedScore,
+    score: boostedScore
   };
 }
 function applyDominantTopicSuppression(entry, topScore) {
-  if (
-    !(entry.matched && Number.isFinite(entry.score)) ||
-    entry.score >= DOMINANT_TOPIC_MIN_SCORE ||
-    topScore < DOMINANT_TOPIC_SCORE_THRESHOLD
-  ) {
+  if (!(entry.matched && Number.isFinite(entry.score)) || entry.score >= DOMINANT_TOPIC_MIN_SCORE || topScore < DOMINANT_TOPIC_SCORE_THRESHOLD) {
     return entry;
   }
   return {
     ...entry,
     matched: false,
     reason: `${entry.reason}; suppressed by dominant topic (${formatPromptScore(topScore)} >= ${DOMINANT_TOPIC_SCORE_THRESHOLD}, score < ${DOMINANT_TOPIC_MIN_SCORE})`,
-    suppressed: true,
+    suppressed: true
   };
 }
 function applyPromptScoreAdjustments(entries, logger) {
@@ -326,7 +280,7 @@ function applyPromptScoreAdjustments(entries, logger) {
   if (lexicalFloorRejected.length > 0) {
     l.debug("prompt-lexical-floor-rejected", {
       minRawScore: 20,
-      rejectedSkills: lexicalFloorRejected,
+      rejectedSkills: lexicalFloorRejected
     });
   }
   const boostedEntries = flooredEntries.map((entry) => {
@@ -339,7 +293,7 @@ function applyPromptScoreAdjustments(entries, logger) {
   if (boostedSkills.length > 0) {
     l.debug("prompt-project-context-boost", {
       boost: PROJECT_CONTEXT_PROMPT_SCORE_BOOST,
-      boostedSkills,
+      boostedSkills
     });
   }
   const topScore = boostedEntries.reduce((max, entry) => {
@@ -363,7 +317,7 @@ function applyPromptScoreAdjustments(entries, logger) {
     l.debug("prompt-dominant-topic-suppression", {
       minScore: DOMINANT_TOPIC_MIN_SCORE,
       suppressedSkills,
-      topScore,
+      topScore
     });
   }
   return adjustedEntries;
@@ -380,22 +334,18 @@ function sortPromptScoreStates(entries) {
   });
 }
 function estimatePromptSkillSize(skillConfig) {
-  return skillConfig?.summary
-    ? Math.max(skillConfig.summary.length * 10, 500)
-    : 500;
+  return skillConfig?.summary ? Math.max(skillConfig.summary.length * 10, 500) : 500;
 }
 function rerankPromptAnalysisReport(report, skillMap, maxSkills, budgetBytes) {
-  const ranked = Object.entries(report.perSkillResults)
-    .filter(([, result]) => result.matched)
-    .map(([skill, result]) => ({
-      matched: true,
-      minScore: getPromptSignalMinScore(skillMap[skill]),
-      priority: skillMap[skill]?.priority ?? 0,
-      reason: result.reason,
-      score: result.score,
-      skill,
-      suppressed: result.suppressed,
-    }));
+  const ranked = Object.entries(report.perSkillResults).filter(([, result]) => result.matched).map(([skill, result]) => ({
+    matched: true,
+    minScore: getPromptSignalMinScore(skillMap[skill]),
+    priority: skillMap[skill]?.priority ?? 0,
+    reason: result.reason,
+    score: result.score,
+    skill,
+    suppressed: result.suppressed
+  }));
   sortPromptScoreStates(ranked);
   const dedupDisabled = report.dedupState.strategy === "disabled";
   const seenSkills = new Set(report.dedupState.seenSkills);
@@ -424,30 +374,25 @@ function rerankPromptAnalysisReport(report, skillMap, maxSkills, budgetBytes) {
   report.selectedSkills = selectedSkills;
   report.droppedByBudget = droppedByBudget;
 }
-function applyPromptScoreAdjustmentsToReport(
-  report,
-  skillMap,
-  logger,
-  options
-) {
-  const scoredEntries = Object.entries(report.perSkillResults).map(
-    ([skill, result]) => ({
-      matched: result.matched,
-      minScore: getPromptSignalMinScore(skillMap[skill]),
-      priority: skillMap[skill]?.priority ?? 0,
-      reason: result.reason,
-      score: result.score,
-      skill,
-      suppressed: result.suppressed,
-    })
-  );
+function applyPromptScoreAdjustmentsToReport(report, skillMap, logger, options) {
+  const scoredEntries = Object.entries(
+    report.perSkillResults
+  ).map(([skill, result]) => ({
+    matched: result.matched,
+    minScore: getPromptSignalMinScore(skillMap[skill]),
+    priority: skillMap[skill]?.priority ?? 0,
+    reason: result.reason,
+    score: result.score,
+    skill,
+    suppressed: result.suppressed
+  }));
   const adjustedEntries = applyPromptScoreAdjustments(scoredEntries, logger);
   for (const entry of adjustedEntries) {
     report.perSkillResults[entry.skill] = {
       matched: entry.matched,
       reason: entry.reason,
       score: entry.score,
-      suppressed: entry.suppressed,
+      suppressed: entry.suppressed
     };
   }
   rerankPromptAnalysisReport(
@@ -476,15 +421,9 @@ function matchPromptSignals(normalizedPrompt, skills, logger, options) {
         compiled,
         lexicalHits
       );
-      const lexicalFloorRejected =
-        lexResult.source !== "exact" &&
-        !lexicalFallbackMeetsFloor(lexResult.lexicalScore);
-      const isMatched =
-        lexResult.score >= compiled.minScore && !lexicalFloorRejected;
-      const reason =
-        lexResult.source === "exact"
-          ? matchPromptWithReason(normalizedPrompt, compiled).reason
-          : `${matchPromptWithReason(normalizedPrompt, compiled).reason}; lexical ${lexResult.source} (score ${lexResult.lexicalScore.toFixed(1)}, tier ${lexResult.boostTier ?? "none"})${lexicalFloorRejected ? "; lexical floor rejected" : ""}`;
+      const lexicalFloorRejected = lexResult.source !== "exact" && !lexicalFallbackMeetsFloor(lexResult.lexicalScore);
+      const isMatched = lexResult.score >= compiled.minScore && !lexicalFloorRejected;
+      const reason = lexResult.source === "exact" ? matchPromptWithReason(normalizedPrompt, compiled).reason : `${matchPromptWithReason(normalizedPrompt, compiled).reason}; lexical ${lexResult.source} (score ${lexResult.lexicalScore.toFixed(1)}, tier ${lexResult.boostTier ?? "none"})${lexicalFloorRejected ? "; lexical floor rejected" : ""}`;
       scoredEntries.push({
         matched: isMatched,
         minScore: compiled.minScore,
@@ -492,7 +431,7 @@ function matchPromptSignals(normalizedPrompt, skills, logger, options) {
         reason,
         score: lexResult.score,
         skill,
-        suppressed: lexResult.score === Number.NEGATIVE_INFINITY,
+        suppressed: lexResult.score === Number.NEGATIVE_INFINITY
       });
     } else {
       const result = matchPromptWithReason(normalizedPrompt, compiled);
@@ -503,7 +442,7 @@ function matchPromptSignals(normalizedPrompt, skills, logger, options) {
         reason: result.reason,
         score: result.score,
         skill,
-        suppressed: result.score === Number.NEGATIVE_INFINITY,
+        suppressed: result.score === Number.NEGATIVE_INFINITY
       });
     }
   }
@@ -514,23 +453,20 @@ function matchPromptSignals(normalizedPrompt, skills, logger, options) {
       reason: entry.reason,
       score: entry.score,
       skill: entry.skill,
-      suppressed: entry.suppressed,
+      suppressed: entry.suppressed
     });
   }
-  const matches = adjustedEntries
-    .filter((entry) => entry.matched)
-    .map(({ skill, score, reason, priority }) => ({
-      priority,
-      reason,
-      score,
-      skill,
-    }));
+  const matches = adjustedEntries.filter((entry) => entry.matched).map(({ skill, score, reason, priority }) => ({
+    priority,
+    reason,
+    score,
+    skill
+  }));
   sortPromptScoreStates(matches);
   l.debug("prompt-matches", {
     lexical,
     matched: matches.map((m) => ({ score: m.score, skill: m.skill })),
-    totalWithSignals: Object.values(skillMap).filter((c) => c.promptSignals)
-      .length,
+    totalWithSignals: Object.values(skillMap).filter((c) => c.promptSignals).length
   });
   return matches;
 }
@@ -538,18 +474,14 @@ function deduplicateAndInject(matches, skills, logger, platform) {
   const l = logger || log;
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const seenState = getSeenSkillsEnv();
-  const injectedSkills = dedupOff
-    ? /* @__PURE__ */ new Set()
-    : parseSeenSkills(seenState);
+  const injectedSkills = dedupOff ? /* @__PURE__ */ new Set() : parseSeenSkills(seenState);
   const budget = getInjectionBudget();
   const allMatched = matches.map((m) => m.skill);
-  const newMatches = dedupOff
-    ? matches
-    : matches.filter((m) => !injectedSkills.has(m.skill));
+  const newMatches = dedupOff ? matches : matches.filter((m) => !injectedSkills.has(m.skill));
   if (newMatches.length === 0) {
     l.debug("all-prompt-matches-deduped", {
       matched: allMatched,
-      seen: [...injectedSkills],
+      seen: [...injectedSkills]
     });
     return {
       droppedByBudget: [],
@@ -557,7 +489,7 @@ function deduplicateAndInject(matches, skills, logger, platform) {
       loaded: [],
       matchedSkills: allMatched,
       parts: [],
-      summaryOnly: [],
+      summaryOnly: []
     };
   }
   const rankedSkills = newMatches.slice(0, MAX_SKILLS).map((m) => m.skill);
@@ -565,7 +497,7 @@ function deduplicateAndInject(matches, skills, logger, platform) {
   l.debug("prompt-dedup", {
     droppedByCap,
     previouslyInjected: [...injectedSkills],
-    rankedSkills,
+    rankedSkills
   });
   const result = injectSkills(rankedSkills, {
     budgetBytes: budget,
@@ -575,27 +507,15 @@ function deduplicateAndInject(matches, skills, logger, platform) {
     maxSkills: MAX_SKILLS,
     platform: platform ?? "claude-code",
     pluginRoot: PLUGIN_ROOT,
-    skillMap: skills.skillMap,
+    skillMap: skills.skillMap
   });
   return {
     ...result,
     droppedByCap: [...result.droppedByCap, ...droppedByCap],
-    matchedSkills: allMatched,
+    matchedSkills: allMatched
   };
 }
-function formatOutput(
-  parts,
-  matchedSkills,
-  injectedSkills,
-  contextChunks,
-  summaryOnly,
-  droppedByCap,
-  droppedByBudget,
-  promptMatchReasons,
-  skillMap,
-  platform = "claude-code",
-  env
-) {
+function formatOutput(parts, matchedSkills, injectedSkills, contextChunks, summaryOnly, _droppedByCap, droppedByBudget, promptMatchReasons, skillMap, platform = "claude-code", env) {
   if (parts.length === 0) {
     return formatEmptyOutput(platform, env);
   }
@@ -606,11 +526,11 @@ function formatOutput(
     injectedSkills,
     matchedSkills,
     summaryOnly,
-    version: SKILL_INJECTION_VERSION,
+    version: SKILL_INJECTION_VERSION
   };
   const metaComment = `<!-- skillInjection: ${JSON.stringify(skillInjection)} -->`;
   const bannerLines = [
-    "[xylex-group-plugin] Best practices auto-suggested based on prompt analysis:",
+    "[xylex-group-plugin] Best practices auto-suggested based on prompt analysis:"
   ];
   for (const skill of injectedSkills) {
     const reason = promptMatchReasons?.[skill];
@@ -631,7 +551,7 @@ function formatOutput(
   if (platform === "cursor") {
     const output2 = {
       additional_context: additionalContext,
-      continue: true,
+      continue: true
     };
     if (env && Object.keys(env).length > 0) {
       output2.env = env;
@@ -641,8 +561,8 @@ function formatOutput(
   const output = {
     hookSpecificOutput: {
       additionalContext,
-      hookEventName: "UserPromptSubmit",
-    },
+      hookEventName: "UserPromptSubmit"
+    }
   };
   return JSON.stringify(output);
 }
@@ -688,7 +608,7 @@ function run() {
     log.debug("dedup-compaction-reset", {
       clearedSkills: seenSkillState.clearedSkills,
       sessionId,
-      threshold: COMPACTION_REINJECT_MIN_PRIORITY,
+      threshold: COMPACTION_REINJECT_MIN_PRIORITY
     });
   }
   const budget = getInjectionBudget();
@@ -706,19 +626,22 @@ function run() {
   );
   applyPromptScoreAdjustmentsToReport(report, skills.skillMap, log, {
     budgetBytes: budget,
-    maxSkills: MAX_SKILLS,
+    maxSkills: MAX_SKILLS
   });
   if (log.active) {
     timing.analyze = Math.round(log.now() - tAnalyze);
   }
-  log.trace("prompt-analysis-full", report);
+  log.trace(
+    "prompt-analysis-full",
+    report
+  );
   for (const [skill, r] of Object.entries(report.perSkillResults)) {
     log.debug("prompt-signal-eval", {
       matched: r.matched,
       reason: r.reason,
       score: r.score,
       skill,
-      suppressed: r.suppressed,
+      suppressed: r.suppressed
     });
   }
   log.debug("prompt-selection", {
@@ -728,15 +651,12 @@ function run() {
     droppedByCap: report.droppedByCap,
     filteredByDedup: report.dedupState.filteredByDedup,
     selectedSkills: report.selectedSkills,
-    timingMs: report.timingMs,
+    timingMs: report.timingMs
   });
   const intentResult = classifyTroubleshootingIntent(normalizedPrompt);
   if (intentResult.intent) {
     for (const skill of intentResult.skills) {
-      if (
-        !report.selectedSkills.includes(skill) &&
-        report.selectedSkills.length < MAX_SKILLS
-      ) {
+      if (!report.selectedSkills.includes(skill) && report.selectedSkills.length < MAX_SKILLS) {
         report.selectedSkills.push(skill);
       }
     }
@@ -746,7 +666,7 @@ function run() {
       hook: "UserPromptSubmit",
       intent: intentResult.intent,
       reason: intentResult.reason,
-      skills: intentResult.skills,
+      skills: intentResult.skills
     });
   } else if (intentResult.reason === "suppressed by test framework mention") {
     const suppressSet = /* @__PURE__ */ new Set(["verification"]);
@@ -759,7 +679,7 @@ function run() {
         durationMs: log.active ? log.elapsed() : void 0,
         event: "verification_family_suppressed",
         hook: "UserPromptSubmit",
-        reason: intentResult.reason,
+        reason: intentResult.reason
       });
     }
   }
@@ -775,20 +695,16 @@ function run() {
       reason: "frustration_or_debug_signals",
       skills: matchedInvestigation.map(([skill, r]) => ({
         score: r.score,
-        skill,
-      })),
+        skill
+      }))
     });
   }
-  const allMatched = Object.entries(report.perSkillResults)
-    .filter(([, r]) => r.matched)
-    .map(([skill]) => skill);
+  const allMatched = Object.entries(report.perSkillResults).filter(([, r]) => r.matched).map(([skill]) => skill);
   if (allMatched.length === 0) {
     log.debug("prompt-analysis-issue", {
       evaluatedSkills: Object.keys(report.perSkillResults),
       issue: "no_prompt_matches",
-      suppressedSkills: Object.entries(report.perSkillResults)
-        .filter(([, r]) => r.suppressed)
-        .map(([skill]) => skill),
+      suppressedSkills: Object.entries(report.perSkillResults).filter(([, r]) => r.suppressed).map(([skill]) => skill)
     });
     log.complete(
       "no_prompt_matches",
@@ -805,13 +721,13 @@ function run() {
       dedupStrategy: report.dedupState.strategy,
       issue: "all_deduped",
       matchedSkills: allMatched,
-      seenSkills: report.dedupState.seenSkills,
+      seenSkills: report.dedupState.seenSkills
     });
     log.complete(
       "all_deduped",
       {
         dedupedCount: allMatched.length,
-        matchedCount: allMatched.length,
+        matchedCount: allMatched.length
       },
       log.active ? timing : null
     );
@@ -821,9 +737,7 @@ function run() {
     );
   }
   const tInject = log.active ? log.now() : 0;
-  const injectedSkills = dedupOff
-    ? /* @__PURE__ */ new Set()
-    : parseSeenSkills(seenState);
+  const injectedSkills = dedupOff ? /* @__PURE__ */ new Set() : parseSeenSkills(seenState);
   const injectResult = injectSkills(report.selectedSkills, {
     budgetBytes: budget,
     hasEnvDedup: !dedupOff,
@@ -833,7 +747,7 @@ function run() {
     platform,
     pluginRoot: PLUGIN_ROOT,
     sessionId,
-    skillMap: skills.skillMap,
+    skillMap: skills.skillMap
   });
   if (log.active) {
     timing.inject = Math.round(log.now() - tInject);
@@ -842,7 +756,7 @@ function run() {
   const injectedContextChunks = [];
   const chunk = selectManagedContextChunk(loaded, {
     pluginRoot: PLUGIN_ROOT,
-    sessionId,
+    sessionId
   });
   if (chunk) {
     parts.push(chunk.wrapped);
@@ -850,7 +764,7 @@ function run() {
     log.debug("managed-context-chunk-injected", {
       bytes: chunk.bytes,
       chunkId: chunk.chunkId,
-      skill: chunk.skill,
+      skill: chunk.skill
     });
   }
   let syncedSeenSkills = seenState;
@@ -860,7 +774,7 @@ function run() {
   const droppedByCap = [...injectResult.droppedByCap, ...report.droppedByCap];
   const droppedByBudget = [
     ...injectResult.droppedByBudget,
-    ...report.droppedByBudget,
+    ...report.droppedByBudget
   ];
   const matchedSkills = allMatched;
   if (parts.length === 0) {
@@ -868,7 +782,7 @@ function run() {
       "all_deduped",
       {
         dedupedCount: matchedSkills.length,
-        matchedCount: matchedSkills.length,
+        matchedCount: matchedSkills.length
       },
       log.active ? timing : null
     );
@@ -881,13 +795,9 @@ function run() {
     "injected",
     {
       cappedCount: droppedByCap.length + droppedByBudget.length,
-      dedupedCount:
-        matchedSkills.length -
-        loaded.length -
-        droppedByCap.length -
-        droppedByBudget.length,
+      dedupedCount: matchedSkills.length - loaded.length - droppedByCap.length - droppedByBudget.length,
       injectedCount: loaded.length,
-      matchedCount: matchedSkills.length,
+      matchedCount: matchedSkills.length
     },
     log.active ? timing : null
   );
@@ -901,7 +811,7 @@ function run() {
         hookEvent: "UserPromptSubmit",
         injectedSkills: loaded,
         matchedSkills,
-        summaryOnly,
+        summaryOnly
       },
       cwd
     );
@@ -957,13 +867,12 @@ if (isMainModule()) {
       `  PLUGIN_ROOT: ${PLUGIN_ROOT}`,
       `  argv: ${JSON.stringify(process.argv)}`,
       `  cwd: ${process.cwd()}`,
-      "",
+      ""
     ].join("\n");
     process.stderr.write(entry);
     process.stdout.write("{}");
   }
 }
-
 export {
   deduplicateAndInject,
   formatOutput,
@@ -971,5 +880,5 @@ export {
   parsePromptInput,
   resolvePromptSeenSkillState,
   run,
-  syncPromptSeenSkillClaims,
+  syncPromptSeenSkillClaims
 };

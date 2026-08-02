@@ -1,55 +1,31 @@
 // hooks/src/prompt-analysis.mts
-
 import { searchSkills } from "./lexical-index.mjs";
 import { parseSeenSkills } from "./patterns.mjs";
 import {
   compilePromptSignals,
   matchPromptWithReason,
   normalizePromptText,
-  scorePromptWithLexical,
+  scorePromptWithLexical
 } from "./prompt-patterns.mjs";
-
-function parseLikelySkillsEnv(
-  envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS
-) {
+function parseLikelySkillsEnv(envValue = process.env.XYLEX_PLUGIN_LIKELY_SKILLS) {
   if (typeof envValue !== "string" || envValue.trim() === "") {
     return /* @__PURE__ */ new Set();
   }
   return new Set(
-    envValue
-      .split(",")
-      .map((skill) => skill.trim())
-      .filter((skill) => skill.length > 0)
+    envValue.split(",").map((skill) => skill.trim()).filter((skill) => skill.length > 0)
   );
 }
-function analyzePrompt(
-  prompt,
-  skillMap,
-  seenSkills,
-  budgetBytes,
-  maxSkills,
-  options
-) {
+function analyzePrompt(prompt, skillMap, seenSkills, budgetBytes, maxSkills, options) {
   const t0 = performance.now();
   const lexicalEnabled = options?.lexicalEnabled ?? false;
-  const likelySkills = options?.likelySkills
-    ? new Set(
-        [...options.likelySkills]
-          .map((skill) => String(skill).trim())
-          .filter((skill) => skill.length > 0)
-      )
-    : parseLikelySkillsEnv();
+  const likelySkills = options?.likelySkills ? new Set(
+    [...options.likelySkills].map((skill) => String(skill).trim()).filter((skill) => skill.length > 0)
+  ) : parseLikelySkillsEnv();
   const normalizedPrompt = normalizePromptText(prompt);
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const hasEnvVar = typeof seenSkills === "string";
-  const strategy = dedupOff
-    ? "disabled"
-    : hasEnvVar
-      ? "env-var"
-      : "memory-only";
-  const seenSet = dedupOff
-    ? /* @__PURE__ */ new Set()
-    : parseSeenSkills(seenSkills);
+  const strategy = dedupOff ? "disabled" : hasEnvVar ? "env-var" : "memory-only";
+  const seenSet = dedupOff ? /* @__PURE__ */ new Set() : parseSeenSkills(seenSkills);
   const lexicalHits = lexicalEnabled ? searchSkills(prompt) : [];
   const lexicalScoreMap = new Map(lexicalHits.map((h) => [h.skill, h.score]));
   const LEXICAL_BOOST_CAP = 4;
@@ -65,19 +41,15 @@ function analyzePrompt(
     if (!hasPromptSignals) {
       continue;
     }
-    const compiled = hasPromptSignals
-      ? compilePromptSignals(config.promptSignals)
-      : void 0;
+    const compiled = hasPromptSignals ? compilePromptSignals(config.promptSignals) : void 0;
     if (lexicalEnabled) {
-      const exactResult = compiled
-        ? matchPromptWithReason(normalizedPrompt, compiled)
-        : { matched: false, reason: "no promptSignals", score: 0 };
+      const exactResult = compiled ? matchPromptWithReason(normalizedPrompt, compiled) : { matched: false, reason: "no promptSignals", score: 0 };
       if (exactResult.score === Number.NEGATIVE_INFINITY) {
         perSkillResults[skill] = {
           matched: false,
           reason: exactResult.reason,
           score: Number.NEGATIVE_INFINITY,
-          suppressed: true,
+          suppressed: true
         };
         continue;
       }
@@ -88,27 +60,21 @@ function analyzePrompt(
           matched: true,
           reason: exactResult.reason,
           score: exactResult.score,
-          suppressed: false,
+          suppressed: false
         };
         matched.push({
           priority: config.priority,
           score: exactResult.score,
-          skill,
+          skill
         });
       } else {
-        const allowLexicalOnlyRecall =
-          exactResult.score <= 0 &&
-          rawLexical > 0 &&
-          topKLexicalSkills.has(skill) &&
-          likelySkills.has(skill);
-        if (
-          !(rawLexical > 0 && (exactResult.score > 0 || allowLexicalOnlyRecall))
-        ) {
+        const allowLexicalOnlyRecall = exactResult.score <= 0 && rawLexical > 0 && topKLexicalSkills.has(skill) && likelySkills.has(skill);
+        if (!(rawLexical > 0 && (exactResult.score > 0 || allowLexicalOnlyRecall))) {
           perSkillResults[skill] = {
             matched: false,
             reason: exactResult.reason,
             score: exactResult.score,
-            suppressed: false,
+            suppressed: false
           };
           continue;
         }
@@ -119,9 +85,7 @@ function analyzePrompt(
           lexicalHits
         );
         const isRetrievalRecall = allowLexicalOnlyRecall;
-        const boostCap = isRetrievalRecall
-          ? RETRIEVAL_LEXICAL_BOOST_CAP
-          : LEXICAL_BOOST_CAP;
+        const boostCap = isRetrievalRecall ? RETRIEVAL_LEXICAL_BOOST_CAP : LEXICAL_BOOST_CAP;
         const lexicalBoost = Math.min(
           Math.max(lexResult.score - exactResult.score, 0),
           boostCap
@@ -140,13 +104,13 @@ function analyzePrompt(
           matched: isMatched,
           reason,
           score: effectiveScore,
-          suppressed: false,
+          suppressed: false
         };
         if (isMatched) {
           matched.push({
             priority: config.priority,
             score: effectiveScore,
-            skill,
+            skill
           });
         }
       }
@@ -156,7 +120,7 @@ function analyzePrompt(
         matched: result.matched,
         reason: result.reason,
         score: result.score,
-        suppressed: result.score === Number.NEGATIVE_INFINITY,
+        suppressed: result.score === Number.NEGATIVE_INFINITY
       };
       if (result.matched) {
         matched.push({ priority: config.priority, score: result.score, skill });
@@ -188,9 +152,7 @@ function analyzePrompt(
   const finalSelected = [];
   for (const skill of selectedSkills) {
     const config = skillMap[skill];
-    const estimatedSize = config?.summary
-      ? Math.max(config.summary.length * 10, 500)
-      : 500;
+    const estimatedSize = config?.summary ? Math.max(config.summary.length * 10, 500) : 500;
     if (usedBytes + estimatedSize > budgetBytes && finalSelected.length > 0) {
       droppedByBudget.push(skill);
     } else {
@@ -204,15 +166,16 @@ function analyzePrompt(
     dedupState: {
       filteredByDedup,
       seenSkills: [...seenSet],
-      strategy,
+      strategy
     },
     droppedByBudget,
     droppedByCap,
     normalizedPrompt,
     perSkillResults,
     selectedSkills: finalSelected,
-    timingMs,
+    timingMs
   };
 }
-
-export { analyzePrompt };
+export {
+  analyzePrompt
+};

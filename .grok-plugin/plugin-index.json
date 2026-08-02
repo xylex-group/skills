@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "plugins": {
+    "xylex-group-plugin": {
+      "version": "0.1.0",
+      "components": {
+        "hooks": [
+          {
+            "name": "SessionEnd"
+          },
+          {
+            "name": "SessionStart",
+            "description": "startup|resume|clear|compact"
+          }
+        ],
+        "skills": [
+          {
+            "name": "create-xylex-skill",
+            "description": "Scaffold a new XYLEX Group agent skill under skills/<name>/SKILL.md with the required YAML frontmatter (name, descripti…"
+          }
+        ]
+      }
+    }
+  }
+}

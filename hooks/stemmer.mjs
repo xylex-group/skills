@@ -26,7 +26,7 @@ var EXCEPTIONS_ING = /* @__PURE__ */ new Set([
   "bing",
   "wing",
   "ding",
-  "ming",
+  "ming"
 ]);
 var EXCEPTIONS_ED = /* @__PURE__ */ new Set([
   "bed",
@@ -45,7 +45,7 @@ var EXCEPTIONS_ED = /* @__PURE__ */ new Set([
   "seed",
   "feed",
   "speed",
-  "indeed",
+  "indeed"
 ]);
 var EXCEPTIONS_TION = /* @__PURE__ */ new Set([
   "mention",
@@ -59,7 +59,7 @@ var EXCEPTIONS_TION = /* @__PURE__ */ new Set([
   "bastion",
   "function",
   "junction",
-  "auction",
+  "auction"
 ]);
 var EXCEPTIONS_MENT = /* @__PURE__ */ new Set([
   "element",
@@ -72,7 +72,7 @@ var EXCEPTIONS_MENT = /* @__PURE__ */ new Set([
   "ament",
   "torment",
   "ferment",
-  "lament",
+  "lament"
 ]);
 var EXCEPTIONS_LY = /* @__PURE__ */ new Set([
   "only",
@@ -99,7 +99,7 @@ var EXCEPTIONS_LY = /* @__PURE__ */ new Set([
   "sly",
   "ply",
   "italy",
-  "anomaly",
+  "anomaly"
 ]);
 var EXCEPTIONS_ER = /* @__PURE__ */ new Set([
   "user",
@@ -194,7 +194,7 @@ var EXCEPTIONS_ER = /* @__PURE__ */ new Set([
   "timber",
   "cider",
   "spider",
-  "cyber",
+  "cyber"
 ]);
 var EXCEPTIONS_EST = /* @__PURE__ */ new Set([
   "test",
@@ -222,7 +222,7 @@ var EXCEPTIONS_EST = /* @__PURE__ */ new Set([
   "honest",
   "earnest",
   "vitest",
-  "latest",
+  "latest"
 ]);
 var EXCEPTIONS_NESS = /* @__PURE__ */ new Set(["business", "less", "ness"]);
 var KEEP_DOUBLED = /* @__PURE__ */ new Set(["ll", "ss", "ff", "zz"]);
@@ -241,7 +241,7 @@ var POST_STEM_MAP = {
   schedul: "schedule",
   serializ: "serialize",
   styl: "style",
-  synchroniz: "synchronize",
+  synchroniz: "synchronize"
 };
 function undouble(stem) {
   if (stem.length < 3) {
@@ -263,67 +263,28 @@ function stemToken(word) {
     return word;
   }
   let stem = null;
-  if (
-    word.endsWith("tion") &&
-    word.length >= MIN_STEM + 4 &&
-    !EXCEPTIONS_TION.has(word)
-  ) {
+  if (word.endsWith("tion") && word.length >= MIN_STEM + 4 && !EXCEPTIONS_TION.has(word)) {
     stem = word.slice(0, -4);
   }
-  if (
-    stem === null &&
-    word.endsWith("ment") &&
-    word.length >= MIN_STEM + 4 &&
-    !EXCEPTIONS_MENT.has(word)
-  ) {
+  if (stem === null && word.endsWith("ment") && word.length >= MIN_STEM + 4 && !EXCEPTIONS_MENT.has(word)) {
     stem = word.slice(0, -4);
   }
-  if (
-    stem === null &&
-    word.endsWith("ness") &&
-    word.length >= MIN_STEM + 4 &&
-    !EXCEPTIONS_NESS.has(word)
-  ) {
+  if (stem === null && word.endsWith("ness") && word.length >= MIN_STEM + 4 && !EXCEPTIONS_NESS.has(word)) {
     stem = word.slice(0, -4);
   }
-  if (
-    stem === null &&
-    word.endsWith("ing") &&
-    word.length >= MIN_STEM + 3 &&
-    !EXCEPTIONS_ING.has(word)
-  ) {
+  if (stem === null && word.endsWith("ing") && word.length >= MIN_STEM + 3 && !EXCEPTIONS_ING.has(word)) {
     stem = undouble(word.slice(0, -3));
   }
-  if (
-    stem === null &&
-    word.endsWith("est") &&
-    word.length >= MIN_STEM + 3 &&
-    !EXCEPTIONS_EST.has(word)
-  ) {
+  if (stem === null && word.endsWith("est") && word.length >= MIN_STEM + 3 && !EXCEPTIONS_EST.has(word)) {
     stem = undouble(word.slice(0, -3));
   }
-  if (
-    stem === null &&
-    word.endsWith("ed") &&
-    word.length >= MIN_STEM + 2 &&
-    !EXCEPTIONS_ED.has(word)
-  ) {
+  if (stem === null && word.endsWith("ed") && word.length >= MIN_STEM + 2 && !EXCEPTIONS_ED.has(word)) {
     stem = undouble(word.slice(0, -2));
   }
-  if (
-    stem === null &&
-    word.endsWith("ly") &&
-    word.length >= 4 + 2 &&
-    !EXCEPTIONS_LY.has(word)
-  ) {
+  if (stem === null && word.endsWith("ly") && word.length >= 4 + 2 && !EXCEPTIONS_LY.has(word)) {
     stem = word.slice(0, -2);
   }
-  if (
-    stem === null &&
-    word.endsWith("er") &&
-    word.length >= 4 + 2 &&
-    !EXCEPTIONS_ER.has(word)
-  ) {
+  if (stem === null && word.endsWith("er") && word.length >= 4 + 2 && !EXCEPTIONS_ER.has(word)) {
     stem = undouble(word.slice(0, -2));
   }
   if (stem === null) {
@@ -334,5 +295,7 @@ function stemToken(word) {
 function stemText(text) {
   return text.replace(/[a-z]+/g, (match) => stemToken(match));
 }
-
-export { stemText, stemToken };
+export {
+  stemText,
+  stemToken
+};

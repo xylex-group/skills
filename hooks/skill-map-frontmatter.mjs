@@ -2,10 +2,9 @@
 import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { safeReadFile } from "./hook-env.mjs";
-
 function extractFrontmatter(markdown) {
   let src = markdown;
-  if (src.charCodeAt(0) === 65_279) {
+  if (src.charCodeAt(0) === 65279) {
     src = src.slice(1);
   }
   const match = src.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
@@ -15,8 +14,7 @@ function extractFrontmatter(markdown) {
   return { body: match[2], yaml: match[1] };
 }
 function invalidYaml(message, lineNumber) {
-  const location =
-    typeof lineNumber === "number" ? ` (line ${lineNumber})` : "";
+  const location = typeof lineNumber === "number" ? ` (line ${lineNumber})` : "";
   return new Error(`Invalid YAML frontmatter: ${message}${location}`);
 }
 function isIgnorableLine(line) {
@@ -131,8 +129,7 @@ function parseBlockScalarIndicator(raw) {
   }
   const style = match[1];
   const chompChar = match[2];
-  const chomp =
-    chompChar === "-" ? "strip" : chompChar === "+" ? "keep" : "clip";
+  const chomp = chompChar === "-" ? "strip" : chompChar === "+" ? "keep" : "clip";
   return { chomp, style };
 }
 function parseBlockScalar(lines, startIndex, parentIndent, style, chomp) {
@@ -198,11 +195,8 @@ function parseBlockScalar(lines, startIndex, parentIndent, style, chomp) {
   } else {
     text = text.replace(/\n+$/, "");
     if (style === "|") {
-      text =
-        text.length > 0
-          ? `${text}
-`
-          : "";
+      text = text.length > 0 ? `${text}
+` : "";
     }
   }
   return { nextIndex: index, value: text };
@@ -362,11 +356,7 @@ function parseSimpleYaml(yamlStr) {
   if (trailing !== -1) {
     throw invalidYaml("unexpected trailing content", trailing + 1);
   }
-  if (
-    parsed.value == null ||
-    typeof parsed.value !== "object" ||
-    Array.isArray(parsed.value)
-  ) {
+  if (parsed.value == null || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
     throw invalidYaml("root document must be a key-value object");
   }
   return parsed.value;
@@ -388,22 +378,15 @@ function parseValidateRules(raw) {
       continue;
     }
     const severity = obj.severity;
-    if (
-      severity !== "error" &&
-      severity !== "recommended" &&
-      severity !== "warn"
-    ) {
+    if (severity !== "error" && severity !== "recommended" && severity !== "warn") {
       continue;
     }
     const rule = {
       message: obj.message,
       pattern: obj.pattern,
-      severity,
+      severity
     };
-    if (
-      typeof obj.skipIfFileContains === "string" &&
-      obj.skipIfFileContains !== ""
-    ) {
+    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     if (typeof obj.upgradeToSkill === "string" && obj.upgradeToSkill !== "") {
@@ -439,15 +422,12 @@ function parseChainToRules(raw) {
     }
     const rule = {
       pattern: obj.pattern,
-      targetSkill: obj.targetSkill,
+      targetSkill: obj.targetSkill
     };
     if (typeof obj.message === "string" && obj.message !== "") {
       rule.message = obj.message;
     }
-    if (
-      typeof obj.skipIfFileContains === "string" &&
-      obj.skipIfFileContains !== ""
-    ) {
+    if (typeof obj.skipIfFileContains === "string" && obj.skipIfFileContains !== "") {
       rule.skipIfFileContains = obj.skipIfFileContains;
     }
     rules.push(rule);
@@ -455,34 +435,29 @@ function parseChainToRules(raw) {
   return rules;
 }
 function parseSkillFrontmatter(yamlStr) {
-  if (!(yamlStr && yamlStr.trim())) {
+  if (!yamlStr?.trim()) {
     return {
       chainTo: [],
       description: "",
       metadata: {},
       name: "",
       summary: "",
-      validate: [],
+      validate: []
     };
   }
   const doc = parseSimpleYaml(yamlStr);
   return {
     chainTo: parseChainToRules(doc.chainTo),
     description: typeof doc.description === "string" ? doc.description : "",
-    metadata:
-      doc.metadata != null &&
-      typeof doc.metadata === "object" &&
-      !Array.isArray(doc.metadata)
-        ? doc.metadata
-        : {},
+    metadata: doc.metadata != null && typeof doc.metadata === "object" && !Array.isArray(doc.metadata) ? doc.metadata : {},
     name: typeof doc.name === "string" ? doc.name : "",
     summary: typeof doc.summary === "string" ? doc.summary : "",
     validate: parseValidateRules(doc.validate),
-    ...(doc.retrieval != null &&
-    typeof doc.retrieval === "object" &&
-    !Array.isArray(doc.retrieval)
-      ? { retrieval: parseRetrievalBlock(doc.retrieval) }
-      : {}),
+    ...doc.retrieval != null && typeof doc.retrieval === "object" && !Array.isArray(doc.retrieval) ? {
+      retrieval: parseRetrievalBlock(
+        doc.retrieval
+      )
+    } : {}
   };
 }
 function parseRetrievalBlock(raw) {
@@ -496,7 +471,7 @@ function parseRetrievalBlock(raw) {
     aliases: toStringArray(raw.aliases),
     entities: toStringArray(raw.entities),
     examples: toStringArray(raw.examples),
-    intents: toStringArray(raw.intents),
+    intents: toStringArray(raw.intents)
   };
 }
 function scanSkillsDir(rootDir) {
@@ -531,7 +506,7 @@ function scanSkillsDir(rootDir) {
       diagnostics.push({
         error: error.constructor?.name ?? "Error",
         file: skillFile,
-        message: error.message,
+        message: error.message
       });
       continue;
     }
@@ -543,14 +518,14 @@ function scanSkillsDir(rootDir) {
       name: parsed.name || entry,
       summary: parsed.summary,
       validate: parsed.validate,
-      ...(parsed.retrieval ? { retrieval: parsed.retrieval } : {}),
+      ...parsed.retrieval ? { retrieval: parsed.retrieval } : {}
     });
   }
   return { diagnostics, skills };
 }
 function parsePromptSignals(raw, opts) {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    return void 0;
+    return;
   }
   const obj = raw;
   const skill = opts?.skill ?? "";
@@ -571,10 +546,9 @@ function parsePromptSignals(raw, opts) {
     if (!Array.isArray(v)) {
       return [];
     }
-    return v
-      .filter((g) => Array.isArray(g))
-      .map((g) => g.filter((x) => typeof x === "string" && x !== ""))
-      .filter((g) => g.length > 0);
+    return v.filter((g) => Array.isArray(g)).map(
+      (g) => g.filter((x) => typeof x === "string" && x !== "")
+    ).filter((g) => g.length > 0);
   };
   const countNonArrayAllOf = (v) => {
     if (!Array.isArray(v)) {
@@ -586,10 +560,7 @@ function parsePromptSignals(raw, opts) {
   const allOf = toStringArrayArray(obj.allOf);
   const anyOf = toStringArray(obj.anyOf);
   const noneOf = toStringArray(obj.noneOf);
-  const minScore =
-    typeof obj.minScore === "number" && !Number.isNaN(obj.minScore)
-      ? obj.minScore
-      : 6;
+  const minScore = typeof obj.minScore === "number" && !Number.isNaN(obj.minScore) ? obj.minScore : 6;
   if (warn) {
     if (Array.isArray(obj.phrases) && phrases.length === 0) {
       warn(`skill "${skill}": promptSignals.phrases is empty after filtering`, {
@@ -597,7 +568,7 @@ function parsePromptSignals(raw, opts) {
         field: "promptSignals.phrases",
         hint: "Add at least one non-empty phrase string",
         skill,
-        valueType: "array",
+        valueType: "array"
       });
     }
     const emptyCount = countEmptyStrings(obj.phrases);
@@ -609,7 +580,7 @@ function parsePromptSignals(raw, opts) {
           field: "promptSignals.phrases",
           hint: "Remove empty strings from phrases",
           skill,
-          valueType: "array",
+          valueType: "array"
         }
       );
     }
@@ -622,15 +593,11 @@ function parsePromptSignals(raw, opts) {
           field: "promptSignals.allOf",
           hint: "Each allOf entry must be an array of strings (e.g. [term1, term2])",
           skill,
-          valueType: "array",
+          valueType: "array"
         }
       );
     }
-    if (
-      typeof obj.minScore === "number" &&
-      !Number.isNaN(obj.minScore) &&
-      obj.minScore < 1
-    ) {
+    if (typeof obj.minScore === "number" && !Number.isNaN(obj.minScore) && obj.minScore < 1) {
       warn(
         `skill "${skill}": promptSignals.minScore is ${obj.minScore}, below minimum of 1`,
         {
@@ -638,18 +605,13 @@ function parsePromptSignals(raw, opts) {
           field: "promptSignals.minScore",
           hint: "Set minScore to at least 1",
           skill,
-          valueType: "number",
+          valueType: "number"
         }
       );
     }
   }
-  if (
-    phrases.length === 0 &&
-    allOf.length === 0 &&
-    anyOf.length === 0 &&
-    noneOf.length === 0
-  ) {
-    return void 0;
+  if (phrases.length === 0 && allOf.length === 0 && anyOf.length === 0 && noneOf.length === 0) {
+    return;
   }
   return { allOf, anyOf, minScore, noneOf, phrases };
 }
@@ -662,7 +624,7 @@ function normalizePatternField(opts) {
       field,
       hint: `Change ${field} to a YAML list`,
       skill,
-      valueType: "string",
+      valueType: "string"
     });
     arr = [raw];
   } else if (Array.isArray(raw)) {
@@ -675,7 +637,7 @@ function normalizePatternField(opts) {
         field,
         hint: `${field} must be an array of ${fieldTypeHint}`,
         skill,
-        valueType: typeof raw,
+        valueType: typeof raw
       }
     );
     arr = [];
@@ -689,7 +651,7 @@ function normalizePatternField(opts) {
           field: `${field}[${i}]`,
           hint: `Each ${field} entry must be a string`,
           skill,
-          valueType: typeof p,
+          valueType: typeof p
         }
       );
       return false;
@@ -700,7 +662,7 @@ function normalizePatternField(opts) {
         field: `${field}[${i}]`,
         hint: `Remove empty entries from ${field}`,
         skill,
-        valueType: "string",
+        valueType: "string"
       });
       return false;
     }
@@ -732,7 +694,7 @@ function buildSkillMap(rootDir) {
           field: "filePattern",
           hint: "Rename metadata.filePattern to metadata.pathPatterns",
           skill: skill.dir,
-          valueType: typeof meta.filePattern,
+          valueType: typeof meta.filePattern
         }
       );
     }
@@ -742,7 +704,7 @@ function buildSkillMap(rootDir) {
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
       raw: rawPathPatterns,
-      skill: skill.dir,
+      skill: skill.dir
     });
     let rawBashPatterns;
     if (meta.bashPatterns !== void 0) {
@@ -758,7 +720,7 @@ function buildSkillMap(rootDir) {
           field: "bashPattern",
           hint: "Rename metadata.bashPattern to metadata.bashPatterns",
           skill: skill.dir,
-          valueType: typeof meta.bashPattern,
+          valueType: typeof meta.bashPattern
         }
       );
     }
@@ -768,21 +730,20 @@ function buildSkillMap(rootDir) {
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
       raw: rawBashPatterns,
-      skill: skill.dir,
+      skill: skill.dir
     });
-    const rawImportPatterns =
-      meta.importPatterns === void 0 ? [] : meta.importPatterns;
+    const rawImportPatterns = meta.importPatterns === void 0 ? [] : meta.importPatterns;
     const filteredImportPatterns = normalizePatternField({
       addWarning,
       coerceStrings: true,
       field: "importPatterns",
       fieldTypeHint: "package name strings",
       raw: rawImportPatterns,
-      skill: skill.dir,
+      skill: skill.dir
     });
     const promptSignals = parsePromptSignals(meta.promptSignals, {
       addWarning,
-      skill: skill.dir,
+      skill: skill.dir
     });
     const rawDocs = meta.docs === void 0 ? [] : meta.docs;
     const filteredDocs = normalizePatternField({
@@ -791,13 +752,10 @@ function buildSkillMap(rootDir) {
       field: "docs",
       fieldTypeHint: "URL strings",
       raw: rawDocs,
-      skill: skill.dir,
+      skill: skill.dir
     });
     const rawSitemap = meta.sitemap;
-    const sitemap =
-      typeof rawSitemap === "string" && rawSitemap.length > 0
-        ? rawSitemap
-        : void 0;
+    const sitemap = typeof rawSitemap === "string" && rawSitemap.length > 0 ? rawSitemap : void 0;
     const entry = {
       bashPatterns: filteredBashPatterns,
       docs: filteredDocs,
@@ -805,7 +763,7 @@ function buildSkillMap(rootDir) {
       pathPatterns: filteredPathPatterns,
       priority: meta.priority ?? 5,
       summary: skill.summary || "",
-      validate: skill.validate,
+      validate: skill.validate
     };
     if (sitemap) {
       entry.sitemap = sitemap;
@@ -825,7 +783,7 @@ function buildSkillMap(rootDir) {
     diagnostics,
     skills,
     warningDetails,
-    warnings,
+    warnings
   };
 }
 var KNOWN_KEYS = /* @__PURE__ */ new Set([
@@ -839,7 +797,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "validate",
   "chainTo",
   "promptSignals",
-  "retrieval",
+  "retrieval"
 ]);
 function validateSkillMap(raw) {
   const errors = [];
@@ -863,11 +821,11 @@ function validateSkillMap(raw) {
           hint: "Pass a valid skill-map object",
           message: "skill-map must be a non-null object",
           skill: "",
-          valueType: typeof raw,
-        },
+          valueType: typeof raw
+        }
       ],
       errors: ["skill-map must be a non-null object"],
-      ok: false,
+      ok: false
     };
   }
   if (!("skills" in raw)) {
@@ -879,11 +837,11 @@ function validateSkillMap(raw) {
           hint: "Add a 'skills' key to the skill-map object",
           message: "skill-map is missing required 'skills' key",
           skill: "",
-          valueType: "undefined",
-        },
+          valueType: "undefined"
+        }
       ],
       errors: ["skill-map is missing required 'skills' key"],
-      ok: false,
+      ok: false
     };
   }
   const rawObj = raw;
@@ -897,22 +855,24 @@ function validateSkillMap(raw) {
           hint: "'skills' should be a plain object keyed by skill directory name",
           message: "'skills' must be a non-null object (not an array)",
           skill: "",
-          valueType: Array.isArray(skills) ? "array" : typeof skills,
-        },
+          valueType: Array.isArray(skills) ? "array" : typeof skills
+        }
       ],
       errors: ["'skills' must be a non-null object (not an array)"],
-      ok: false,
+      ok: false
     };
   }
   const normalizedSkills = {};
-  for (const [skill, config] of Object.entries(skills)) {
+  for (const [skill, config] of Object.entries(
+    skills
+  )) {
     if (config == null || typeof config !== "object" || Array.isArray(config)) {
       addError(`skill "${skill}": config must be a non-null object`, {
         code: "CONFIG_NOT_OBJECT",
         field: "",
         hint: "Each skill config must be a plain object",
         skill,
-        valueType: Array.isArray(config) ? "array" : typeof config,
+        valueType: Array.isArray(config) ? "array" : typeof config
       });
       continue;
     }
@@ -924,7 +884,7 @@ function validateSkillMap(raw) {
           field: key,
           hint: `Remove or rename unknown key "${key}"`,
           skill,
-          valueType: typeof cfg[key],
+          valueType: typeof cfg[key]
         });
       }
     }
@@ -939,7 +899,7 @@ function validateSkillMap(raw) {
             field: "priority",
             hint: "Set priority to a numeric value (e.g., 5)",
             skill,
-            valueType: typeof p,
+            valueType: typeof p
           }
         );
       } else {
@@ -952,7 +912,7 @@ function validateSkillMap(raw) {
       field: "pathPatterns",
       fieldTypeHint: "glob strings",
       raw: "pathPatterns" in cfg ? cfg.pathPatterns : [],
-      skill,
+      skill
     });
     const bashPatterns = normalizePatternField({
       addWarning,
@@ -960,7 +920,7 @@ function validateSkillMap(raw) {
       field: "bashPatterns",
       fieldTypeHint: "regex strings",
       raw: "bashPatterns" in cfg ? cfg.bashPatterns : [],
-      skill,
+      skill
     });
     const importPatterns = normalizePatternField({
       addWarning,
@@ -968,7 +928,7 @@ function validateSkillMap(raw) {
       field: "importPatterns",
       fieldTypeHint: "package name strings",
       raw: "importPatterns" in cfg ? cfg.importPatterns : [],
-      skill,
+      skill
     });
     const summary = typeof cfg.summary === "string" ? cfg.summary : "";
     const docs = normalizePatternField({
@@ -977,17 +937,14 @@ function validateSkillMap(raw) {
       field: "docs",
       fieldTypeHint: "URL strings",
       raw: "docs" in cfg ? cfg.docs : [],
-      skill,
+      skill
     });
     const validate = parseValidateRules(cfg.validate);
     const promptSignals = parsePromptSignals(cfg.promptSignals, {
       addWarning,
-      skill,
+      skill
     });
-    const sitemap =
-      typeof cfg.sitemap === "string" && cfg.sitemap.length > 0
-        ? cfg.sitemap
-        : void 0;
+    const sitemap = typeof cfg.sitemap === "string" && cfg.sitemap.length > 0 ? cfg.sitemap : void 0;
     const chainTo = parseChainToRules(cfg.chainTo);
     const normalizedEntry = {
       bashPatterns,
@@ -996,7 +953,7 @@ function validateSkillMap(raw) {
       pathPatterns,
       priority,
       summary,
-      validate,
+      validate
     };
     if (sitemap) {
       normalizedEntry.sitemap = sitemap;
@@ -1007,11 +964,7 @@ function validateSkillMap(raw) {
     if (promptSignals) {
       normalizedEntry.promptSignals = promptSignals;
     }
-    if (
-      cfg.retrieval != null &&
-      typeof cfg.retrieval === "object" &&
-      !Array.isArray(cfg.retrieval)
-    ) {
+    if (cfg.retrieval != null && typeof cfg.retrieval === "object" && !Array.isArray(cfg.retrieval)) {
       normalizedEntry.retrieval = cfg.retrieval;
     }
     normalizedSkills[skill] = normalizedEntry;
@@ -1030,7 +983,7 @@ function validateSkillMap(raw) {
             field: "chainTo.targetSkill",
             hint: `Ensure "${rule.targetSkill}" exists as a skill directory`,
             skill,
-            valueType: "string",
+            valueType: "string"
           }
         );
       }
@@ -1044,11 +997,7 @@ function validateSkillMap(raw) {
       (config.chainTo ?? []).map((c) => c.targetSkill)
     );
     for (const rule of config.validate) {
-      if (
-        rule.upgradeToSkill &&
-        (rule.severity === "error" || rule.severity === "recommended") &&
-        !chainTargets.has(rule.upgradeToSkill)
-      ) {
+      if (rule.upgradeToSkill && (rule.severity === "error" || rule.severity === "recommended") && !chainTargets.has(rule.upgradeToSkill)) {
         addWarning(
           `skill "${skill}": validate rule with upgradeToSkill "${rule.upgradeToSkill}" (severity: ${rule.severity}) has no matching chainTo entry`,
           {
@@ -1056,7 +1005,7 @@ function validateSkillMap(raw) {
             field: "validate.upgradeToSkill",
             hint: `Add a chainTo entry targeting "${rule.upgradeToSkill}" or let build-manifest synthesize one`,
             skill,
-            valueType: "string",
+            valueType: "string"
           }
         );
       }
@@ -1069,14 +1018,13 @@ function validateSkillMap(raw) {
     normalizedSkillMap: { skills: normalizedSkills },
     ok: true,
     warningDetails,
-    warnings,
+    warnings
   };
 }
-
 export {
   buildSkillMap,
   extractFrontmatter,
   parseSkillFrontmatter,
   scanSkillsDir,
-  validateSkillMap,
+  validateSkillMap
 };

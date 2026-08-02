@@ -5,11 +5,10 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  writeFileSync,
+  writeFileSync
 } from "fs";
 import { tmpdir } from "os";
 import { basename, join, resolve } from "path";
-
 var REGEX_META_CHARS = ".()+[]{}|^$\\";
 function parseBraceExpansion(pattern, startIndex) {
   let depth = 0;
@@ -163,16 +162,15 @@ function collectSessionSeenSkillValues(sessionId) {
   for (const filePath of files) {
     try {
       values.push(readFileSync(filePath, "utf-8"));
-    } catch {}
+    } catch {
+    }
   }
   for (const claimDirPath of claimDirs) {
     try {
-      const claimedSkills = readdirSync(claimDirPath)
-        .map((entry) => decodeURIComponent(entry))
-        .filter((entry) => entry !== "")
-        .join(",");
+      const claimedSkills = readdirSync(claimDirPath).map((entry) => decodeURIComponent(entry)).filter((entry) => entry !== "").join(",");
       values.push(claimedSkills);
-    } catch {}
+    } catch {
+    }
   }
   return values;
 }
@@ -188,11 +186,7 @@ function filterSeenSkillState(value, blockedSkills) {
   }
   return serializeSeenSkills(filtered);
 }
-function isHighPrioritySkill(
-  skill,
-  skillMap,
-  minPriority = COMPACTION_REINJECT_MIN_PRIORITY
-) {
+function isHighPrioritySkill(skill, skillMap, minPriority = COMPACTION_REINJECT_MIN_PRIORITY) {
   const priority = skillMap?.[skill]?.priority;
   return typeof priority === "number" && priority >= minPriority;
 }
@@ -211,11 +205,12 @@ function persistCompactionResetEnv(nextSeenEnv) {
       envFile,
       [
         `export XYLEX_PLUGIN_SEEN_SKILLS="${escapeShellEnvValue(nextSeenEnv)}"`,
-        'export XYLEX_PLUGIN_CONTEXT_COMPACTED=""',
+        'export XYLEX_PLUGIN_CONTEXT_COMPACTED=""'
       ].join("\n") + "\n",
       "utf-8"
     );
-  } catch {}
+  } catch {
+  }
 }
 function pruneSessionSeenSkillArtifacts(sessionId, clearedSkills) {
   if (clearedSkills.size === 0) {
@@ -230,36 +225,30 @@ function pruneSessionSeenSkillArtifacts(sessionId, clearedSkills) {
         filterSeenSkillState(rawValue, clearedSkills),
         "utf-8"
       );
-    } catch {}
+    } catch {
+    }
   }
   for (const claimDirPath of claimDirs) {
     for (const skill of clearedSkills) {
       try {
         rmSync(join(claimDirPath, encodeURIComponent(skill)), { force: true });
-      } catch {}
+      } catch {
+      }
     }
   }
 }
-function mergeSeenSkillStatesWithCompactionReset(
-  envValue,
-  fileValue,
-  claimValue,
-  options
-) {
+function mergeSeenSkillStatesWithCompactionReset(envValue, fileValue, claimValue, options) {
   const includeEnv = options?.includeEnv ?? true;
-  const compactionTriggered =
-    process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
+  const compactionTriggered = process.env.XYLEX_PLUGIN_CONTEXT_COMPACTED === "true";
   let seenEnv = envValue;
   let seenFile = fileValue;
   let seenClaims = claimValue;
   let clearedSkills = [];
   if (compactionTriggered) {
-    const compactionState = options?.sessionId
-      ? mergeSeenSkillStates(
-          envValue,
-          ...collectSessionSeenSkillValues(options.sessionId)
-        )
-      : mergeSeenSkillStates(envValue, fileValue, claimValue);
+    const compactionState = options?.sessionId ? mergeSeenSkillStates(
+      envValue,
+      ...collectSessionSeenSkillValues(options.sessionId)
+    ) : mergeSeenSkillStates(envValue, fileValue, claimValue);
     const skillsToClear = /* @__PURE__ */ new Set();
     for (const skill of parseSeenSkills(compactionState)) {
       if (isHighPrioritySkill(skill, options?.skillMap)) {
@@ -277,16 +266,14 @@ function mergeSeenSkillStatesWithCompactionReset(
     }
     persistCompactionResetEnv(seenEnv);
   }
-  const seenState = includeEnv
-    ? mergeSeenSkillStates(seenEnv, seenFile, seenClaims)
-    : mergeSeenSkillStates(seenFile, seenClaims);
+  const seenState = includeEnv ? mergeSeenSkillStates(seenEnv, seenFile, seenClaims) : mergeSeenSkillStates(seenFile, seenClaims);
   return {
     clearedSkills,
     compactionResetApplied: compactionTriggered,
     seenClaims,
     seenEnv,
     seenFile,
-    seenState,
+    seenState
   };
 }
 function mergeScopedSeenSkillStates(scopeId, envValue, fileValue, claimValue) {
@@ -340,7 +327,7 @@ function compileSkillPatterns(skillMap, callbacks) {
       compiledImports,
       compiledPaths,
       priority: typeof config.priority === "number" ? config.priority : 0,
-      skill,
+      skill
     };
   });
 }
@@ -353,9 +340,7 @@ function importPatternToRegex(pattern) {
   if (pattern === "") {
     throw new Error("importPatternToRegex: pattern must not be empty");
   }
-  const escaped = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*/g, `[^'"]*`);
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, `[^'"]*`);
   return new RegExp(
     `(?:from\\s+|require\\s*\\(\\s*|import\\s*\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`,
     "m"
@@ -411,19 +396,12 @@ function parseLikelySkills(envValue) {
 }
 function rankEntries(entries) {
   return entries.slice().sort((a, b) => {
-    const aPri =
-      typeof a.effectivePriority === "number"
-        ? a.effectivePriority
-        : a.priority;
-    const bPri =
-      typeof b.effectivePriority === "number"
-        ? b.effectivePriority
-        : b.priority;
+    const aPri = typeof a.effectivePriority === "number" ? a.effectivePriority : a.priority;
+    const bPri = typeof b.effectivePriority === "number" ? b.effectivePriority : b.priority;
     return bPri - aPri || a.skill.localeCompare(b.skill);
   });
 }
-var DOCS_WARNING =
-  "**MANDATORY: Your training data for these libraries is OUTDATED and UNRELIABLE.** APIs, method signatures, and config options change frequently and WITHOUT WARNING. You MUST open and read the official docs linked below BEFORE writing ANY code. DO NOT guess, assume, or rely on memorized APIs \u2014 they are likely WRONG.";
+var DOCS_WARNING = "**MANDATORY: Your training data for these libraries is OUTDATED and UNRELIABLE.** APIs, method signatures, and config options change frequently and WITHOUT WARNING. You MUST open and read the official docs linked below BEFORE writing ANY code. DO NOT guess, assume, or rely on memorized APIs \u2014 they are likely WRONG.";
 function buildDocsBlock(injectedSkills, skillMap) {
   if (!skillMap) {
     return "";
@@ -449,14 +427,13 @@ function buildDocsBlock(injectedSkills, skillMap) {
     "",
     "Official documentation:",
     ...entries,
-    "---",
+    "---"
   ].join("\n");
 }
-
 export {
+  COMPACTION_REINJECT_MIN_PRIORITY,
   appendSeenSkill,
   buildDocsBlock,
-  COMPACTION_REINJECT_MIN_PRIORITY,
   compileSkillPatterns,
   globToRegex,
   importPatternToRegex,
@@ -469,5 +446,5 @@ export {
   parseLikelySkills,
   parseSeenSkills,
   rankEntries,
-  serializeSeenSkills,
+  serializeSeenSkills
 };

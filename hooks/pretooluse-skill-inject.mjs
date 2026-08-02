@@ -13,7 +13,7 @@ import {
   safeReadFile,
   safeReadJson,
   syncSessionFileFromClaims,
-  tryClaimSessionKey,
+  tryClaimSessionKey
 } from "./hook-env.mjs";
 import { createLogger, logDecision } from "./logger.mjs";
 import {
@@ -27,16 +27,15 @@ import {
   mergeSeenSkillStatesWithCompactionReset,
   parseLikelySkills,
   parseSeenSkills,
-  rankEntries,
+  rankEntries
 } from "./patterns.mjs";
 import { buildSkillMap, validateSkillMap } from "./skill-map-frontmatter.mjs";
 import {
   isVercelJsonPath,
   resolveVercelJsonSkills,
-  VERCEL_JSON_SKILLS,
+  VERCEL_JSON_SKILLS
 } from "./vercel-config.mjs";
 import { selectManagedContextChunk } from "./vercel-context.mjs";
-
 var MAX_SKILLS = 3;
 var DEFAULT_INJECTION_BUDGET_BYTES = 18e3;
 var SETUP_MODE_BOOTSTRAP_SKILL = "bootstrap";
@@ -67,12 +66,12 @@ function getInjectionBudget() {
 var log = createLogger();
 var RUNTIME_ENV_KEYS = [
   "XYLEX_PLUGIN_CONTEXT_COMPACTED",
-  "XYLEX_PLUGIN_SEEN_SKILLS",
+  "XYLEX_PLUGIN_SEEN_SKILLS"
 ];
 function captureRuntimeEnvSnapshot(env = process.env) {
   return {
     XYLEX_PLUGIN_CONTEXT_COMPACTED: env.XYLEX_PLUGIN_CONTEXT_COMPACTED,
-    XYLEX_PLUGIN_SEEN_SKILLS: env.XYLEX_PLUGIN_SEEN_SKILLS,
+    XYLEX_PLUGIN_SEEN_SKILLS: env.XYLEX_PLUGIN_SEEN_SKILLS
   };
 }
 function collectRuntimeEnvUpdates(before, env = process.env) {
@@ -87,23 +86,17 @@ function collectRuntimeEnvUpdates(before, env = process.env) {
 }
 function finalizeRuntimeEnvUpdates(platform, before, env = process.env) {
   if (platform !== "cursor") {
-    return void 0;
+    return;
   }
   const updates = collectRuntimeEnvUpdates(before, env);
   return Object.keys(updates).length > 0 ? updates : void 0;
 }
-function checkVercelEnvHelp(
-  toolName,
-  toolInput,
-  injectedSkills,
-  dedupOff,
-  logger
-) {
+function checkVercelEnvHelp(toolName, toolInput, injectedSkills, dedupOff, logger) {
   const l = logger || log;
   if (toolName !== "Bash") {
     l.debug("vercel-env-help-not-fired", {
       reason: "not-bash",
-      tool: toolName,
+      tool: toolName
     });
     return { triggered: false };
   }
@@ -116,7 +109,7 @@ function checkVercelEnvHelp(
   if (!dedupOff && injectedSkills.has(VERCEL_ENV_HELP_ONCE_KEY)) {
     l.debug("vercel-env-help-not-fired", {
       reason: "already-shown",
-      subcommand: match[1],
+      subcommand: match[1]
     });
     return { triggered: false };
   }
@@ -160,36 +153,23 @@ function parseInput(raw, logger, env = process.env) {
     return null;
   }
   const parsed = input;
-  const workspaceRoot =
-    Array.isArray(parsed.workspace_roots) &&
-    typeof parsed.workspace_roots[0] === "string"
-      ? parsed.workspace_roots[0]
-      : void 0;
+  const workspaceRoot = Array.isArray(parsed.workspace_roots) && typeof parsed.workspace_roots[0] === "string" ? parsed.workspace_roots[0] : void 0;
   const toolName = parsed.tool_name || "";
   const toolInput = parsed.tool_input || {};
   const platform = detectPlatform(parsed);
-  const sessionId =
-    typeof (parsed.session_id ?? parsed.conversation_id) === "string"
-      ? (parsed.session_id ?? parsed.conversation_id)
-      : "";
-  const cwdCandidate =
-    parsed.cwd ??
-    workspaceRoot ??
-    env.CURSOR_PROJECT_DIR ??
-    env.CLAUDE_PROJECT_ROOT ??
-    process.cwd();
-  const cwd =
-    typeof cwdCandidate === "string" && cwdCandidate.trim() !== ""
-      ? cwdCandidate
-      : process.cwd();
-  const toolTarget =
-    toolName === "Bash" ? toolInput.command || "" : toolInput.file_path || "";
-  const agentId =
-    typeof parsed.agent_id === "string" && parsed.agent_id.length > 0
-      ? parsed.agent_id
-      : void 0;
+  const sessionId = typeof (parsed.session_id ?? parsed.conversation_id) === "string" ? parsed.session_id ?? parsed.conversation_id : "";
+  const cwdCandidate = parsed.cwd ?? workspaceRoot ?? env.CURSOR_PROJECT_DIR ?? env.CLAUDE_PROJECT_ROOT ?? process.cwd();
+  const cwd = typeof cwdCandidate === "string" && cwdCandidate.trim() !== "" ? cwdCandidate : process.cwd();
+  const toolTarget = toolName === "Bash" ? toolInput.command || "" : toolInput.file_path || "";
+  const agentId = typeof parsed.agent_id === "string" && parsed.agent_id.length > 0 ? parsed.agent_id : void 0;
   const scopeId = agentId;
-  l.debug("input-parsed", { cwd, platform, scopeId, sessionId, toolName });
+  l.debug("input-parsed", {
+    cwd,
+    platform,
+    scopeId,
+    sessionId,
+    toolName
+  });
   l.debug("tool-target", { target: redactCommand(toolTarget), toolName });
   return { cwd, platform, scopeId, sessionId, toolInput, toolName, toolTarget };
 }
@@ -202,7 +182,7 @@ function loadSkills(pluginRoot, logger) {
   let manifestVersion = 0;
   let manifestSkillsFull = null;
   const manifest = safeReadJson(manifestPath);
-  if (manifest && manifest.skills && typeof manifest.skills === "object") {
+  if (manifest?.skills && typeof manifest.skills === "object") {
     skillMap = manifest.skills;
     manifestVersion = manifest.version || 1;
     if (manifestVersion >= 2) {
@@ -212,7 +192,7 @@ function loadSkills(pluginRoot, logger) {
     l.debug("manifest-loaded", {
       generatedAt: manifest.generatedAt,
       path: manifestPath,
-      version: manifestVersion,
+      version: manifestVersion
     });
   }
   if (!usedManifest) {
@@ -243,8 +223,7 @@ function loadSkills(pluginRoot, logger) {
         }
         skillMap = validation.normalizedSkillMap.skills;
       } else {
-        const validationErrors =
-          "errors" in validation ? validation.errors : [];
+        const validationErrors = "errors" in validation ? validation.errors : [];
         l.issue(
           "SKILLMAP_VALIDATE_FAIL",
           "Skill map validation failed after build",
@@ -288,7 +267,7 @@ function loadSkills(pluginRoot, logger) {
           try {
             compiledPaths.push({
               pattern: pathPats[i],
-              regex: new RegExp(pathSrcs[i]),
+              regex: new RegExp(pathSrcs[i])
             });
           } catch (err) {
             l.issue(
@@ -299,7 +278,7 @@ function loadSkills(pluginRoot, logger) {
                 error: String(err),
                 pattern: pathPats[i],
                 regexSource: pathSrcs[i],
-                skill,
+                skill
               }
             );
           }
@@ -311,7 +290,7 @@ function loadSkills(pluginRoot, logger) {
           try {
             compiledBash.push({
               pattern: bashPats[i],
-              regex: new RegExp(bashSrcs[i]),
+              regex: new RegExp(bashSrcs[i])
             });
           } catch (err) {
             l.issue(
@@ -322,7 +301,7 @@ function loadSkills(pluginRoot, logger) {
                 error: String(err),
                 pattern: bashPats[i],
                 regexSource: bashSrcs[i],
-                skill,
+                skill
               }
             );
           }
@@ -334,7 +313,7 @@ function loadSkills(pluginRoot, logger) {
           try {
             compiledImports.push({
               pattern: importPats[i],
-              regex: new RegExp(importSrcs[i].source, importSrcs[i].flags),
+              regex: new RegExp(importSrcs[i].source, importSrcs[i].flags)
             });
           } catch (err) {
             l.issue(
@@ -345,7 +324,7 @@ function loadSkills(pluginRoot, logger) {
                 error: String(err),
                 pattern: importPats[i],
                 regexSource: importSrcs[i],
-                skill,
+                skill
               }
             );
           }
@@ -355,13 +334,13 @@ function loadSkills(pluginRoot, logger) {
           compiledImports,
           compiledPaths,
           priority: typeof config.priority === "number" ? config.priority : 0,
-          skill,
+          skill
         };
       }
     );
     l.debug("manifest-regexes-restored", {
       skillCount,
-      version: manifestVersion,
+      version: manifestVersion
     });
   } else {
     const callbacks = {
@@ -388,7 +367,7 @@ function loadSkills(pluginRoot, logger) {
           `Fix or remove the invalid pathPatterns entry in skills/${skill}/SKILL.md frontmatter`,
           { error: String(err), pattern: p, skill }
         );
-      },
+      }
     };
     compiledSkills = compileSkillPatterns(skillMap, callbacks);
   }
@@ -419,22 +398,18 @@ function matchSkills(toolName, toolInput, compiledSkills, logger) {
       l.trace("pattern-eval-start", {
         patternCount: entry.compiledPaths.length,
         skill: entry.skill,
-        target: filePath,
+        target: filePath
       });
       const reason = matchPathWithReason(filePath, entry.compiledPaths);
       l.trace("pattern-eval-result", {
         matched: !!reason,
         reason: reason || null,
-        skill: entry.skill,
+        skill: entry.skill
       });
       if (reason) {
         matchedEntries.push(entry);
         matchReasons[entry.skill] = reason;
-      } else if (
-        fileContent &&
-        entry.compiledImports &&
-        entry.compiledImports.length > 0
-      ) {
+      } else if (fileContent && entry.compiledImports && entry.compiledImports.length > 0) {
         const importReason = matchImportWithReason(
           fileContent,
           entry.compiledImports
@@ -442,7 +417,7 @@ function matchSkills(toolName, toolInput, compiledSkills, logger) {
         l.trace("import-eval-result", {
           matched: !!importReason,
           reason: importReason || null,
-          skill: entry.skill,
+          skill: entry.skill
         });
         if (importReason) {
           matchedEntries.push(entry);
@@ -456,13 +431,13 @@ function matchSkills(toolName, toolInput, compiledSkills, logger) {
       l.trace("pattern-eval-start", {
         patternCount: entry.compiledBash.length,
         skill: entry.skill,
-        target: redactCommand(command),
+        target: redactCommand(command)
       });
       const reason = matchBashWithReason(command, entry.compiledBash);
       l.trace("pattern-eval-result", {
         matched: !!reason,
         reason: reason || null,
-        skill: entry.skill,
+        skill: entry.skill
       });
       if (reason) {
         matchedEntries.push(entry);
@@ -471,31 +446,29 @@ function matchSkills(toolName, toolInput, compiledSkills, logger) {
     }
   }
   const matched = new Set(matchedEntries.map((e) => e.skill));
-  l.debug("matches-found", { matched: [...matched], reasons: matchReasons });
+  l.debug("matches-found", {
+    matched: [...matched],
+    reasons: matchReasons
+  });
   return { matched, matchedEntries, matchReasons };
 }
-function deduplicateSkills(
-  {
-    matchedEntries,
-    matched,
-    toolName,
-    toolInput,
-    injectedSkills,
-    dedupOff,
-    maxSkills,
-    likelySkills,
-    compiledSkills,
-    setupMode,
-  },
-  logger
-) {
+function deduplicateSkills({
+  matchedEntries,
+  matched,
+  toolName,
+  toolInput,
+  injectedSkills,
+  dedupOff,
+  maxSkills,
+  likelySkills,
+  compiledSkills,
+  setupMode
+}, logger) {
   const l = logger || log;
-  const cap = maxSkills ?? MAX_SKILLS;
+  const _cap = maxSkills ?? MAX_SKILLS;
   const likely = likelySkills || /* @__PURE__ */ new Set();
   const setupModeActive = setupMode === true;
-  let newEntries = dedupOff
-    ? matchedEntries
-    : matchedEntries.filter((e) => !injectedSkills.has(e.skill));
+  let newEntries = dedupOff ? matchedEntries : matchedEntries.filter((e) => !injectedSkills.has(e.skill));
   let vercelJsonRouting = null;
   if (["Read", "Edit", "Write"].includes(toolName)) {
     const filePath = toolInput.file_path || "";
@@ -505,7 +478,7 @@ function deduplicateSkills(
         vercelJsonRouting = resolved;
         l.debug("vercel-json-routing", {
           keys: resolved.keys,
-          relevantSkills: [...resolved.relevantSkills],
+          relevantSkills: [...resolved.relevantSkills]
         });
         for (const entry of newEntries) {
           if (!VERCEL_JSON_SKILLS.has(entry.skill)) {
@@ -527,10 +500,7 @@ function deduplicateSkills(
   if (likely.size > 0) {
     for (const entry of newEntries) {
       if (likely.has(entry.skill)) {
-        const base =
-          typeof entry.effectivePriority === "number"
-            ? entry.effectivePriority
-            : entry.priority;
+        const base = typeof entry.effectivePriority === "number" ? entry.effectivePriority : entry.priority;
         entry.effectivePriority = base + 5;
         profilerBoosted.push(entry.skill);
       }
@@ -538,7 +508,7 @@ function deduplicateSkills(
     if (profilerBoosted.length > 0) {
       l.debug("profiler-boosted", {
         boostedSkills: profilerBoosted,
-        likelySkills: [...likely],
+        likelySkills: [...likely]
       });
     }
   }
@@ -553,79 +523,61 @@ function deduplicateSkills(
         (e) => e.skill === SETUP_MODE_BOOTSTRAP_SKILL
       );
       if (!bootstrapEntry) {
-        const bootstrapTemplate = Array.isArray(compiledSkills)
-          ? compiledSkills.find(
-              (entry) => entry.skill === SETUP_MODE_BOOTSTRAP_SKILL
-            )
-          : null;
-        bootstrapEntry = bootstrapTemplate
-          ? { ...bootstrapTemplate }
-          : {
-              compiledBash: [],
-              compiledImports: [],
-              compiledPaths: [],
-              priority: 0,
-              skill: SETUP_MODE_BOOTSTRAP_SKILL,
-            };
+        const bootstrapTemplate = Array.isArray(compiledSkills) ? compiledSkills.find(
+          (entry) => entry.skill === SETUP_MODE_BOOTSTRAP_SKILL
+        ) : null;
+        bootstrapEntry = bootstrapTemplate ? { ...bootstrapTemplate } : {
+          compiledBash: [],
+          compiledImports: [],
+          compiledPaths: [],
+          priority: 0,
+          skill: SETUP_MODE_BOOTSTRAP_SKILL
+        };
         newEntries.push(bootstrapEntry);
         matched.add(SETUP_MODE_BOOTSTRAP_SKILL);
         setupModeRouting.synthetic = true;
       }
       const maxPriority = newEntries.reduce((max, entry) => {
-        const value =
-          typeof entry.effectivePriority === "number"
-            ? entry.effectivePriority
-            : entry.priority;
+        const value = typeof entry.effectivePriority === "number" ? entry.effectivePriority : entry.priority;
         return Math.max(max, typeof value === "number" ? value : 0);
       }, 0);
-      const basePriority =
-        typeof bootstrapEntry.effectivePriority === "number"
-          ? bootstrapEntry.effectivePriority
-          : bootstrapEntry.priority;
+      const basePriority = typeof bootstrapEntry.effectivePriority === "number" ? bootstrapEntry.effectivePriority : bootstrapEntry.priority;
       bootstrapEntry.effectivePriority = Math.max(
-        (typeof basePriority === "number" ? basePriority : 0) +
-          SETUP_MODE_PRIORITY_BOOST,
+        (typeof basePriority === "number" ? basePriority : 0) + SETUP_MODE_PRIORITY_BOOST,
         maxPriority + 1
       );
       l.debug("setup-mode-bootstrap-routing", {
         effectivePriority: bootstrapEntry.effectivePriority,
-        synthetic: setupModeRouting.synthetic,
+        synthetic: setupModeRouting.synthetic
       });
     }
   }
   newEntries = rankEntries(newEntries);
   const rankedSkills = newEntries.map((e) => e.skill);
   for (const entry of newEntries) {
-    const eff =
-      typeof entry.effectivePriority === "number"
-        ? entry.effectivePriority
-        : entry.priority;
+    const eff = typeof entry.effectivePriority === "number" ? entry.effectivePriority : entry.priority;
     logDecision(l, {
       event: "skill_ranked",
       hook: "PreToolUse",
-      reason: profilerBoosted.includes(entry.skill)
-        ? "profiler_boosted"
-        : "pattern_match",
+      reason: profilerBoosted.includes(entry.skill) ? "profiler_boosted" : "pattern_match",
       score: eff,
-      skill: entry.skill,
+      skill: entry.skill
     });
   }
   l.debug("dedup-filtered", {
     previouslyInjected: [...injectedSkills],
-    rankedSkills,
+    rankedSkills
   });
   return {
     newEntries,
     profilerBoosted,
     rankedSkills,
     setupModeRouting,
-    vercelJsonRouting,
+    vercelJsonRouting
   };
 }
 function skillInvocationMessage(skill, platform) {
-  return platform === "cursor"
-    ? `Load the /${skill} skill.`
-    : `You must run the Skill(${skill}) tool.`;
+  return platform === "cursor" ? `Load the /${skill} skill.` : `You must run the Skill(${skill}) tool.`;
 }
 function injectSkills(rankedSkills, options) {
   const {
@@ -636,11 +588,12 @@ function injectSkills(rankedSkills, options) {
     injectedSkills,
     budgetBytes,
     maxSkills,
-    skillMap,
+    skillMap: _skillMap,
     logger,
     forceSummarySkills,
-    platform: optPlatform,
+    platform: optPlatform
   } = options || {};
+  void _skillMap;
   const platform = optPlatform ?? "claude-code";
   const root = pluginRoot || PLUGIN_ROOT;
   const l = logger || log;
@@ -679,7 +632,7 @@ function injectSkills(rankedSkills, options) {
         hook: "PreToolUse",
         reason: "cap_exceeded",
         score: ceiling,
-        skill,
+        skill
       });
       continue;
     }
@@ -713,7 +666,7 @@ function injectSkills(rankedSkills, options) {
         l.debug("summary-fallback", {
           fullBytes: byteLen,
           skill,
-          summaryBytes: summaryByteLen,
+          summaryBytes: summaryByteLen
         });
         continue;
       }
@@ -725,7 +678,7 @@ function injectSkills(rankedSkills, options) {
         reason: "over_budget",
         skill,
         skillBytes: byteLen,
-        usedBytes,
+        usedBytes
       });
       continue;
     }
@@ -746,7 +699,7 @@ function injectSkills(rankedSkills, options) {
         l.debug("force-summary-companion", {
           fullBytes: byteLen,
           skill,
-          summaryBytes: summaryByteLen,
+          summaryBytes: summaryByteLen
         });
         continue;
       }
@@ -761,12 +714,7 @@ function injectSkills(rankedSkills, options) {
       injectedSkills.add(skill);
     }
   }
-  if (
-    droppedByCap.length > 0 ||
-    droppedByBudget.length > 0 ||
-    summaryOnly.length > 0 ||
-    skippedByConcurrentClaim.length > 0
-  ) {
+  if (droppedByCap.length > 0 || droppedByBudget.length > 0 || summaryOnly.length > 0 || skippedByConcurrentClaim.length > 0) {
     l.debug("cap-applied", {
       budgetBytes: budget,
       droppedByBudget,
@@ -774,12 +722,12 @@ function injectSkills(rankedSkills, options) {
       max: ceiling,
       selected: loaded.map((s) => ({
         mode: summaryOnly.includes(s) ? "summary" : "full",
-        skill: s,
+        skill: s
       })),
       skippedByConcurrentClaim,
       summaryOnly,
       totalCandidates: rankedSkills.length,
-      usedBytes,
+      usedBytes
     });
   }
   l.debug("skills-injected", {
@@ -788,7 +736,7 @@ function injectSkills(rankedSkills, options) {
     skippedByConcurrentClaim,
     summaryOnly,
     totalParts: parts.length,
-    usedBytes,
+    usedBytes
   });
   return {
     droppedByBudget,
@@ -796,7 +744,7 @@ function injectSkills(rankedSkills, options) {
     loaded,
     parts,
     skippedByConcurrentClaim,
-    summaryOnly,
+    summaryOnly
   };
 }
 function formatPlatformOutput(platform, additionalContext, env) {
@@ -814,7 +762,7 @@ function formatPlatformOutput(platform, additionalContext, env) {
   if (additionalContext) {
     const hookSpecificOutput = {
       additionalContext,
-      hookEventName: "PreToolUse",
+      hookEventName: "PreToolUse"
     };
     output.hookSpecificOutput = hookSpecificOutput;
   }
@@ -825,13 +773,12 @@ function formatPlatformOutput(platform, additionalContext, env) {
 }
 function buildBanner(injectedSkills, toolName, toolTarget, matchReasons) {
   const lines = [
-    "[xylex-group-plugin] Best practices auto-suggested based on detected patterns:",
+    "[xylex-group-plugin] Best practices auto-suggested based on detected patterns:"
   ];
   for (const skill of injectedSkills) {
     const reason = matchReasons?.[skill];
     if (reason) {
-      const target =
-        toolName === "Bash" ? redactCommand(toolTarget) : toolTarget;
+      const target = toolName === "Bash" ? redactCommand(toolTarget) : toolTarget;
       lines.push(
         `  - "${skill}" matched ${reason.matchType} pattern \`${reason.pattern}\` on ${toolName}${target ? `: ${target}` : ""}`
       );
@@ -850,7 +797,7 @@ function formatOutput({
   injectedSkills,
   contextChunks,
   summaryOnly,
-  droppedByCap,
+  droppedByCap: _droppedByCap,
   droppedByBudget,
   toolName,
   toolTarget,
@@ -858,8 +805,9 @@ function formatOutput({
   reasons,
   skillMap,
   platform = "claude-code",
-  env,
+  env
 }) {
+  void _droppedByCap;
   if (parts.length === 0) {
     return formatPlatformOutput(platform, void 0, env);
   }
@@ -871,7 +819,7 @@ function formatOutput({
     summaryOnly: summaryOnly || [],
     toolName,
     toolTarget: toolName === "Bash" ? redactCommand(toolTarget) : toolTarget,
-    version: SKILL_INJECTION_VERSION,
+    version: SKILL_INJECTION_VERSION
   };
   if (reasons && Object.keys(reasons).length > 0) {
     skillInjection.reasons = reasons;
@@ -911,8 +859,7 @@ function run() {
   if (log.active) {
     timing.stdin_parse = Math.round(log.now() - tPhase);
   }
-  const { toolName, toolInput, sessionId, cwd, platform, toolTarget, scopeId } =
-    parsed;
+  const { toolName, toolInput, sessionId, cwd, platform, toolTarget, scopeId } = parsed;
   const runtimeEnvBefore = captureRuntimeEnvSnapshot();
   const tSkillmap = log.active ? log.now() : 0;
   const skills = loadSkills(PLUGIN_ROOT, log);
@@ -922,58 +869,40 @@ function run() {
   if (log.active) {
     timing.skillmap_load = Math.round(log.now() - tSkillmap);
   }
-  const { compiledSkills, usedManifest } = skills;
+  const { compiledSkills } = skills;
   const dedupOff = process.env.XYLEX_PLUGIN_HOOK_DEDUP === "off";
   const hasFileDedup = !dedupOff && !!sessionId;
-  const seenEnv =
-    typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string"
-      ? process.env.XYLEX_PLUGIN_SEEN_SKILLS
-      : "";
-  const seenClaims = hasFileDedup
-    ? listSessionKeys(sessionId, "seen-skills", scopeId).join(",")
-    : "";
-  const seenFile = hasFileDedup
-    ? readSessionFile(sessionId, "seen-skills", scopeId)
-    : "";
-  const seenStateResult = dedupOff
-    ? {
-        clearedSkills: [],
-        compactionResetApplied: false,
-        seenEnv,
-        seenState: hasFileDedup
-          ? mergeSeenSkillStates(seenFile, seenClaims)
-          : seenEnv,
-      }
-    : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
-        includeEnv: !hasFileDedup,
-        sessionId: hasFileDedup ? sessionId : void 0,
-        skillMap: skills.skillMap,
-      });
+  const seenEnv = typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string" ? process.env.XYLEX_PLUGIN_SEEN_SKILLS : "";
+  const seenClaims = hasFileDedup ? listSessionKeys(sessionId, "seen-skills", scopeId).join(",") : "";
+  const seenFile = hasFileDedup ? readSessionFile(sessionId, "seen-skills", scopeId) : "";
+  const seenStateResult = dedupOff ? {
+    clearedSkills: [],
+    compactionResetApplied: false,
+    seenEnv,
+    seenState: hasFileDedup ? mergeSeenSkillStates(seenFile, seenClaims) : seenEnv
+  } : mergeSeenSkillStatesWithCompactionReset(seenEnv, seenFile, seenClaims, {
+    includeEnv: !hasFileDedup,
+    sessionId: hasFileDedup ? sessionId : void 0,
+    skillMap: skills.skillMap
+  });
   const seenState = seenStateResult.seenState;
-  const hasEnvDedup =
-    !dedupOff && typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string";
+  const hasEnvDedup = !dedupOff && typeof process.env.XYLEX_PLUGIN_SEEN_SKILLS === "string";
   const hasSeenSkillDedup = hasFileDedup || hasEnvDedup;
-  const dedupStrategy = dedupOff
-    ? "disabled"
-    : hasFileDedup
-      ? "file"
-      : hasEnvDedup
-        ? "env-var"
-        : "memory-only";
+  const dedupStrategy = dedupOff ? "disabled" : hasFileDedup ? "file" : hasEnvDedup ? "env-var" : "memory-only";
   const likelySkillsEnv = process.env.XYLEX_PLUGIN_LIKELY_SKILLS || "";
   const likelySkills = parseLikelySkills(likelySkillsEnv);
   const setupMode = process.env.XYLEX_PLUGIN_SETUP_MODE === "1";
   log.debug("dedup-strategy", {
     seenEnv: seenState,
     sessionId,
-    strategy: dedupStrategy,
+    strategy: dedupStrategy
   });
   if (seenStateResult.compactionResetApplied) {
     log.debug("dedup-compaction-reset", {
       clearedSkills: seenStateResult.clearedSkills,
       scopeId,
       sessionId,
-      threshold: COMPACTION_REINJECT_MIN_PRIORITY,
+      threshold: COMPACTION_REINJECT_MIN_PRIORITY
     });
   }
   if (likelySkills.size > 0) {
@@ -982,12 +911,10 @@ function run() {
   if (setupMode) {
     log.debug("setup-mode", {
       active: true,
-      bootstrapSkill: SETUP_MODE_BOOTSTRAP_SKILL,
+      bootstrapSkill: SETUP_MODE_BOOTSTRAP_SKILL
     });
   }
-  const injectedSkills = dedupOff
-    ? /* @__PURE__ */ new Set()
-    : parseSeenSkills(seenState);
+  const injectedSkills = dedupOff ? /* @__PURE__ */ new Set() : parseSeenSkills(seenState);
   const tMatch = log.active ? log.now() : 0;
   const matchResult = matchSkills(toolName, toolInput, compiledSkills, log);
   if (!matchResult) {
@@ -1014,7 +941,7 @@ function run() {
       matchedEntries,
       setupMode,
       toolInput,
-      toolName,
+      toolName
     },
     log
   );
@@ -1037,7 +964,7 @@ function run() {
       vercelEnvHelpInjected = true;
       injectedSkills.add(VERCEL_ENV_HELP_ONCE_KEY);
       log.debug("vercel-env-help-injected", {
-        subcommand: vercelEnvHelp.subcommand || "",
+        subcommand: vercelEnvHelp.subcommand || ""
       });
     }
   }
@@ -1054,7 +981,7 @@ function run() {
         dedupedCount: matched.size - rankedSkills.length,
         injectedSkills: [],
         matchedCount: matched.size,
-        matchedSkills: [...matched],
+        matchedSkills: [...matched]
       },
       log.active ? timing : null
     );
@@ -1062,31 +989,30 @@ function run() {
     return formatPlatformOutput(platform, void 0, envUpdates2);
   }
   const tSkillRead = log.active ? log.now() : 0;
-  const { parts, loaded, summaryOnly, droppedByCap, droppedByBudget } =
-    injectSkills(rankedSkills, {
-      hasEnvDedup: hasSeenSkillDedup,
-      injectedSkills,
-      logger: log,
-      platform,
-      pluginRoot: PLUGIN_ROOT,
-      scopeId,
-      sessionId,
-      skillMap: skills.skillMap,
-    });
+  const { parts, loaded, summaryOnly, droppedByCap, droppedByBudget } = injectSkills(rankedSkills, {
+    hasEnvDedup: hasSeenSkillDedup,
+    injectedSkills,
+    logger: log,
+    platform,
+    pluginRoot: PLUGIN_ROOT,
+    scopeId,
+    sessionId,
+    skillMap: skills.skillMap
+  });
   if (log.active) {
     timing.skill_read = Math.round(log.now() - tSkillRead);
   }
   if (vercelEnvHelpInjected) {
     parts.push(VERCEL_ENV_HELP);
     log.debug("vercel-env-help-appended", {
-      subcommand: vercelEnvHelp.subcommand || "",
+      subcommand: vercelEnvHelp.subcommand || ""
     });
   }
   const injectedContextChunks = [];
   if (!scopeId) {
     const chunk = selectManagedContextChunk(loaded, {
       pluginRoot: PLUGIN_ROOT,
-      sessionId,
+      sessionId
     });
     if (chunk) {
       parts.push(chunk.wrapped);
@@ -1094,7 +1020,7 @@ function run() {
       log.debug("managed-context-chunk-injected", {
         bytes: chunk.bytes,
         chunkId: chunk.chunkId,
-        skill: chunk.skill,
+        skill: chunk.skill
       });
     }
   }
@@ -1112,7 +1038,7 @@ function run() {
         droppedByCap,
         injectedSkills: [],
         matchedCount: matched.size,
-        matchedSkills: [...matched],
+        matchedSkills: [...matched]
       },
       log.active ? timing : null
     );
@@ -1134,7 +1060,7 @@ function run() {
       injectedCount: parts.length,
       injectedSkills: loaded,
       matchedCount: matched.size,
-      matchedSkills: [...matched],
+      matchedSkills: [...matched]
     },
     log.active ? timing : null
   );
@@ -1143,7 +1069,7 @@ function run() {
     if (!reasons[skill] && matchReasons?.[skill]) {
       reasons[skill] = {
         reasonCode: "pattern-match",
-        trigger: matchReasons[skill].matchType,
+        trigger: matchReasons[skill].matchType
       };
     }
   }
@@ -1162,7 +1088,7 @@ function run() {
     skillMap: skills.skillMap,
     summaryOnly,
     toolName,
-    toolTarget,
+    toolTarget
   });
   if (loaded.length > 0) {
     appendAuditLog(
@@ -1175,8 +1101,7 @@ function run() {
         matchedSkills: [...matched],
         summaryOnly,
         toolName,
-        toolTarget:
-          toolName === "Bash" ? redactCommand(toolTarget) : toolTarget,
+        toolTarget: toolName === "Bash" ? redactCommand(toolTarget) : toolTarget
       },
       cwd
     );
@@ -1188,7 +1113,7 @@ var REDACT_RULES = [
   {
     fn: (match) => match.replace(/:\/\/[^:/?#\s]+:[^@\s]+@/, "://[REDACTED]@"),
     // Connection strings: scheme://user:password@host
-    re: /\b[a-z][a-z0-9+.-]*:\/\/[^:/?#\s]+:[^@\s]+@[^\s]+/gi,
+    re: /\b[a-z][a-z0-9+.-]*:\/\/[^:/?#\s]+:[^@\s]+@[^\s]+/gi
   },
   {
     fn: (match) => {
@@ -1196,7 +1121,7 @@ var REDACT_RULES = [
       return `${match.slice(0, eqIdx)}=[REDACTED]`;
     },
     // URL query params with sensitive keys: ?token=xxx, &key=xxx, &secret=xxx, &password=xxx
-    re: /([?&])(token|key|secret|password|credential|auth|api_key|apiKey)=[^&\s]*/gi,
+    re: /([?&])(token|key|secret|password|credential|auth|api_key|apiKey)=[^&\s]*/gi
   },
   {
     fn: (match) => {
@@ -1204,22 +1129,22 @@ var REDACT_RULES = [
       return `${match.slice(0, colonIdx)}: "[REDACTED]"`;
     },
     // JSON-style secret values: "secret": "val", "password": "val", "token": "val", etc.
-    re: /"(token|key|secret|password|credential|api_key|apiKey|auth)":\s*"[^"]*"/gi,
+    re: /"(token|key|secret|password|credential|api_key|apiKey|auth)":\s*"[^"]*"/gi
   },
   {
     fn: (match) => `${match.split(":")[0]}: [REDACTED]`,
     // Cookie headers: Cookie: key=value; key2=value2
-    re: /\b(Cookie|Set-Cookie):\s*\S[^\r\n]*/gi,
+    re: /\b(Cookie|Set-Cookie):\s*\S[^\r\n]*/gi
   },
   {
     fn: (match) => `${match.split(/\s+/)[0]} [REDACTED]`,
     // Bearer / token authorization headers: "Bearer xxx", "token xxx" (case-insensitive)
-    re: /\b(Bearer|token)\s+[A-Za-z0-9_\-.+/=]{8,}\b/gi,
+    re: /\b(Bearer|token)\s+[A-Za-z0-9_\-.+/=]{8,}\b/gi
   },
   {
     fn: (match) => `${match.split(/\s+/)[0]} [REDACTED]`,
     // --token value, --password value, --api-key value, --secret value, --auth value
-    re: /--(token|password|api-key|secret|auth|credential)\s+\S+/gi,
+    re: /--(token|password|api-key|secret|auth|credential)\s+\S+/gi
   },
   {
     fn: (match) => {
@@ -1229,8 +1154,8 @@ var REDACT_RULES = [
     // ENV_VAR_TOKEN=value, MY_KEY=value, SECRET=value, PASSWORD=value (env-style, may be prefixed)
     // Matches keys that contain a sensitive word anywhere (e.g. MY_SECRET_VALUE=...)
     // [^\s&] prevents consuming URL query-param delimiters
-    re: /\b\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*=[^\s&]+/gi,
-  },
+    re: /\b\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*=[^\s&]+/gi
+  }
 ];
 function redactCommand(command) {
   if (typeof command !== "string") {
@@ -1268,13 +1193,12 @@ if (isMainModule()) {
       `  PLUGIN_ROOT: ${PLUGIN_ROOT}`,
       `  argv: ${JSON.stringify(process.argv)}`,
       `  cwd: ${process.cwd()}`,
-      "",
+      ""
     ].join("\n");
     process.stderr.write(entry);
     process.stdout.write("{}");
   }
 }
-
 export {
   captureRuntimeEnvSnapshot,
   checkVercelEnvHelp,
@@ -1287,5 +1211,5 @@ export {
   parseInput,
   redactCommand,
   run,
-  validateSkillMap,
+  validateSkillMap
 };

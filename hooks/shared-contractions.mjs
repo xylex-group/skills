@@ -60,7 +60,8 @@ var CONTRACTIONS = {
   "you're": "you are",
   "you've": "you have",
   youre: "you are",
-  youve: "you have",
+  youve: "you have"
 };
-
-export { CONTRACTIONS };
+export {
+  CONTRACTIONS
+};

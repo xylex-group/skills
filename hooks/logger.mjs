@@ -1,47 +1,34 @@
 // hooks/src/logger.mts
 import { randomBytes } from "crypto";
-
 var LEVELS = ["off", "summary", "debug", "trace"];
 var LEVEL_INDEX = {
   debug: 2,
   off: 0,
   summary: 1,
-  trace: 3,
+  trace: 3
 };
-var XYLEX_PLUGIN_SHARED_LOGGER_CONTEXT_KEY =
-  "__xylexPluginSharedLoggerContext__";
+var XYLEX_PLUGIN_SHARED_LOGGER_CONTEXT_KEY = "__xylexPluginSharedLoggerContext__";
 function readErrorField(error, field) {
   return field in error ? error[field] : void 0;
 }
 function serializeErrorForLog(error) {
   if (error instanceof Error) {
-    const maybeCode =
-      "code" in error && typeof error.code !== "undefined"
-        ? { code: error.code }
-        : {};
+    const maybeCode = "code" in error && typeof error.code !== "undefined" ? { code: error.code } : {};
     return {
       message: error.message,
       name: error.name,
       ...maybeCode,
-      ...(error.stack ? { stack: error.stack } : {}),
+      ...error.stack ? { stack: error.stack } : {}
     };
   }
   if (typeof error === "object" && error !== null) {
     const record = error;
     return {
       type: error.constructor?.name || "Object",
-      ...(readErrorField(record, "name") === void 0
-        ? {}
-        : { name: readErrorField(record, "name") }),
-      ...(readErrorField(record, "message") === void 0
-        ? {}
-        : { message: readErrorField(record, "message") }),
-      ...(readErrorField(record, "code") === void 0
-        ? {}
-        : { code: readErrorField(record, "code") }),
-      ...(readErrorField(record, "stack") === void 0
-        ? {}
-        : { stack: readErrorField(record, "stack") }),
+      ...readErrorField(record, "name") === void 0 ? {} : { name: readErrorField(record, "name") },
+      ...readErrorField(record, "message") === void 0 ? {} : { message: readErrorField(record, "message") },
+      ...readErrorField(record, "code") === void 0 ? {} : { code: readErrorField(record, "code") },
+      ...readErrorField(record, "stack") === void 0 ? {} : { stack: readErrorField(record, "stack") }
     };
   }
   return { value: error };
@@ -50,9 +37,7 @@ function logCaughtError(logger, event, error, context = {}) {
   logger.debug(event, { ...context, error: serializeErrorForLog(error) });
 }
 function resolveLogLevel() {
-  const explicit = (process.env.XYLEX_PLUGIN_LOG_LEVEL || "")
-    .toLowerCase()
-    .trim();
+  const explicit = (process.env.XYLEX_PLUGIN_LOG_LEVEL || "").toLowerCase().trim();
   if (explicit && LEVEL_INDEX[explicit] !== void 0) {
     return explicit;
   }
@@ -61,10 +46,7 @@ function resolveLogLevel() {
       `[xylex-group-plugin] Unknown XYLEX_PLUGIN_LOG_LEVEL="${explicit}". Valid levels: ${LEVELS.join(", ")}. Falling back to "off".`
     );
   }
-  if (
-    process.env.XYLEX_PLUGIN_DEBUG === "1" ||
-    process.env.XYLEX_PLUGIN_HOOK_DEBUG === "1"
-  ) {
+  if (process.env.XYLEX_PLUGIN_DEBUG === "1" || process.env.XYLEX_PLUGIN_HOOK_DEBUG === "1") {
     return "debug";
   }
   return "off";
@@ -95,10 +77,7 @@ function createLogger(opts) {
   const rank = LEVEL_INDEX[level] || 0;
   const active = rank > 0;
   const invocationId = resolveInvocationId(active, options.invocationId);
-  const safeNow =
-    typeof performance !== "undefined" && typeof performance.now === "function"
-      ? () => performance.now()
-      : () => Date.now();
+  const safeNow = typeof performance !== "undefined" && typeof performance.now === "function" ? () => performance.now() : () => Date.now();
   const t0 = active ? safeNow() : 0;
   function emit(minLevel, event, data) {
     if (rank < (LEVEL_INDEX[minLevel] || 0)) {
@@ -107,8 +86,8 @@ function createLogger(opts) {
     const line = JSON.stringify({
       event,
       invocationId,
-      timestamp: /* @__PURE__ */ new Date().toISOString(),
-      ...data,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      ...data
     });
     process.stderr.write(line + "\n");
   }
@@ -126,7 +105,7 @@ function createLogger(opts) {
         injectedSkills,
         droppedByCap,
         droppedByBudget,
-        boostsApplied,
+        boostsApplied
       } = counts || {};
       emit("summary", "complete", {
         cappedCount,
@@ -134,19 +113,15 @@ function createLogger(opts) {
         injectedCount,
         matchedCount,
         reason,
-        ...(tsxReviewTriggered === void 0 ? {} : { tsxReviewTriggered }),
-        ...(devServerVerifyTriggered === void 0
-          ? {}
-          : { devServerVerifyTriggered }),
-        ...(matchedSkills ? { matchedSkills } : {}),
-        ...(injectedSkills ? { injectedSkills } : {}),
-        ...(droppedByCap && droppedByCap.length > 0 ? { droppedByCap } : {}),
-        ...(droppedByBudget && droppedByBudget.length > 0
-          ? { droppedByBudget }
-          : {}),
-        ...(boostsApplied && boostsApplied.length > 0 ? { boostsApplied } : {}),
+        ...tsxReviewTriggered === void 0 ? {} : { tsxReviewTriggered },
+        ...devServerVerifyTriggered === void 0 ? {} : { devServerVerifyTriggered },
+        ...matchedSkills ? { matchedSkills } : {},
+        ...injectedSkills ? { injectedSkills } : {},
+        ...droppedByCap && droppedByCap.length > 0 ? { droppedByCap } : {},
+        ...droppedByBudget && droppedByBudget.length > 0 ? { droppedByBudget } : {},
+        ...boostsApplied && boostsApplied.length > 0 ? { boostsApplied } : {},
         elapsed_ms: Math.round(safeNow() - t0),
-        ...(timing ? { timing_ms: timing } : {}),
+        ...timing ? { timing_ms: timing } : {}
       });
     },
     debug(event, data) {
@@ -169,19 +144,21 @@ function createLogger(opts) {
     t0,
     trace(event, data) {
       emit("trace", event, data);
-    },
+    }
   };
 }
 function logDecision(logger, fields) {
-  logger.debug(`decision:${fields.event}`, fields);
+  logger.debug(
+    `decision:${fields.event}`,
+    fields
+  );
 }
-
 export {
-  createLogger,
-  LEVEL_INDEX,
   LEVELS,
+  LEVEL_INDEX,
+  createLogger,
   logCaughtError,
   logDecision,
   resolveLogLevel,
-  serializeErrorForLog,
+  serializeErrorForLog
 };

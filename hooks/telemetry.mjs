@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { mkdirSync, rmSync, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
-
 var BRIDGE_ENDPOINT = process.env.XYLEX_PLUGIN_TELEMETRY_URL?.trim() || "";
 var FLUSH_TIMEOUT_MS = 3e3;
 var PLUGIN_VERSION = true ? "0.1.0" : "0.1.0";
@@ -42,10 +41,10 @@ async function sendTelemetry(events) {
         "Content-Type": "application/json",
         "x-xylex-group-plugin-session-id": randomUUID(),
         "x-xylex-group-plugin-topic-id": "dau",
-        "x-xylex-group-plugin-version": PLUGIN_VERSION,
+        "x-xylex-group-plugin-version": PLUGIN_VERSION
       },
       method: "POST",
-      signal: controller.signal,
+      signal: controller.signal
     });
     return response.ok;
   } catch {
@@ -87,18 +86,21 @@ function markDauPingSent(now = /* @__PURE__ */ new Date()) {
   try {
     mkdirSync(dirname(DAU_STAMP_PATH), { recursive: true });
     writeFileSync(DAU_STAMP_PATH, "", { flag: "w" });
-  } catch {}
+  } catch {
+  }
 }
 function markFirstUsePingSent() {
   try {
     mkdirSync(dirname(FIRST_USE_STAMP_PATH), { recursive: true });
     writeFileSync(FIRST_USE_STAMP_PATH, "", { flag: "w" });
-  } catch {}
+  } catch {
+  }
 }
 function removeActiveSessionMarker() {
   try {
     rmSync(ACTIVE_SESSION_MARKER_PATH, { force: true });
-  } catch {}
+  } catch {
+  }
 }
 function getTelemetryOverride(env = process.env) {
   const value = env.XYLEX_PLUGIN_TELEMETRY?.trim().toLowerCase();
@@ -125,17 +127,16 @@ function refreshActiveSessionMarker(now = /* @__PURE__ */ new Date()) {
     expiresAt: updatedAt + ACTIVE_SESSION_TTL_MS,
     pluginVersion: PLUGIN_VERSION,
     schema: 1,
-    updatedAt,
+    updatedAt
   };
   try {
     mkdirSync(dirname(ACTIVE_SESSION_MARKER_PATH), { recursive: true });
-    writeFileSync(
-      ACTIVE_SESSION_MARKER_PATH,
-      `${JSON.stringify(marker)}
-`,
-      { flag: "w" }
-    );
-  } catch {}
+    writeFileSync(ACTIVE_SESSION_MARKER_PATH, `${JSON.stringify(marker)}
+`, {
+      flag: "w"
+    });
+  } catch {
+  }
 }
 async function trackDauActiveToday(now = /* @__PURE__ */ new Date()) {
   if (!isDauTelemetryEnabled()) {
@@ -148,7 +149,7 @@ async function trackDauActiveToday(now = /* @__PURE__ */ new Date()) {
       event_time: eventTime,
       id: randomUUID(),
       key: "dau:active_today",
-      value: "1",
+      value: "1"
     });
   }
   if (shouldSendFirstUsePing()) {
@@ -156,7 +157,7 @@ async function trackDauActiveToday(now = /* @__PURE__ */ new Date()) {
       event_time: eventTime,
       id: randomUUID(),
       key: "plugin:first_use",
-      value: "1",
+      value: "1"
     });
   }
   if (events.length > 0) {
@@ -164,7 +165,7 @@ async function trackDauActiveToday(now = /* @__PURE__ */ new Date()) {
       event_time: eventTime,
       id: randomUUID(),
       key: "plugin:version",
-      value: PLUGIN_VERSION,
+      value: PLUGIN_VERSION
     });
   }
   const sent = await sendTelemetry(events);
@@ -179,8 +180,8 @@ async function trackDauActiveToday(now = /* @__PURE__ */ new Date()) {
     }
   }
 }
-
 export {
+  PLUGIN_VERSION,
   getActiveSessionMarkerPath,
   getDauStampPath,
   getFirstUseStampPath,
@@ -188,10 +189,9 @@ export {
   isDauTelemetryEnabled,
   markDauPingSent,
   markFirstUsePingSent,
-  PLUGIN_VERSION,
   refreshActiveSessionMarker,
   removeActiveSessionMarker,
   shouldSendDauPing,
   shouldSendFirstUsePing,
-  trackDauActiveToday,
+  trackDauActiveToday
 };

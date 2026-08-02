@@ -6,7 +6,6 @@ import { readdirSync, readFileSync, rmSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
-
 var SAFE_SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 function tempSessionIdSegment(sessionId) {
   if (SAFE_SESSION_ID_RE.test(sessionId)) {
@@ -17,12 +16,14 @@ function tempSessionIdSegment(sessionId) {
 function removeFileIfPresent(path) {
   try {
     unlinkSync(path);
-  } catch {}
+  } catch {
+  }
 }
 function removeDirIfPresent(path) {
   try {
     rmSync(path, { force: true, recursive: true });
-  } catch {}
+  } catch {
+  }
 }
 function parseSessionEndHookInput(raw) {
   try {
@@ -39,9 +40,7 @@ function normalizeSessionEndSessionId(input) {
     return null;
   }
   const sessionId = input.session_id ?? input.conversation_id ?? "";
-  return typeof sessionId === "string" && sessionId.length > 0
-    ? sessionId
-    : null;
+  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : null;
 }
 function parseSessionIdFromStdin() {
   return normalizeSessionEndSessionId(
@@ -58,7 +57,8 @@ function main() {
   let entries = [];
   try {
     entries = readdirSync(tempRoot).filter((name) => name.startsWith(prefix));
-  } catch {}
+  } catch {
+  }
   for (const entry of entries) {
     const fullPath = join(tempRoot, entry);
     if (entry.endsWith(".d")) {
@@ -70,11 +70,11 @@ function main() {
   process.exit(0);
 }
 var SESSION_END_CLEANUP_ENTRYPOINT = fileURLToPath(import.meta.url);
-var isSessionEndCleanupEntrypoint = process.argv[1]
-  ? resolve(process.argv[1]) === SESSION_END_CLEANUP_ENTRYPOINT
-  : false;
+var isSessionEndCleanupEntrypoint = process.argv[1] ? resolve(process.argv[1]) === SESSION_END_CLEANUP_ENTRYPOINT : false;
 if (isSessionEndCleanupEntrypoint) {
   main();
 }
-
-export { normalizeSessionEndSessionId, parseSessionEndHookInput };
+export {
+  normalizeSessionEndSessionId,
+  parseSessionEndHookInput
+};
