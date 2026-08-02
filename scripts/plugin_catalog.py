@@ -29,6 +29,8 @@ FETCH_ATTEMPTS = 3
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 MANIFEST_PATHS = [
+    # Codex / ChatGPT plugin identity (required by Codex hosts)
+    Path(".codex-plugin/plugin.json"),
     Path(".grok-plugin/plugin.json"),
     Path(".claude-plugin/plugin.json"),
     # XYLEX / Claude-style single-plugin repos also ship root manifests here:

@@ -1,0 +1,38 @@
+{
+  "name": "athena",
+  "version": "1.0.0",
+  "description": "Athena platform skills for auth, JS/Rust SDKs, billing, storage, and workspace architecture.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "homepage": "https://github.com/xylex-group/athena",
+  "repository": "https://github.com/xylex-group/athena",
+  "license": "MIT",
+  "keywords": [
+    "athena",
+    "athena-js",
+    "athena auth",
+    "xylex athena"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Athena",
+    "shortDescription": "Athena platform agent skills",
+    "longDescription": "Athena platform integration for ChatGPT and Codex: auth, JS/Rust SDKs, billing, storage, edge adapters, and workspace architecture guidance for building on Athena.",
+    "developerName": "XYLEX Group",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/xylex-group/athena",
+    "defaultPrompt": [
+      "Use Athena skills for this task.",
+      "Which Athena skill fits this request?",
+      "Help wire Athena auth or billing into this repo."
+    ],
+    "brandColor": "#111111"
+  }
+}

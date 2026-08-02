@@ -118,18 +118,19 @@ bun run src/cli/index.ts explain path/to/file.ts
 
 Environment knobs use the `XYLEX_PLUGIN_*` prefix (for example `XYLEX_PLUGIN_TELEMETRY=on` is opt-in only; telemetry is off by default).
 
-## Grok plugin marketplace
+## Plugin marketplaces (Grok + Codex)
 
-This repo is also a **plugin marketplace index** for Grok Build: it points at plugin sources so
-agents can browse, install, and update them. See [CONTRIBUTING.md](CONTRIBUTING.md) to submit a
-plugin.
+This repo is a **plugin marketplace index** for Grok Build and ships a matching **Codex / ChatGPT**
+repo marketplace so the same first-party plugins install on both hosts. See
+[CONTRIBUTING.md](CONTRIBUTING.md) to submit a plugin.
 
 ### Repo layout
 
 | Path | Purpose |
 |---|---|
-| [`.grok-plugin/marketplace.json`](.grok-plugin/marketplace.json) | The catalog index — source of truth |
+| [`.grok-plugin/marketplace.json`](.grok-plugin/marketplace.json) | Grok catalog index — source of truth for Grok |
 | [`.grok-plugin/plugin-index.json`](.grok-plugin/plugin-index.json) | Generated component catalog — **never hand-edit** |
+| [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) | Codex / ChatGPT repo marketplace (same plugins) |
 | `plugins/` | First-party plugins owned and maintained by XYLEX Group |
 | `external_plugins/` | Third-party plugins (vendored local copies) |
 | [`LICENSE`](LICENSE) | MIT at the repository root |
@@ -166,7 +167,16 @@ A plugin is a directory bundling any combination of:
 | MCP servers | `.mcp.json` | MCP server configs |
 | LSP servers | `.lsp.json` | Language server configs |
 
-An optional `.grok-plugin/plugin.json` (or `.claude-plugin/plugin.json`) manifest adds metadata.
+Each first-party plugin ships:
+
+| Manifest | Host |
+|---|---|
+| `.codex-plugin/plugin.json` | **Required** for Codex / ChatGPT — points at `skills`, optional hooks/MCP |
+| `.grok-plugin/plugin.json` | Grok Build identity |
+| `.claude-plugin/plugin.json` | Optional Claude-ecosystem identity |
+
+Codex path rules: keep `skills`, `hooks`, and assets at the plugin root; only `plugin.json` lives
+under `.codex-plugin/`. Paths in the manifest must be `./`-prefixed and stay inside the plugin root.
 
 ### Catalog format
 
@@ -235,19 +245,35 @@ python3 scripts/generate-plugin-index.py
 
 CI runs `python3 scripts/generate-plugin-index.py --check` and fails if the committed file is stale.
 
+### Codex marketplace
+
+Codex / ChatGPT read [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json). Entries
+mirror the Grok catalog (`athena`, `xbp`, `xylex-group-plugin`) with local `source.path` values and
+required `policy` + `category` fields. Point Codex at this repo with:
+
+```bash
+codex plugin marketplace add ./   # from a local clone
+# or: codex plugin marketplace add xylex-group/skills
+```
+
+Then restart ChatGPT desktop (or refresh Codex plugins) and install from the **XYLEX Group** source.
+
 ### Add or update a plugin
 
 1. Place first-party plugins in `plugins/` and third-party plugins in `external_plugins/` (local),
    or reference an upstream repo with a remote source.
-2. Add or edit the entry in `.grok-plugin/marketplace.json`.
-3. For remote sources, set `sha` to the exact commit you want to ship.
-4. Regenerate and validate:
+2. Add a `.codex-plugin/plugin.json` (Codex) and `.grok-plugin/plugin.json` (Grok) under the plugin
+   root, with `skills: "./skills/"` when the plugin bundles skills.
+3. Add or edit the entry in `.grok-plugin/marketplace.json` **and**
+   `.agents/plugins/marketplace.json` (same plugin set).
+4. For remote Grok sources, set `sha` to the exact commit you want to ship.
+5. Regenerate and validate:
    ```bash
    python3 scripts/generate-plugin-index.py
    python3 scripts/validate-catalog.py
    python3 scripts/generate-plugin-index.py --check
    ```
-5. Open a PR (use the PR template checklist).
+6. Open a PR (use the PR template checklist).
 
 To roll out an update, bump `sha` (remote) or commit the changed files (local), then regenerate the
 index.

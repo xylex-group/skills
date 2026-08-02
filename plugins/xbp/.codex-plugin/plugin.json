@@ -1,0 +1,38 @@
+{
+  "name": "xbp",
+  "version": "1.0.0",
+  "description": "XBP ops CLI skills for deploy, release, OCI registry, Cloudflare Workers, and consumer-repo ship.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "homepage": "https://github.com/xylex-group/xbp",
+  "repository": "https://github.com/xylex-group/xbp",
+  "license": "MIT",
+  "keywords": [
+    "xbp",
+    "xbp deploy",
+    "xbp oci",
+    "registry.xbp.app"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "XBP",
+    "shortDescription": "XBP ops CLI agent skills",
+    "longDescription": "XBP ops CLI integration for ChatGPT and Codex: deploy, release/bump, native OCI registry (registry.xbp.app), local OCI load, Docker Desktop Kubernetes, Cloudflare Workers containers and static assets, and consumer-repo ship.",
+    "developerName": "XYLEX Group",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/xylex-group/xbp",
+    "defaultPrompt": [
+      "Use XBP skills for this deploy task.",
+      "Help set up xbp deploy for this repo.",
+      "Which XBP skill fits this request?"
+    ],
+    "brandColor": "#111111"
+  }
+}

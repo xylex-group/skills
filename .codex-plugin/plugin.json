@@ -1,5 +1,5 @@
 {
-  "name": "xylex-group",
+  "name": "xylex-group-plugin",
   "version": "0.1.0",
   "description": "Official XYLEX Group agent skills and tooling.",
   "author": {
@@ -20,9 +20,9 @@
   "interface": {
     "displayName": "XYLEX Group",
     "shortDescription": "Official XYLEX Group agent skills",
-    "longDescription": "Official XYLEX Group agent skills and tooling: ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
+    "longDescription": "Official XYLEX Group agent skills and tooling for ChatGPT and Codex: ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
     "developerName": "XYLEX Group",
-    "category": "Development",
+    "category": "Developer Tools",
     "capabilities": [
       "Instructions",
       "Lifecycle hooks"

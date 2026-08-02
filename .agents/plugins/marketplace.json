@@ -1,0 +1,44 @@
+{
+  "name": "xylex-group",
+  "interface": {
+    "displayName": "XYLEX Group"
+  },
+  "plugins": [
+    {
+      "name": "athena",
+      "source": {
+        "source": "local",
+        "path": "./plugins/athena"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "xbp",
+      "source": {
+        "source": "local",
+        "path": "./plugins/xbp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "xylex-group-plugin",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

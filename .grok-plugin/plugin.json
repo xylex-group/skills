@@ -1,11 +1,18 @@
 {
-  "name": "xylex-group",
+  "name": "xylex-group-plugin",
   "version": "0.1.0",
   "description": "Official XYLEX Group agent skills and tooling.",
   "author": {
     "name": "XYLEX Group",
     "url": "https://github.com/xylex-group"
   },
+  "homepage": "https://github.com/xylex-group/skills",
   "repository": "https://github.com/xylex-group/skills",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "xylex",
+    "agent-skills",
+    "create-xylex-skill",
+    "skills"
+  ]
 }
