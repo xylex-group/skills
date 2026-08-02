@@ -1,330 +1,349 @@
 {
-    "$schema":  "../schemas/grok-marketplace.schemas.json",
-    "name":  "xylex-group",
-    "description":  "Official XYLEX Group plugin marketplace",
-    "owner":  {
-                  "name":  "XYLEX Group",
-                  "url":  "https://github.com/xylex-group"
-              },
-    "plugins":  [
-                    {
-                        "name":  "athena",
-                        "description":  "Athena platform integration. Auth, JS/Rust SDKs, billing, storage, edge adapters, and workspace architecture guidance for building on Athena from Grok.",
-                        "category":  "database",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/athena.png",
-                        "source":  {
-                                       "source":  "url",
-                                       "url":  "https://github.com/xylex-group/skills.git",
-                                       "sha":  "400cfe5168256f4357fb3edac206d320a2595b92",
-                                       "path":  "plugins/athena"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/athena",
-                        "keywords":  [
-                                         "athena",
-                                         "athena-js",
-                                         "athena auth",
-                                         "athena billing",
-                                         "xylex athena"
-                                     ],
-                        "domains":  [
-                                        "xylex-group.us"
-                                    ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "xbp",
-                        "description":  "XBP ops CLI integration. Deploy, release/bump, native OCI registry (registry.xbp.app), local OCI load, Docker Desktop Kubernetes, Cloudflare Workers containers and static assets, and consumer-repo ship from Grok.",
-                        "category":  "deployment",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "source":  "url",
-                                       "url":  "https://github.com/xylex-group/skills.git",
-                                       "sha":  "400cfe5168256f4357fb3edac206d320a2595b92",
-                                       "path":  "plugins/xbp"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/xbp",
-                        "keywords":  [
-                                         "xbp",
-                                         "xbp deploy",
-                                         "xbp oci",
-                                         "registry.xbp.app"
-                                     ],
-                        "domains":  [
-                                        "xbp.app",
-                                        "registry.xbp.app"
-                                    ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "xylex-group-plugin",
-                        "description":  "XYLEX Group agent skills meta-plugin â€” ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "source":  "url",
-                                       "url":  "https://github.com/xylex-group/skills.git",
-                                       "sha":  "36fe97d2a5348d9a951d1958a503018535b42d4c"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "xylex",
-                                         "agent-skills",
-                                         "create-xylex-skill"
-                                     ],
-                        "domains":  [
-                                        "xylex-group.us"
-                                    ],
-                        "version":  "0.1.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "heroui",
-                        "description":  "HeroUI v3 integration. React and Native components, theming (oklch), styling, composition, dark mode, frameworks (Next.js / Vite), CLI, animations, design principles, and v2â†’v3 migration guidance for Grok.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/heroui.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/heroui"
-                                   },
-                        "homepage":  "https://www.heroui.com",
-                        "keywords":  [
-                                         "heroui",
-                                         "heroui react",
-                                         "@heroui/react",
-                                         "@heroui/styles",
-                                         "heroui native"
-                                     ],
-                        "domains":  [
-                                        "heroui.com",
-                                        "www.heroui.com"
-                                    ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "architecture-plugins",
-                        "description":  "Codebase architecture skills for Grok. Deep-module design, domain modeling, hexagonal/clean architecture patterns, and improve-codebase-architecture deepening reports.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/architecture-plugins"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "architecture",
-                                         "codebase design",
-                                         "domain modeling",
-                                         "deep modules",
-                                         "hexagonal architecture"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "audit-code-quality",
-                        "description":  "Code quality audit skills for Grok. Duplicate and dead-code audits, blast zones, contract drift, frontend hygiene, fallow analysis, shrink plans, and ranked audit reports.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/audit-code-quality"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "audit",
-                                         "code quality",
-                                         "dead code",
-                                         "duplicates",
-                                         "contract drift",
-                                         "fallow"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "agent-tools",
-                        "description":  "Agent authoring and workflow tools for Grok. Skill create/update, Linear triage, Ultracite/Tailwind setup, Blume docs, error registry, Next.js data security, and more.",
-                        "category":  "productivity",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/agent-tools"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "agent tools",
-                                         "create skill",
-                                         "update skill",
-                                         "linear",
-                                         "ultracite",
-                                         "docs"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "cloudflare",
-                        "description":  "Cloudflare platform skills for Grok. Workers, Wrangler, Durable Objects, Agents SDK, Sandbox SDK, Turnstile, Cloudflare One, email, service bindings, and web performance.",
-                        "category":  "deployment",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/cloudflare"
-                                   },
-                        "homepage":  "https://developers.cloudflare.com",
-                        "keywords":  [
-                                         "cloudflare",
-                                         "workers",
-                                         "wrangler",
-                                         "durable objects",
-                                         "turnstile",
-                                         "agents sdk"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   },
-                        "domains":  [
-                                        "cloudflare.com",
-                                        "developers.cloudflare.com",
-                                        "dash.cloudflare.com"
-                                    ]
-                    },
-                    {
-                        "name":  "engineering",
-                        "description":  "Engineering practice skills for Grok. TDD, dual-suite SDD, code review, check-work verification, and document-code-contracts.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/engineering"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "tdd",
-                                         "sdd",
-                                         "code review",
-                                         "check work",
-                                         "contracts"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    },
-                    {
-                        "name":  "fix-pr-comments",
-                        "description":  "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/fix-pr-comments"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "fix pr comments",
-                                         "xbp",
-                                         "code review",
-                                         "github pr"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   },
-                        "domains":  [
-                                        "github.com"
-                                    ]
-                    },
-                    {
-                        "name":  "rust",
-                        "description":  "Rust engineering skills for Grok. Best practices, workspace crates, crate setup, contract spine, path-rs, and gov-uk-rs-sdk.",
-                        "category":  "development",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/rust"
-                                   },
-                        "homepage":  "https://www.rust-lang.org",
-                        "keywords":  [
-                                         "rust",
-                                         "cargo",
-                                         "path-rs",
-                                         "workspace crates",
-                                         "gov-uk-rs-sdk"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   },
-                        "domains":  [
-                                        "rust-lang.org",
-                                        "crates.io",
-                                        "docs.rs"
-                                    ]
-                    },
-                    {
-                        "name":  "ui-plugins",
-                        "description":  "UI design and polish skills for Grok. anti-ui-slop, UI design/radar/slop-score, transitions, design-system extraction, polish components, and agentation.",
-                        "category":  "design",
-                        "icon":  "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
-                        "source":  {
-                                       "type":  "local",
-                                       "path":  "./plugins/ui-plugins"
-                                   },
-                        "homepage":  "https://github.com/xylex-group/skills",
-                        "keywords":  [
-                                         "ui design",
-                                         "anti-ui-slop",
-                                         "transitions",
-                                         "design system",
-                                         "polish"
-                                     ],
-                        "version":  "1.0.0",
-                        "license":  "MIT",
-                        "author":  {
-                                       "name":  "XYLEX Group",
-                                       "url":  "https://github.com/xylex-group"
-                                   }
-                    }
-                ]
+  "$schema": "../schemas/grok-marketplace.schemas.json",
+  "name": "xylex-group",
+  "description": "Official XYLEX Group plugin marketplace",
+  "owner": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "plugins": [
+    {
+      "name": "athena",
+      "description": "Athena platform integration. Auth, JS/Rust SDKs, billing, storage, edge adapters, and workspace architecture guidance for building on Athena from Grok.",
+      "category": "database",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/athena.png",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "400cfe5168256f4357fb3edac206d320a2595b92",
+        "path": "plugins/athena"
+      },
+      "homepage": "https://github.com/xylex-group/athena",
+      "keywords": [
+        "athena",
+        "athena-js",
+        "athena auth",
+        "athena billing",
+        "xylex athena"
+      ],
+      "domains": [
+        "xylex-group.us"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "xbp",
+      "description": "XBP ops CLI integration. Deploy, release/bump, native OCI registry (registry.xbp.app), local OCI load, Docker Desktop Kubernetes, Cloudflare Workers containers and static assets, and consumer-repo ship from Grok.",
+      "category": "deployment",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "400cfe5168256f4357fb3edac206d320a2595b92",
+        "path": "plugins/xbp"
+      },
+      "homepage": "https://github.com/xylex-group/xbp",
+      "keywords": [
+        "xbp",
+        "xbp deploy",
+        "xbp oci",
+        "registry.xbp.app"
+      ],
+      "domains": [
+        "xbp.app",
+        "registry.xbp.app"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "xylex-group-plugin",
+      "description": "XYLEX Group agent skills meta-plugin â€” ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "36fe97d2a5348d9a951d1958a503018535b42d4c"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "xylex",
+        "agent-skills",
+        "create-xylex-skill"
+      ],
+      "domains": [
+        "xylex-group.us"
+      ],
+      "version": "0.1.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "heroui",
+      "description": "HeroUI v3 integration. React and Native components, theming (oklch), styling, composition, dark mode, frameworks (Next.js / Vite), CLI, animations, design principles, and v2â†’v3 migration guidance for Grok.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/heroui.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/heroui"
+      },
+      "homepage": "https://www.heroui.com",
+      "keywords": [
+        "heroui",
+        "heroui react",
+        "@heroui/react",
+        "@heroui/styles",
+        "heroui native"
+      ],
+      "domains": [
+        "heroui.com",
+        "www.heroui.com"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "architecture-plugins",
+      "description": "Codebase architecture skills for Grok. Deep-module design, domain modeling, hexagonal/clean architecture patterns, and improve-codebase-architecture deepening reports.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/architecture-plugins"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "architecture",
+        "codebase design",
+        "domain modeling",
+        "deep modules",
+        "hexagonal architecture"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "audit-code-quality",
+      "description": "Code quality audit skills for Grok. Duplicate and dead-code audits, blast zones, contract drift, frontend hygiene, fallow analysis, shrink plans, and ranked audit reports.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/audit-code-quality"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "audit",
+        "code quality",
+        "dead code",
+        "duplicates",
+        "contract drift",
+        "fallow"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "agent-tools",
+      "description": "Agent authoring and workflow tools for Grok. Skill create/update, Linear triage, Ultracite/Tailwind setup, Blume docs, error registry, Next.js data security, and more.",
+      "category": "productivity",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/agent-tools"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "agent tools",
+        "create skill",
+        "update skill",
+        "linear",
+        "ultracite",
+        "docs"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "cloudflare",
+      "description": "Cloudflare platform skills for Grok. Workers, Wrangler, Durable Objects, Agents SDK, Sandbox SDK, Turnstile, Cloudflare One, email, service bindings, and web performance.",
+      "category": "deployment",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/cloudflare"
+      },
+      "homepage": "https://developers.cloudflare.com",
+      "keywords": [
+        "cloudflare",
+        "workers",
+        "wrangler",
+        "durable objects",
+        "turnstile",
+        "agents sdk"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      },
+      "domains": [
+        "cloudflare.com",
+        "developers.cloudflare.com",
+        "dash.cloudflare.com"
+      ]
+    },
+    {
+      "name": "engineering",
+      "description": "Engineering practice skills for Grok. TDD, dual-suite SDD, code review, check-work verification, and document-code-contracts.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/engineering"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "tdd",
+        "sdd",
+        "code review",
+        "check work",
+        "contracts"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "fix-pr-comments",
+      "description": "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/fix-pr-comments"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "fix pr comments",
+        "xbp",
+        "code review",
+        "github pr"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      },
+      "domains": [
+        "github.com"
+      ]
+    },
+    {
+      "name": "rust",
+      "description": "Rust engineering skills for Grok. Best practices, workspace crates, crate setup, contract spine, path-rs, and gov-uk-rs-sdk.",
+      "category": "development",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/rust"
+      },
+      "homepage": "https://www.rust-lang.org",
+      "keywords": [
+        "rust",
+        "cargo",
+        "path-rs",
+        "workspace crates",
+        "gov-uk-rs-sdk"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      },
+      "domains": [
+        "rust-lang.org",
+        "crates.io",
+        "docs.rs"
+      ]
+    },
+    {
+      "name": "ui-plugins",
+      "description": "UI design and polish skills for Grok. anti-ui-slop, UI design/radar/slop-score, transitions, design-system extraction, polish components, and agentation.",
+      "category": "design",
+      "icon": "https://raw.githubusercontent.com/xylex-group/skills/main/assets/xbp.png",
+      "source": {
+        "type": "local",
+        "path": "./plugins/ui-plugins"
+      },
+      "homepage": "https://github.com/xylex-group/skills",
+      "keywords": [
+        "ui design",
+        "anti-ui-slop",
+        "transitions",
+        "design system",
+        "polish"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    },
+    {
+      "name": "github",
+      "description": "Github agent skills for Grok Build (staged via raw-skills/github).",
+      "category": "development",
+      "source": {
+        "type": "local",
+        "path": "./plugins/github"
+      },
+      "homepage": "https://github.com/xylex-group/github",
+      "keywords": [
+        "github"
+      ],
+      "version": "1.0.0",
+      "license": "MIT",
+      "author": {
+        "name": "XYLEX Group",
+        "url": "https://github.com/xylex-group"
+      }
+    }
+  ]
 }

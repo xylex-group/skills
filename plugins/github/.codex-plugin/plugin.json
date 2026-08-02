@@ -1,0 +1,34 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "description": "Github agent skills packaged for Grok Build and Codex / ChatGPT.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "homepage": "https://github.com/xylex-group/github",
+  "repository": "https://github.com/xylex-group/github",
+  "license": "MIT",
+  "keywords": [
+    "github"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Github",
+    "shortDescription": "Github agent skills",
+    "longDescription": "Github integration for ChatGPT and Codex: skills staged via raw-skills/github.",
+    "developerName": "XYLEX Group",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/xylex-group/github",
+    "defaultPrompt": [
+      "Use Github skills for this task.",
+      "Which Github skill fits this request?"
+    ],
+    "brandColor": "#111111"
+  }
+}

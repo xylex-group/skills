@@ -323,6 +323,17 @@
         ]
       }
     },
+    "github": {
+      "version": "1.0.0",
+      "components": {
+        "skills": [
+          {
+            "name": "github-apps",
+            "description": "Implement, debug, and secure GitHub authentication for xbp.app (apps/web): classic OAuth App for user login (preferred,…"
+          }
+        ]
+      }
+    },
     "heroui": {
       "version": "1.0.0",
       "components": {
