@@ -1,19 +1,11 @@
 {
-  "name": "xylex-group-plugin",
+  "name": "xylex-group",
   "version": "0.1.0",
-  "description": "XYLEX Group agent skills plugin — ecosystem graph, path/bash skill injection, and skill library for Athena, XBP, and related tools.",
+  "description": "Official XYLEX Group agent skills and tooling.",
   "author": {
     "name": "XYLEX Group",
     "url": "https://github.com/xylex-group"
   },
   "repository": "https://github.com/xylex-group/skills",
-  "license": "MIT",
-  "keywords": [
-    "xylex",
-    "xylex-group",
-    "athena",
-    "xbp",
-    "agent-skills",
-    "skills"
-  ]
+  "license": "MIT"
 }
