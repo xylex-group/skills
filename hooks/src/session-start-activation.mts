@@ -1,6 +1,6 @@
 import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { safeReadJson } from "./hook-env.mts";
+import { safeReadJson } from "./hook-env.mjs";
 
 interface PackageJson {
   dependencies?: Record<string, string>;

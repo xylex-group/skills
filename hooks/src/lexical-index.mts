@@ -1,7 +1,7 @@
 import MiniSearch from "minisearch";
-import * as hookEnv from "./hook-env.mts";
-import { createLogger, logCaughtError } from "./logger.mts";
-import { CONTRACTIONS } from "./shared-contractions.mts";
+import * as hookEnv from "./hook-env.mjs";
+import { createLogger, logCaughtError } from "./logger.mjs";
+import { CONTRACTIONS } from "./shared-contractions.mjs";
 
 export { CONTRACTIONS };
 

@@ -1,4 +1,4 @@
-import { createLogger, type Logger } from "./logger.mts";
+import { createLogger, type Logger } from "./logger.mjs";
 
 const log: Logger = createLogger();
 const MATCH_POINTS = 10;

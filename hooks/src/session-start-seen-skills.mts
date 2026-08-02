@@ -14,12 +14,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatOutput, type HookPlatform } from "./compat.mts";
+import { formatOutput, type HookPlatform } from "./compat.mjs";
 import {
   type RemoveArtifactsResult,
   removeAllSessionDedupArtifacts,
-} from "./hook-env.mts";
-import { createLogger } from "./logger.mts";
+} from "./hook-env.mjs";
+import { createLogger } from "./logger.mjs";
 
 interface SessionStartSeenSkillsInput {
   conversation_id?: string;

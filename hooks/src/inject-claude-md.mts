@@ -8,12 +8,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatOutput, type HookPlatform } from "./compat.mts";
-import { pluginRoot, safeReadFile } from "./hook-env.mts";
+import { formatOutput, type HookPlatform } from "./compat.mjs";
+import { pluginRoot, safeReadFile } from "./hook-env.mjs";
 import {
   hasSessionStartActivationMarkers,
   isGreenfieldDirectory,
-} from "./session-start-activation.mts";
+} from "./session-start-activation.mjs";
 
 interface InjectClaudeMdInput {
   conversation_id?: string;

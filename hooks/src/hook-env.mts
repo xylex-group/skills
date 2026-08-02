@@ -20,7 +20,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLogger, type Logger, logCaughtError } from "./logger.mts";
+import { createLogger, type Logger, logCaughtError } from "./logger.mjs";
 
 const log: Logger = createLogger();
 

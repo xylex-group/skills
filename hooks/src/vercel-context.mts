@@ -4,7 +4,7 @@ import {
   safeReadFile,
   syncSessionFileFromClaims,
   tryClaimSessionKey,
-} from "./hook-env.mts";
+} from "./hook-env.mjs";
 
 const PLUGIN_ROOT = resolvePluginRoot();
 const DEFAULT_CONTEXT_CHUNK_BUDGET_BYTES = 1800;

@@ -8,7 +8,7 @@
  * are relevant to the file's current content.
  */
 
-import { safeReadFile } from "./hook-env.mts";
+import { safeReadFile } from "./hook-env.mjs";
 
 // ---------------------------------------------------------------------------
 // Key → skill mapping

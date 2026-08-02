@@ -6,15 +6,15 @@
  * prompt-patterns.mts — no logic duplication.
  */
 
-import { searchSkills } from "./lexical-index.mts";
-import { parseSeenSkills } from "./patterns.mts";
+import { searchSkills } from "./lexical-index.mjs";
+import { parseSeenSkills } from "./patterns.mjs";
 import {
   compilePromptSignals,
   matchPromptWithReason,
   normalizePromptText,
   scorePromptWithLexical,
-} from "./prompt-patterns.mts";
-import type { SkillConfig } from "./skill-map-frontmatter.mts";
+} from "./prompt-patterns.mjs";
+import type { SkillConfig } from "./skill-map-frontmatter.mjs";
 
 // ---------------------------------------------------------------------------
 // Types

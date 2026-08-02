@@ -17,8 +17,8 @@
  * so phrase/term authors don't need to account for both forms.
  */
 
-import { searchSkills } from "./lexical-index.mts";
-import type { PromptSignals } from "./skill-map-frontmatter.mts";
+import { searchSkills } from "./lexical-index.mjs";
+import type { PromptSignals } from "./skill-map-frontmatter.mjs";
 
 // ---------------------------------------------------------------------------
 // Types

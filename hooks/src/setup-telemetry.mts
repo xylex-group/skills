@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { getTelemetryOverride } from "./telemetry.mts";
+import { getTelemetryOverride } from "./telemetry.mjs";
 
 function main(): void {
   const telemetryOverride = getTelemetryOverride();
