@@ -12,8 +12,10 @@
       "description": "Athena platform integration. Auth, JS/Rust SDKs, billing, storage, edge adapters, and workspace architecture guidance for building on Athena from Grok.",
       "category": "database",
       "source": {
-        "type": "local",
-        "path": "./plugins/athena"
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "400cfe5168256f4357fb3edac206d320a2595b92",
+        "path": "plugins/athena"
       },
       "homepage": "https://github.com/xylex-group/athena",
       "keywords": [
@@ -38,8 +40,10 @@
       "description": "XBP ops CLI integration. Deploy, release/bump, native OCI registry (registry.xbp.app), local OCI load, Docker Desktop Kubernetes, Cloudflare Workers containers and static assets, and consumer-repo ship from Grok.",
       "category": "deployment",
       "source": {
-        "type": "local",
-        "path": "./plugins/xbp"
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "400cfe5168256f4357fb3edac206d320a2595b92",
+        "path": "plugins/xbp"
       },
       "homepage": "https://github.com/xylex-group/xbp",
       "keywords": [
@@ -64,8 +68,9 @@
       "description": "XYLEX Group agent skills meta-plugin — ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
       "category": "development",
       "source": {
-        "type": "local",
-        "path": "./"
+        "source": "url",
+        "url": "https://github.com/xylex-group/skills.git",
+        "sha": "400cfe5168256f4357fb3edac206d320a2595b92"
       },
       "homepage": "https://github.com/xylex-group/skills",
       "keywords": [
