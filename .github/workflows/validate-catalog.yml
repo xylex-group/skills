@@ -23,5 +23,8 @@ jobs:
       - name: Validate catalog
         run: python3 scripts/validate-catalog.py
 
+      - name: Check Copilot marketplace is up to date
+        run: python3 scripts/sync-copilot-marketplace.py --check
+
       - name: Check plugin index is up to date
         run: python3 scripts/generate-plugin-index.py --check

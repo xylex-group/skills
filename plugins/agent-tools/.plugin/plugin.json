@@ -1,0 +1,21 @@
+{
+  "name": "agent-tools",
+  "version": "1.0.0",
+  "description": "Agent authoring and workflow tools for Grok. Skill create/update, Linear triage, Ultracite/Tailwind setup, Blume docs, error registry, Next.js data security, and more.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/xylex-group/skills",
+  "repository": "https://github.com/xylex-group/skills",
+  "keywords": [
+    "agent tools",
+    "create skill",
+    "update skill",
+    "linear",
+    "ultracite",
+    "docs"
+  ],
+  "skills": "./skills/"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "audit-code-quality",
+  "version": "1.0.0",
+  "description": "Code quality audit skills for Grok. Duplicate and dead-code audits, blast zones, contract drift, frontend hygiene, fallow analysis, shrink plans, and ranked audit reports.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/xylex-group/skills",
+  "repository": "https://github.com/xylex-group/skills",
+  "keywords": [
+    "audit",
+    "code quality",
+    "dead code",
+    "duplicates",
+    "contract drift",
+    "fallow"
+  ],
+  "skills": "./skills/"
+}

@@ -25,11 +25,16 @@ Run these locally before opening the PR — they're exactly what CI checks:
 ## Checklist
 
 - [ ] Added/updated exactly one entry in `.grok-plugin/marketplace.json` (valid JSON, kebab-case `name`).
+- [ ] Mirrored Codex entry in `.agents/plugins/marketplace.json` (when targeting Codex / ChatGPT).
+- [ ] Mirrored GitHub Copilot entry in `.github/plugin/marketplace.json` **and**
+      `.plugin/marketplace.json` (identical; string `source` path).
+- [ ] Local plugins include `.codex-plugin/plugin.json`, `.grok-plugin/plugin.json`, and
+      `.plugin/plugin.json` (Copilot) with `skills: "./skills/"` when skills are bundled.
 - [ ] Remote source pins a full 40-char lowercase commit `sha`, and that commit is public + reachable.
 - [ ] Regenerated `.grok-plugin/plugin-index.json` (`python3 scripts/generate-plugin-index.py`).
 - [ ] `python3 scripts/validate-catalog.py` passes locally.
 - [ ] `python3 scripts/generate-plugin-index.py --check` passes locally.
-- [ ] `homepage` + clear `description` set; local plugins include `README.md` + `.grok-plugin/plugin.json`.
+- [ ] `homepage` + clear `description` set; local plugins include `README.md`.
 - [ ] License is stated.
 
 ## Security

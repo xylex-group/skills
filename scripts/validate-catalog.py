@@ -35,9 +35,16 @@ from pathlib import Path
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 # Lookup order matches the marketplace index loader in the Grok CLI.
+# (GitHub Copilot uses .github/plugin/marketplace.json separately — see
+# validate_copilot_catalog.)
 CATALOG_PATHS = [
     Path(".grok-plugin/marketplace.json"),
     Path(".claude-plugin/marketplace.json"),
+]
+
+COPILOT_CATALOG_PATHS = [
+    Path(".github/plugin/marketplace.json"),
+    Path(".plugin/marketplace.json"),
 ]
 
 
@@ -158,6 +165,85 @@ def validate_file(path: Path) -> list[str]:
     return errors
 
 
+def validate_copilot_entry(entry: dict, idx: int) -> list[str]:
+    """GitHub Copilot marketplace entries use string (or github/url object) sources."""
+    errors: list[str] = []
+    raw_name = entry.get("name")
+    name = raw_name if isinstance(raw_name, str) and raw_name else f"<unnamed at index {idx}>"
+
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        errors.append(f"plugin at index {idx}: missing kebab-case `name`")
+    elif not NAME_RE.match(raw_name):
+        errors.append(
+            f"plugin '{name}': name must be kebab-case "
+            f"([a-z0-9][a-z0-9-]*), got {raw_name!r}"
+        )
+
+    description = entry.get("description")
+    if description is not None and (
+        not isinstance(description, str) or not description.strip()
+    ):
+        errors.append(f"plugin '{name}': `description` must be a non-empty string when set")
+
+    source = entry.get("source")
+    if source is None:
+        errors.append(f"plugin '{name}': missing `source`")
+    elif isinstance(source, str):
+        if not source.strip():
+            errors.append(f"plugin '{name}': `source` path must be non-empty")
+        elif source.startswith("/") or "\\" in source or ".." in source.split("/"):
+            errors.append(
+                f"plugin '{name}': `source` path {source!r} must be a relative path "
+                f"inside the repo (no leading '/', no '..', no backslashes)"
+            )
+    elif isinstance(source, dict):
+        kind = source.get("source")
+        if kind not in ("github", "url"):
+            errors.append(
+                f"plugin '{name}': object `source` must use source='github' or "
+                f"source='url' (got {kind!r})"
+            )
+    else:
+        errors.append(
+            f"plugin '{name}': `source` must be a relative path string or "
+            f"github/url object"
+        )
+    return errors
+
+
+def validate_copilot_file(path: Path) -> list[str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return [f"{path}: failed to parse: {e}"]
+
+    errors: list[str] = []
+    name = data.get("name")
+    if not isinstance(name, str) or not name.strip():
+        errors.append(f"{path}: missing top-level kebab-case `name`")
+    elif not NAME_RE.match(name):
+        errors.append(f"{path}: marketplace `name` must be kebab-case, got {name!r}")
+
+    owner = data.get("owner")
+    if not isinstance(owner, dict) or not isinstance(owner.get("name"), str):
+        errors.append(f"{path}: `owner` must be an object with `name`")
+
+    plugins = data.get("plugins", [])
+    if not isinstance(plugins, list):
+        return errors + [
+            f"{path}: `plugins` must be an array, got {type(plugins).__name__}"
+        ]
+    if not plugins:
+        errors.append(f"{path}: `plugins` must list at least one plugin")
+
+    for idx, entry in enumerate(plugins):
+        if not isinstance(entry, dict):
+            errors.append(f"{path}: plugin index {idx} must be an object")
+            continue
+        errors.extend(f"{path}: {e}" for e in validate_copilot_entry(entry, idx))
+    return errors
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     catalog_files = [p for p in CATALOG_PATHS if (repo_root / p).exists()]
@@ -173,6 +259,27 @@ def main() -> int:
     for rel in catalog_files:
         all_errors.extend(validate_file(repo_root / rel))
 
+    copilot_files = [p for p in COPILOT_CATALOG_PATHS if (repo_root / p).exists()]
+    if not copilot_files:
+        all_errors.append(
+            "GitHub Copilot marketplace missing. Expected at least one of: "
+            + ", ".join(str(p) for p in COPILOT_CATALOG_PATHS)
+        )
+    else:
+        for rel in copilot_files:
+            all_errors.extend(validate_copilot_file(repo_root / rel))
+        # Keep canonical + alternate discovery paths identical when both exist.
+        if len(copilot_files) >= 2:
+            bodies = [
+                (repo_root / p).read_text(encoding="utf-8") for p in copilot_files
+            ]
+            if any(b != bodies[0] for b in bodies[1:]):
+                all_errors.append(
+                    "Copilot marketplace mirrors diverge: "
+                    + " and ".join(str(p) for p in copilot_files)
+                    + " must be identical"
+                )
+
     license_file = repo_root / "LICENSE"
     if not license_file.is_file():
         all_errors.append(
@@ -186,7 +293,7 @@ def main() -> int:
             print(f"  - {e}", file=sys.stderr)
         return 1
 
-    summary = " + ".join(str(p) for p in catalog_files)
+    summary = " + ".join(str(p) for p in catalog_files + copilot_files)
     print(f"Catalog OK ({summary})")
     return 0
 

@@ -1,0 +1,19 @@
+{
+  "name": "xbp",
+  "version": "1.0.0",
+  "description": "XBP ops CLI skills for deploy, release, OCI registry, Cloudflare Workers, and consumer-repo ship.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/xylex-group/xbp",
+  "repository": "https://github.com/xylex-group/xbp",
+  "keywords": [
+    "xbp",
+    "xbp deploy",
+    "xbp oci",
+    "registry.xbp.app"
+  ],
+  "skills": "./skills/"
+}

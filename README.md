@@ -115,17 +115,19 @@ bun run src/cli/index.ts explain path/to/file.ts
 | `e2e:raw-skills` | Alias of `process:raw-skills` |
 | `validate` | Cross-refs, frontmatter, profiler slugs, fixtures |
 | `validate:catalog` | Marketplace catalog rules (`marketplace.json` + LICENSE) |
+| `build:copilot-marketplace` | Regenerate GitHub Copilot catalogs + `plugins/*/.plugin/plugin.json` |
+| `build:copilot-marketplace:check` | Fail if Copilot catalogs/manifests are stale |
 | `build:plugin-index` | Regenerate `.grok-plugin/plugin-index.json` (never hand-edit) |
 | `build:plugin-index:check` | Fail if plugin-index is stale |
-| `ci` | Full green pipeline (includes catalog + plugin-index checks) |
+| `ci` | Full green pipeline (includes catalog + Copilot + plugin-index checks) |
 
 Environment knobs use the `XYLEX_PLUGIN_*` prefix (for example `XYLEX_PLUGIN_TELEMETRY=on` is opt-in only; telemetry is off by default).
 
-## Plugin marketplaces (Grok + Codex)
+## Plugin marketplaces (Grok + Codex + GitHub Copilot)
 
-This repo is a **plugin marketplace index** for Grok Build and ships a matching **Codex / ChatGPT**
-repo marketplace so the same first-party plugins install on both hosts. See
-[CONTRIBUTING.md](CONTRIBUTING.md) to submit a plugin.
+This repo is a **plugin marketplace index** for Grok Build and ships matching **Codex / ChatGPT**
+and **GitHub Copilot** (CLI + Copilot App) catalogs so the same first-party plugins install on
+all three hosts. See [CONTRIBUTING.md](CONTRIBUTING.md) to submit a plugin.
 
 ### Repo layout
 
@@ -134,6 +136,8 @@ repo marketplace so the same first-party plugins install on both hosts. See
 | [`.grok-plugin/marketplace.json`](.grok-plugin/marketplace.json) | Grok catalog index — source of truth for Grok |
 | [`.grok-plugin/plugin-index.json`](.grok-plugin/plugin-index.json) | Generated component catalog — **never hand-edit** |
 | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) | Codex / ChatGPT repo marketplace (same plugins) |
+| [`.github/plugin/marketplace.json`](.github/plugin/marketplace.json) | **GitHub Copilot** catalog (CLI + Copilot App) — canonical path |
+| [`.plugin/marketplace.json`](.plugin/marketplace.json) | Copilot alternate discovery path (kept identical) |
 | `plugins/` | First-party plugins owned and maintained by XYLEX Group |
 | `external_plugins/` | Third-party plugins (vendored local copies) |
 | [`LICENSE`](LICENSE) | MIT at the repository root |
@@ -192,12 +196,12 @@ pnpm run process:raw-skills
 That e2e command:
 
 1. Discovers `raw-skills/<plugin>/**/SKILL.md` (and `raw-skills/<plugin>/skills/…`)
-2. Scaffolds `plugins/<plugin>/` (`.codex-plugin`, `.grok-plugin`, README) if missing
+2. Scaffolds `plugins/<plugin>/` (`.codex-plugin`, `.grok-plugin`, `.plugin`, README) if missing
 3. Syncs each skill into `plugins/<plugin>/skills/<skill>/`
-4. Registers new plugins in both marketplaces (local source)
-5. Regenerates `.grok-plugin/plugin-index.json`
-6. Runs `validate-catalog`
-
+4. Registers new plugins in Grok, Codex, and GitHub Copilot marketplaces (local source)
+5. Regenerates Copilot catalogs (`.github/plugin` + `.plugin`) and per-plugin `.plugin/plugin.json`
+6. Regenerates `.grok-plugin/plugin-index.json`
+7. Runs `validate-catalog`
 Useful flags (pass after `--` with pnpm):
 
 ```bash
@@ -236,10 +240,16 @@ Each first-party plugin ships:
 |---|---|
 | `.codex-plugin/plugin.json` | **Required** for Codex / ChatGPT — points at `skills`, optional hooks/MCP |
 | `.grok-plugin/plugin.json` | Grok Build identity |
+| `.plugin/plugin.json` | **Required** for GitHub Copilot CLI / Copilot App |
 | `.claude-plugin/plugin.json` | Optional Claude-ecosystem identity |
 
 Codex path rules: keep `skills`, `hooks`, and assets at the plugin root; only `plugin.json` lives
 under `.codex-plugin/`. Paths in the manifest must be `./`-prefixed and stay inside the plugin root.
+
+Copilot looks for plugin manifests at `.plugin/plugin.json`, root `plugin.json`,
+`.github/plugin/plugin.json`, or `.claude-plugin/plugin.json` (in that order). Marketplace catalogs
+are resolved from `marketplace.json`, `.plugin/marketplace.json`, `.github/plugin/marketplace.json`,
+or `.claude-plugin/marketplace.json`.
 
 ### Catalog format
 
@@ -321,20 +331,44 @@ codex plugin marketplace add ./   # from a local clone
 
 Then restart ChatGPT desktop (or refresh Codex plugins) and install from the **XYLEX Group** source.
 
+### GitHub Copilot marketplace
+
+GitHub Copilot CLI and the Copilot App read
+[`.github/plugin/marketplace.json`](.github/plugin/marketplace.json) (mirrored at
+[`.plugin/marketplace.json`](.plugin/marketplace.json)). Plugin `source` values are **relative path
+strings** (e.g. `./plugins/athena`), not Grok/Codex source objects.
+
+```bash
+copilot plugin marketplace add xylex-group/skills
+# or local clone:
+copilot plugin marketplace add ./
+copilot plugin marketplace browse xylex-group
+copilot plugin install athena@xylex-group
+```
+
+If Copilot already cached a broken clone, remove and re-add the marketplace so it re-fetches the
+catalog (`copilot plugin marketplace remove xylex-group` then `add` again), or refresh with
+`copilot plugin marketplace update xylex-group`.
+
 ### Add or update a plugin
 
 1. Place first-party plugins in `plugins/` and third-party plugins in `external_plugins/` (local),
    or reference an upstream repo with a remote source.
-2. Add a `.codex-plugin/plugin.json` (Codex) and `.grok-plugin/plugin.json` (Grok) under the plugin
-   root, with `skills: "./skills/"` when the plugin bundles skills.
-3. Add or edit the entry in `.grok-plugin/marketplace.json` **and**
-   `.agents/plugins/marketplace.json` (same plugin set).
+2. Add `.codex-plugin/plugin.json` (Codex), `.grok-plugin/plugin.json` (Grok), and
+   `.plugin/plugin.json` (GitHub Copilot) under the plugin root, with `skills: "./skills/"` when
+   the plugin bundles skills.
+3. Add or edit the entry in `.grok-plugin/marketplace.json`,
+   `.agents/plugins/marketplace.json`, **and** `.github/plugin/marketplace.json` (same plugin set;
+   keep `.plugin/marketplace.json` identical to the Copilot catalog).
 4. For remote Grok sources, set `sha` to the exact commit you want to ship.
 5. Regenerate and validate:
    ```bash
+   python3 scripts/sync-copilot-marketplace.py
    python3 scripts/generate-plugin-index.py
    python3 scripts/validate-catalog.py
+   python3 scripts/sync-copilot-marketplace.py --check
    python3 scripts/generate-plugin-index.py --check
+   # or: bun run build && bun run validate:catalog
    ```
 6. Open a PR (use the PR template checklist).
 

@@ -1,0 +1,20 @@
+{
+  "name": "ui-plugins",
+  "version": "1.0.0",
+  "description": "UI design and polish skills for Grok. anti-ui-slop, UI design/radar/slop-score, transitions, design-system extraction, polish components, and agentation.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/xylex-group/skills",
+  "repository": "https://github.com/xylex-group/skills",
+  "keywords": [
+    "ui design",
+    "anti-ui-slop",
+    "transitions",
+    "design system",
+    "polish"
+  ],
+  "skills": "./skills/"
+}

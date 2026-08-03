@@ -14,7 +14,7 @@
  *   1. Discover raw plugin/skill trees
  *   2. Scaffold plugins/<name>/ if missing
  *   3. Sync skills → plugins/<name>/skills/<skill>/
- *   4. Ensure marketplace entries (Grok + Codex) for new plugins
+ *   4. Ensure marketplace entries (Grok + Codex + GitHub Copilot) for new plugins
  *   5. Regenerate .grok-plugin/plugin-index.json
  *   6. Validate catalogs
  *
@@ -45,6 +45,10 @@ const RAW_DIR = join(ROOT, "raw-skills");
 const PLUGINS_DIR = join(ROOT, "plugins");
 const GROK_MARKETPLACE = join(ROOT, ".grok-plugin", "marketplace.json");
 const CODEX_MARKETPLACE = join(ROOT, ".agents", "plugins", "marketplace.json");
+/** Canonical Copilot CLI / GitHub Copilot App marketplace path (docs). */
+const COPILOT_MARKETPLACE = join(ROOT, ".github", "plugin", "marketplace.json");
+/** Alternate discovery path checked by Copilot (same content as COPILOT_MARKETPLACE). */
+const COPILOT_MARKETPLACE_PLUGIN = join(ROOT, ".plugin", "marketplace.json");
 
 const PLUGIN_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 const SKIP_DIR_NAMES = new Set([
@@ -83,17 +87,19 @@ interface SkillSyncResult {
   skill: string;
 }
 
+type MarketplaceStatus = "added" | "exists" | "would-add" | "skipped";
+
 interface PluginResult {
   marketplace: {
-    codex: "added" | "exists" | "would-add" | "skipped";
-    grok: "added" | "exists" | "would-add" | "skipped";
+    codex: MarketplaceStatus;
+    copilot: MarketplaceStatus;
+    grok: MarketplaceStatus;
   };
   plugin: string;
   scaffold: "created" | "exists" | "would-create";
   skills: SkillSyncResult[];
   removedSkills: string[];
 }
-
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
@@ -366,11 +372,34 @@ function codexPluginJson(name: string): string {
   )}\n`;
 }
 
+/** GitHub Copilot CLI / Copilot App Open Plugin manifest (`.plugin/plugin.json`). */
+function copilotPluginJson(name: string): string {
+  const title = titleCasePlugin(name);
+  return `${JSON.stringify(
+    {
+      name,
+      version: "1.0.0",
+      description: `${title} agent skills packaged for GitHub Copilot, Grok, and Codex.`,
+      author: {
+        name: "XYLEX Group",
+        url: "https://github.com/xylex-group",
+      },
+      homepage: `https://github.com/xylex-group/${name}`,
+      repository: `https://github.com/xylex-group/${name}`,
+      license: "MIT",
+      keywords: [name],
+      skills: "./skills/",
+    },
+    null,
+    2
+  )}\n`;
+}
+
 function pluginReadme(name: string): string {
   const title = titleCasePlugin(name);
   return `# ${title} plugin
 
-Plugin packaging ${title} agent skills for Grok Build and Codex / ChatGPT.
+Plugin packaging ${title} agent skills for Grok Build, Codex / ChatGPT, and GitHub Copilot.
 
 Skills are staged under \`raw-skills/${name}/\` and processed with
 \`pnpm run process:raw-skills\`.
@@ -381,12 +410,14 @@ Skills are staged under \`raw-skills/${name}/\` and processed with
 | --- | --- |
 | \`.codex-plugin/plugin.json\` | Codex / ChatGPT plugin manifest (\`skills: ./skills/\`) |
 | \`.grok-plugin/plugin.json\` | Grok Build plugin identity |
+| \`.plugin/plugin.json\` | GitHub Copilot CLI / Copilot App plugin identity |
 | \`skills/\` | Bundled skills |
 
 ## Install
 
 - **Grok:** XYLEX Group marketplace (\`xylex-group/skills\`) as plugin \`${name}\`
 - **Codex / ChatGPT:** repo marketplace \`.agents/plugins/marketplace.json\` entry \`${name}\` → \`./plugins/${name}\`
+- **GitHub Copilot:** \`copilot plugin marketplace add xylex-group/skills\` then install \`${name}@xylex-group\`
 
 ## License
 
@@ -402,10 +433,17 @@ function ensurePluginScaffold(
   const needsCreate = !existsSync(pluginRoot);
 
   if (!needsCreate) {
-    // Ensure skills/ exists even on existing plugins
+    // Ensure skills/ and Copilot manifest exist even on existing plugins
     const skillsDir = join(pluginRoot, "skills");
-    if (!existsSync(skillsDir) && !opts.dryRun && !opts.check) {
-      mkdirSync(skillsDir, { recursive: true });
+    const copilotManifest = join(pluginRoot, ".plugin", "plugin.json");
+    if (!opts.dryRun && !opts.check) {
+      if (!existsSync(skillsDir)) {
+        mkdirSync(skillsDir, { recursive: true });
+      }
+      if (!existsSync(copilotManifest)) {
+        mkdirSync(join(pluginRoot, ".plugin"), { recursive: true });
+        writeFileSync(copilotManifest, copilotPluginJson(pluginName));
+      }
     }
     return "exists";
   }
@@ -417,8 +455,10 @@ function ensurePluginScaffold(
   mkdirSync(join(pluginRoot, "skills"), { recursive: true });
   mkdirSync(join(pluginRoot, ".grok-plugin"), { recursive: true });
   mkdirSync(join(pluginRoot, ".codex-plugin"), { recursive: true });
+  mkdirSync(join(pluginRoot, ".plugin"), { recursive: true });
   writeFileSync(join(pluginRoot, ".grok-plugin", "plugin.json"), grokPluginJson(pluginName));
   writeFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), codexPluginJson(pluginName));
+  writeFileSync(join(pluginRoot, ".plugin", "plugin.json"), copilotPluginJson(pluginName));
   writeFileSync(join(pluginRoot, "README.md"), pluginReadme(pluginName));
   return "created";
 }
@@ -579,6 +619,88 @@ function ensureCodexMarketplaceEntry(
   return "added";
 }
 
+function ensureCopilotMarketplaceEntry(
+  pluginName: string,
+  opts: CliOptions
+): PluginResult["marketplace"]["copilot"] {
+  // Prefer canonical path; create both if neither exists yet.
+  const primaryExists = existsSync(COPILOT_MARKETPLACE);
+  const altExists = existsSync(COPILOT_MARKETPLACE_PLUGIN);
+  if (!primaryExists && !altExists) {
+    if (opts.dryRun || opts.check) {
+      return "would-add";
+    }
+    const seed = {
+      name: "xylex-group",
+      owner: {
+        name: "XYLEX Group",
+        url: "https://github.com/xylex-group",
+      },
+      metadata: {
+        description:
+          "Official XYLEX Group plugin marketplace for GitHub Copilot, Grok, and Codex",
+        version: "1.0.0",
+        pluginRoot: "plugins",
+      },
+      plugins: [] as unknown[],
+    };
+    mkdirSync(join(ROOT, ".github", "plugin"), { recursive: true });
+    mkdirSync(join(ROOT, ".plugin"), { recursive: true });
+    writeJson(COPILOT_MARKETPLACE, seed);
+    writeJson(COPILOT_MARKETPLACE_PLUGIN, seed);
+  }
+
+  const catalogPath = existsSync(COPILOT_MARKETPLACE)
+    ? COPILOT_MARKETPLACE
+    : COPILOT_MARKETPLACE_PLUGIN;
+  const data = loadJson(catalogPath);
+  const plugins = Array.isArray(data.plugins) ? data.plugins : [];
+  const exists = plugins.some(
+    (p) =>
+      typeof p === "object" &&
+      p !== null &&
+      "name" in p &&
+      (p as { name: string }).name === pluginName
+  );
+  if (exists) {
+    // Keep mirror in sync if only one side has the catalog.
+    if (
+      !opts.dryRun &&
+      !opts.check &&
+      existsSync(COPILOT_MARKETPLACE) &&
+      existsSync(COPILOT_MARKETPLACE_PLUGIN)
+    ) {
+      // no-op when both present and entry exists
+    }
+    return "exists";
+  }
+
+  if (opts.dryRun || opts.check) {
+    return "would-add";
+  }
+
+  const title = titleCasePlugin(pluginName);
+  plugins.push({
+    name: pluginName,
+    description: `${title} agent skills for GitHub Copilot (staged via raw-skills/${pluginName}).`,
+    version: "1.0.0",
+    source: `./plugins/${pluginName}`,
+    license: "MIT",
+    author: {
+      name: "XYLEX Group",
+      url: "https://github.com/xylex-group",
+    },
+    homepage: `https://github.com/xylex-group/${pluginName}`,
+    keywords: [pluginName],
+    category: "development",
+    repository: "https://github.com/xylex-group/skills",
+  });
+  data.plugins = plugins;
+  writeJson(COPILOT_MARKETPLACE, data);
+  writeJson(COPILOT_MARKETPLACE_PLUGIN, data);
+  return "added";
+}
+
 // ---------------------------------------------------------------------------
 // Downstream pipeline
 // ---------------------------------------------------------------------------
@@ -641,11 +763,13 @@ function processBatch(batch: PluginBatch, opts: CliOptions): PluginResult {
   let marketplace: PluginResult["marketplace"] = {
     grok: "skipped",
     codex: "skipped",
+    copilot: "skipped",
   };
   if (!opts.syncOnly) {
     marketplace = {
       grok: ensureGrokMarketplaceEntry(batch.pluginName, opts),
       codex: ensureCodexMarketplaceEntry(batch.pluginName, opts),
+      copilot: ensureCopilotMarketplaceEntry(batch.pluginName, opts),
     };
   }
 
@@ -689,12 +813,16 @@ function printResults(results: PluginResult[], opts: CliOptions) {
       }
     }
     if (!opts.syncOnly) {
-      console.log(`  marketplace  grok=${r.marketplace.grok}  codex=${r.marketplace.codex}`);
+      console.log(
+        `  marketplace  grok=${r.marketplace.grok}  codex=${r.marketplace.codex}  copilot=${r.marketplace.copilot}`
+      );
       if (
         r.marketplace.grok === "would-add" ||
         r.marketplace.grok === "added" ||
         r.marketplace.codex === "would-add" ||
-        r.marketplace.codex === "added"
+        r.marketplace.codex === "added" ||
+        r.marketplace.copilot === "would-add" ||
+        r.marketplace.copilot === "added"
       ) {
         drift++;
       }
@@ -771,7 +899,12 @@ function main() {
     process.exit(0);
   }
 
-  // Full e2e: regenerate plugin index + validate catalogs
+  // Full e2e: regenerate Copilot catalogs, plugin index, validate all catalogs
+  const copilotCode = runPythonScript("scripts/sync-copilot-marketplace.py");
+  if (copilotCode !== 0) {
+    process.exit(copilotCode);
+  }
+
   const indexCode = runPythonScript("scripts/generate-plugin-index.py");
   if (indexCode !== 0) {
     process.exit(indexCode);
@@ -782,7 +915,9 @@ function main() {
     process.exit(validateCode);
   }
 
-  console.log("\nprocess-raw-skills complete (sync + plugin-index + catalog validate).");
+  console.log(
+    "\nprocess-raw-skills complete (sync + copilot marketplace + plugin-index + catalog validate)."
+  );
   process.exit(0);
 }
 

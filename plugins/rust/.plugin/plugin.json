@@ -1,0 +1,20 @@
+{
+  "name": "rust",
+  "version": "1.0.0",
+  "description": "Rust engineering skills for Grok. Best practices, workspace crates, crate setup, contract spine, path-rs, and gov-uk-rs-sdk.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://www.rust-lang.org",
+  "repository": "https://github.com/xylex-group/skills",
+  "keywords": [
+    "rust",
+    "cargo",
+    "path-rs",
+    "workspace crates",
+    "gov-uk-rs-sdk"
+  ],
+  "skills": "./skills/"
+}

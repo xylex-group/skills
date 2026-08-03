@@ -28,38 +28,46 @@ For the catalog schema, source types, and SHA pinning mechanics, read the [READM
 3. **Mirror the plugin in the Codex marketplace** at `.agents/plugins/marketplace.json` when the
    plugin should install on ChatGPT / Codex (same `name`, local `source.path`, plus required
    `policy.installation`, `policy.authentication`, and `category`).
-4. **Ship a Codex manifest** on first-party / vendored plugins: `.codex-plugin/plugin.json` with
-   stable kebab-case `name`, `version`, `description`, and `skills: "./skills/"` when skills are
-   bundled. Keep only `plugin.json` under `.codex-plugin/`; skills live at `skills/` on the plugin
-   root. Also keep `.grok-plugin/plugin.json` for Grok.
-5. **Pin the SHA** (remote only) — get it with:
+4. **Mirror the plugin in the GitHub Copilot marketplace** at `.github/plugin/marketplace.json`
+   (and keep `.plugin/marketplace.json` identical). Use a string `source` path
+   (`"./plugins/<name>"`) plus `description` / `version`. This is what the Copilot CLI and Copilot
+   App resolve when listing the marketplace.
+5. **Ship host manifests** on first-party / vendored plugins:
+   - `.codex-plugin/plugin.json` — Codex / ChatGPT (`skills: "./skills/"` when skills are bundled)
+   - `.grok-plugin/plugin.json` — Grok Build
+   - `.plugin/plugin.json` — GitHub Copilot (same identity fields; Copilot does **not** read
+     `.codex-plugin/` or `.grok-plugin/`)
+   Keep only `plugin.json` under each manifest dir; skills live at `skills/` on the plugin root.
+6. **Pin the SHA** (remote only) — get it with:
    ```bash
    git ls-remote https://github.com/<your-org>/<your-repo>.git HEAD
    ```
-6. **Regenerate the component index** (never hand-edit it):
+7. **Regenerate the component index** (never hand-edit it):
    ```bash
    python3 scripts/generate-plugin-index.py
    # or: bun run build:plugin-index
    ```
-7. **Validate locally** — this is exactly what CI runs:
+8. **Validate locally** — this is exactly what CI runs:
    ```bash
    python3 scripts/validate-catalog.py
    python3 scripts/generate-plugin-index.py --check
    # or: bun run validate:catalog && bun run build:plugin-index:check
    ```
-8. **Open the PR.** Fill in the template, then wait for CI + code-owner review.
+9. **Open the PR.** Fill in the template, then wait for CI + code-owner review.
 
 ## Requirements checklist
 
 - [ ] One entry added to `.grok-plugin/marketplace.json`, valid JSON, `name` in kebab-case and unique.
 - [ ] Matching Codex entry in `.agents/plugins/marketplace.json` when the plugin targets Codex / ChatGPT.
+- [ ] Matching GitHub Copilot entry in `.github/plugin/marketplace.json` (and mirrored
+      `.plugin/marketplace.json`) when the plugin targets Copilot CLI / Copilot App.
 - [ ] Remote sources pin a full 40-char lowercase commit `sha`; the commit is public and reachable.
 - [ ] `.grok-plugin/plugin-index.json` regenerated and committed (CI fails if stale).
 - [ ] A `homepage` and a clear `description`; brand-scoped `keywords`/`domains` (not generic terms — they power the plugin CTA) and a `category` where it helps discovery.
-- [ ] Local plugins include a `README.md`, a valid `.grok-plugin/plugin.json`, and a valid
-      `.codex-plugin/plugin.json` (`skills: "./skills/"` when skills are bundled).
-      `.claude-plugin/plugin.json` is also accepted for Claude-ecosystem plugins.
-- [ ] The plugin is licensed and the license is stated.
+- [ ] Local plugins include a `README.md`, a valid `.grok-plugin/plugin.json`, a valid
+      `.codex-plugin/plugin.json`, and a valid `.plugin/plugin.json` for Copilot
+      (`skills: "./skills/"` when skills are bundled).
+      `.claude-plugin/plugin.json` is also accepted for Claude-ecosystem plugins.- [ ] The plugin is licensed and the license is stated.
 - [ ] You've read [Security expectations](#security-expectations) and your plugin complies.
 
 ## Tips for a clean submission

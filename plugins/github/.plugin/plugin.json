@@ -1,0 +1,16 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "description": "Github agent skills packaged for Grok Build and Codex / ChatGPT.",
+  "author": {
+    "name": "XYLEX Group",
+    "url": "https://github.com/xylex-group"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/xylex-group/github",
+  "repository": "https://github.com/xylex-group/github",
+  "keywords": [
+    "github"
+  ],
+  "skills": "./skills/"
+}
