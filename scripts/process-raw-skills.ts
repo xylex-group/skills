@@ -899,7 +899,7 @@ function main() {
     process.exit(0);
   }
 
-  // Full e2e: regenerate Copilot catalogs, plugin index, validate all catalogs
+  // Full e2e: regenerate Copilot catalogs, plugin index, validate, refresh local CLI
   const copilotCode = runPythonScript("scripts/sync-copilot-marketplace.py");
   if (copilotCode !== 0) {
     process.exit(copilotCode);
@@ -915,8 +915,14 @@ function main() {
     process.exit(validateCode);
   }
 
+  // Best-effort: register + refresh local GitHub Copilot CLI marketplace cache
+  const refreshCode = runPythonScript("scripts/refresh-copilot-cli.py");
+  if (refreshCode !== 0) {
+    process.exit(refreshCode);
+  }
+
   console.log(
-    "\nprocess-raw-skills complete (sync + copilot marketplace + plugin-index + catalog validate)."
+    "\nprocess-raw-skills complete (sync + copilot marketplace + plugin-index + catalog validate + CLI refresh)."
   );
   process.exit(0);
 }

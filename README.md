@@ -115,9 +115,9 @@ bun run src/cli/index.ts explain path/to/file.ts
 | `e2e:raw-skills` | Alias of `process:raw-skills` |
 | `validate` | Cross-refs, frontmatter, profiler slugs, fixtures |
 | `validate:catalog` | Marketplace catalog rules (`marketplace.json` + LICENSE) |
-| `build:copilot-marketplace` | Regenerate GitHub Copilot catalogs + `plugins/*/.plugin/plugin.json` |
+| `build:copilot-marketplace` | Regenerate GitHub Copilot catalogs + `plugins/*/.plugin/plugin.json`, then refresh local `copilot` CLI |
 | `build:copilot-marketplace:check` | Fail if Copilot catalogs/manifests are stale |
-| `build:plugin-index` | Regenerate `.grok-plugin/plugin-index.json` (never hand-edit) |
+| `refresh:copilot` | Register/update `xylex-group` in local Copilot CLI (no-op if CLI missing) || `build:plugin-index` | Regenerate `.grok-plugin/plugin-index.json` (never hand-edit) |
 | `build:plugin-index:check` | Fail if plugin-index is stale |
 | `ci` | Full green pipeline (includes catalog + Copilot + plugin-index checks) |
 

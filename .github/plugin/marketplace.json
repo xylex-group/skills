@@ -53,7 +53,7 @@
     },
     {
       "name": "xylex-group-plugin",
-      "description": "XYLEX Group agent skills meta-plugin â€” ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
+      "description": "XYLEX Group agent skills meta-plugin — ecosystem graph, path/bash skill injection hooks, and skill authoring (create-xylex-skill).",
       "version": "0.1.0",
       "source": "./",
       "license": "MIT",
@@ -72,7 +72,7 @@
     },
     {
       "name": "heroui",
-      "description": "HeroUI v3 integration. React and Native components, theming (oklch), styling, composition, dark mode, frameworks (Next.js / Vite), CLI, animations, design principles, and v2â†’v3 migration guidance for Grok.",
+      "description": "HeroUI v3 integration. React and Native components, theming (oklch), styling, composition, dark mode, frameworks (Next.js / Vite), CLI, animations, design principles, and v2→v3 migration guidance for Grok.",
       "version": "1.0.0",
       "source": "./plugins/heroui",
       "license": "MIT",
