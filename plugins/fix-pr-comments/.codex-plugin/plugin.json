@@ -1,7 +1,7 @@
-{
+﻿{
     "name":  "fix-pr-comments",
     "version":  "1.0.0",
-    "description":  "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
+    "description":  "PR review + GitHub issue fix workflows for Grok. fix-pr-comments XBP pipelines, fix-issues-xbp-v3, regression tests for review comments, and gh-address-comments.",
     "author":  {
                    "name":  "XYLEX Group",
                    "url":  "https://github.com/xylex-group"
@@ -19,7 +19,7 @@
     "interface":  {
                       "displayName":  "Fix PR Comments",
                       "shortDescription":  "Fix PR Comments agent skills",
-                      "longDescription":  "PR review fix workflows for Grok. fix-pr-comments XBP pipelines, regression tests for review comments, and gh-address-comments.",
+                      "longDescription":  "PR review + GitHub issue fix workflows for Grok. fix-pr-comments XBP pipelines, fix-issues-xbp-v3, regression tests for review comments, and gh-address-comments.",
                       "developerName":  "XYLEX Group",
                       "category":  "Developer Tools",
                       "capabilities":  [
